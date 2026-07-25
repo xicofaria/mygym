@@ -37,6 +37,10 @@ npm run dev            # dev server (http://localhost:3000)
 npm run build          # production build (also runs full tsc typecheck)
 npm run start          # serve the production build
 npm run lint           # ESLint
+npm run typecheck      # TypeScript without emitting files
+npm test               # node:test unit suite through tsx
+npm run test:e2e       # Playwright browser flow
+npm run check          # lint + typecheck + unit tests + production build
 npx tsc --noEmit       # typecheck only
 
 npm run db:push        # apply src/db/schema.ts to the DB (dev workflow)
@@ -47,7 +51,9 @@ npm run db:reset       # wipe dev.db, re-push schema, re-seed
 npm run db:studio      # browse the DB
 ```
 
-There is **no test runner configured** — `build` + `tsc` are the correctness gate.
+GitHub Actions run lint, typechecking, unit tests, a production build, a
+Playwright workout flow, CodeQL, dependency review, Gitleaks, and npm audit.
+See `docs/DEVSECOPS.md`.
 
 ## Architecture
 
@@ -68,6 +74,8 @@ in plain JS, not SQL). Writes are **server actions colocated in each feature's
 `revalidatePath(...)`, then `redirect(...)`. Client components call actions
 directly with **typed objects** for structured data (e.g. `createWorkout({ date,
 entries })`); only `login` uses `FormData` + `useActionState`.
+Multi-step writes must use a database transaction. Update and delete actions
+must re-read ownership from the signed-in user instead of trusting client data.
 
 **Two-user model.** `getPageContext(searchParams)` (in `queries.ts`) resolves who
 is being viewed from `?user=<id>` (default = signed-in user) and returns

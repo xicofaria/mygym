@@ -1,12 +1,13 @@
 "use server";
 
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { sets, workouts } from "@/db/schema";
+import { exercises, sets, workouts } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { buildWorkoutSetRows } from "@/lib/workout";
 
 const entrySchema = z.object({
   exerciseId: z.number().int().positive(),
@@ -22,6 +23,23 @@ const newWorkoutSchema = z.object({
 
 export type NewWorkoutInput = z.infer<typeof newWorkoutSchema>;
 
+async function validateExercises(entries: NewWorkoutInput["entries"]) {
+  const requestedIds = [...new Set(entries.map((entry) => entry.exerciseId))];
+  const available = await db
+    .select({ id: exercises.id })
+    .from(exercises)
+    .where(inArray(exercises.id, requestedIds))
+    .all();
+
+  return available.length === requestedIds.length;
+}
+
+function revalidateWorkoutPages() {
+  revalidatePath("/dashboard");
+  revalidatePath("/workouts");
+  revalidatePath("/exercises");
+}
+
 export async function createWorkout(input: NewWorkoutInput) {
   const user = await requireUser();
   const parsed = newWorkoutSchema.safeParse(input);
@@ -30,30 +48,60 @@ export async function createWorkout(input: NewWorkoutInput) {
   }
   const { date, notes, entries } = parsed.data;
 
-  const workout = await db
-    .insert(workouts)
-    .values({ userId: user.id, date: new Date(date), notes: notes || null })
-    .returning({ id: workouts.id })
-    .get();
+  if (!(await validateExercises(entries))) {
+    return { error: "Um dos exercícios selecionados já não está disponível." };
+  }
 
-  // Number sets sequentially per exercise, in submission order.
-  const counters = new Map<number, number>();
-  const rows = entries.map((e) => {
-    const n = (counters.get(e.exerciseId) ?? 0) + 1;
-    counters.set(e.exerciseId, n);
-    return {
-      workoutId: workout.id,
-      exerciseId: e.exerciseId,
-      setNumber: n,
-      reps: e.reps,
-      weight: e.weight,
-    };
+  await db.transaction(async (tx) => {
+    const workout = await tx
+      .insert(workouts)
+      .values({ userId: user.id, date: new Date(date), notes: notes || null })
+      .returning({ id: workouts.id })
+      .get();
+
+    await tx
+      .insert(sets)
+      .values(buildWorkoutSetRows(workout.id, entries));
   });
-  await db.insert(sets).values(rows);
 
-  revalidatePath("/dashboard");
-  revalidatePath("/workouts");
-  revalidatePath("/exercises");
+  revalidateWorkoutPages();
+  redirect("/workouts");
+}
+
+export async function updateWorkout(id: number, input: NewWorkoutInput) {
+  const user = await requireUser();
+  const parsedId = z.number().int().positive().safeParse(id);
+  const parsed = newWorkoutSchema.safeParse(input);
+  if (!parsedId.success || !parsed.success) {
+    return { error: "Verifica as séries e tenta novamente." };
+  }
+
+  const ownedWorkout = await db
+    .select({ id: workouts.id })
+    .from(workouts)
+    .where(and(eq(workouts.id, parsedId.data), eq(workouts.userId, user.id)))
+    .get();
+  if (!ownedWorkout) {
+    return { error: "Treino não encontrado." };
+  }
+
+  const { date, notes, entries } = parsed.data;
+  if (!(await validateExercises(entries))) {
+    return { error: "Um dos exercícios selecionados já não está disponível." };
+  }
+
+  await db.transaction(async (tx) => {
+    await tx
+      .update(workouts)
+      .set({ date: new Date(date), notes: notes || null })
+      .where(eq(workouts.id, ownedWorkout.id));
+    await tx.delete(sets).where(eq(sets.workoutId, ownedWorkout.id));
+    await tx
+      .insert(sets)
+      .values(buildWorkoutSetRows(ownedWorkout.id, entries));
+  });
+
+  revalidateWorkoutPages();
   redirect("/workouts");
 }
 
@@ -62,7 +110,5 @@ export async function deleteWorkout(id: number) {
   await db
     .delete(workouts)
     .where(and(eq(workouts.id, id), eq(workouts.userId, user.id)));
-  revalidatePath("/dashboard");
-  revalidatePath("/workouts");
-  revalidatePath("/exercises");
+  revalidateWorkoutPages();
 }

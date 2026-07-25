@@ -11,6 +11,8 @@ UI is in **European Portuguese (pt-PT)**. Weights and measurements are
 ## Features
 
 - **Workout logging** — pick an exercise, log sets × reps × weight, add notes
+- **Fast repeat and editing** — repeat the previous session with its values,
+  duplicate individual sets, see the last performance, and correct saved workouts
 - **Reusable workout templates** — save a routine (e.g. "Treino de Pernas")
   and start a new session from it instead of picking exercises from scratch
 - **Exercise progression** — per-exercise history with top weight, estimated
@@ -59,6 +61,10 @@ Log in with the credentials you set in `.env.local` (`SEED_USER1_*` /
 | `npm run build`                       | Production build (also typechecks)               |
 | `npm run start`                       | Serve the production build                       |
 | `npm run lint`                        | ESLint                                           |
+| `npm run typecheck`                   | TypeScript validation                            |
+| `npm test`                            | Unit tests                                       |
+| `npm run test:e2e`                    | Playwright browser workflow                      |
+| `npm run check`                       | Lint + types + unit tests + production build     |
 | `npm run db:push`                     | Apply `src/db/schema.ts` to the database (dev)   |
 | `npm run db:generate` / `db:migrate`  | Generate + run SQL migrations (prod workflow)    |
 | `npm run db:seed`                     | Upsert the two users + starter exercise catalog  |
@@ -86,19 +92,17 @@ A plain SQLite file doesn't persist on serverless hosts, so production uses
 
 Ideas for where to take this next, roughly in order of usefulness:
 
-- [ ] **Change the default seed credentials** before relying on this for real
-      — `you@example.com` / `changeme123` should not survive contact with a
-      public deployment.
-- [ ] **Deploy to Vercel + Turso** (see above) so both of you can log workouts
-      from your phones anywhere, not just on localhost.
+- [x] **Replace the default credentials and deploy with Vercel + Turso.**
+- [x] **Fast workout logging** — repeat the previous workout, show the latest
+      exercise performance, duplicate sets, and edit saved sessions.
+- [x] **Automated quality and security gates** — CI, Playwright, CodeQL,
+      dependency review, secret scanning, npm audit, and Dependabot.
 - [ ] **Training-day calendar / heatmap** — a GitHub-contributions-style grid
       on the dashboard showing which days you trained, for an at-a-glance view
       of consistency.
 - [ ] **Offline support** — the app is installable (PWA manifest is in place),
       but there's no service worker yet, so it needs a network connection.
       Worth adding if you want to log a workout at a gym with poor signal.
-- [ ] **Automated tests** — currently `npm run build` + `tsc` are the only
-      correctness gate; no test runner is configured.
 - [ ] **Password reset / account settings page** — right now, changing an
       email or password means editing `.env.local` and re-running
       `npm run db:seed`.
@@ -110,4 +114,6 @@ Ideas for where to take this next, roughly in order of usefulness:
 This is a personal project for private use by two people, not a general-audience
 product — there's no sign-up flow, and accounts are provisioned by editing
 `.env.local` and running `npm run db:seed`. See `CLAUDE.md` for architecture
-notes if you're extending it with an AI coding assistant.
+notes if you're extending it with an AI coding assistant. See
+[`docs/DEVSECOPS.md`](docs/DEVSECOPS.md), [`SECURITY.md`](SECURITY.md), and
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for delivery and security guidance.

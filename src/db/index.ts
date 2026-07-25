@@ -1,6 +1,7 @@
 import { drizzle } from "drizzle-orm/libsql";
 import { createClient } from "@libsql/client";
 import * as schema from "./schema";
+import { getDatabaseConfig } from "@/lib/env";
 
 /**
  * Single libSQL/SQLite connection shared across the app.
@@ -10,8 +11,7 @@ import * as schema from "./schema";
  *
  * The same @libsql/client driver handles both, so no code changes between envs.
  */
-const url = process.env.DATABASE_URL ?? "file:./dev.db";
-const authToken = process.env.DATABASE_AUTH_TOKEN;
+const { url, authToken } = getDatabaseConfig();
 
 const client = createClient(authToken ? { url, authToken } : { url });
 

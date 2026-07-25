@@ -12,6 +12,7 @@ import {
 import { requireUser } from "./auth";
 import { epley1RM, round } from "./format";
 import { resolveViewedUserId } from "./viewer";
+import { chooseTopSet } from "./workout";
 
 /** All users, for the "whose data am I viewing" switcher. */
 export async function getAllUsers() {
@@ -101,6 +102,122 @@ export async function getWorkouts(
     }
     return { id: w.id, date: w.date, notes: w.notes, groups };
   });
+}
+
+export type WorkoutFormData = {
+  id: number;
+  date: string;
+  notes: string;
+  entries: { exerciseId: number; reps: number; weight: number }[];
+};
+
+async function workoutToFormData(
+  row:
+    | (typeof workouts.$inferSelect & {
+        sets: (typeof sets.$inferSelect)[];
+      })
+    | undefined,
+): Promise<WorkoutFormData | null> {
+  if (!row) return null;
+  return {
+    id: row.id,
+    date: row.date.toISOString().slice(0, 10),
+    notes: row.notes ?? "",
+    entries: row.sets.map((set) => ({
+      exerciseId: set.exerciseId,
+      reps: set.reps,
+      weight: set.weight,
+    })),
+  };
+}
+
+/** A single workout, strictly scoped to its owner, prepared for editing. */
+export async function getWorkoutForEdit(
+  id: number,
+  userId: number,
+): Promise<WorkoutFormData | null> {
+  const row = await db.query.workouts.findFirst({
+    where: and(eq(workouts.id, id), eq(workouts.userId, userId)),
+    with: {
+      sets: { orderBy: (set, { asc }) => [asc(set.id)] },
+    },
+  });
+  return workoutToFormData(row);
+}
+
+/** The latest workout for quickly starting a new session with the same sets. */
+export async function getLatestWorkoutForRepeat(
+  userId: number,
+): Promise<WorkoutFormData | null> {
+  const row = await db.query.workouts.findFirst({
+    where: eq(workouts.userId, userId),
+    orderBy: [desc(workouts.date), desc(workouts.id)],
+    with: {
+      sets: { orderBy: (set, { asc }) => [asc(set.id)] },
+    },
+  });
+  return workoutToFormData(row);
+}
+
+export type LastPerformance = Record<
+  number,
+  { workoutId: number; date: string; summary: string }
+>;
+
+/** Most recent complete set summary for every exercise performed by a user. */
+export async function getLastPerformanceByExercise(
+  userId: number,
+): Promise<LastPerformance> {
+  const rows = await db
+    .select({
+      workoutId: workouts.id,
+      exerciseId: sets.exerciseId,
+      date: workouts.date,
+      setNumber: sets.setNumber,
+      reps: sets.reps,
+      weight: sets.weight,
+    })
+    .from(sets)
+    .innerJoin(workouts, eq(sets.workoutId, workouts.id))
+    .where(eq(workouts.userId, userId))
+    .orderBy(desc(workouts.date), desc(workouts.id), asc(sets.setNumber))
+    .all();
+
+  const latestWorkoutByExercise = new Map<number, number>();
+  const grouped = new Map<
+    number,
+    { workoutId: number; date: Date; sets: { reps: number; weight: number }[] }
+  >();
+
+  for (const row of rows) {
+    const latestWorkoutId = latestWorkoutByExercise.get(row.exerciseId);
+    if (latestWorkoutId != null && latestWorkoutId !== row.workoutId) continue;
+    latestWorkoutByExercise.set(row.exerciseId, row.workoutId);
+
+    const current = grouped.get(row.exerciseId);
+    if (current) {
+      current.sets.push({ reps: row.reps, weight: row.weight });
+    } else {
+      grouped.set(row.exerciseId, {
+        workoutId: row.workoutId,
+        date: row.date,
+        sets: [{ reps: row.reps, weight: row.weight }],
+      });
+    }
+  }
+
+  return Object.fromEntries(
+    [...grouped.entries()].map(([exerciseId, value]) => [
+      exerciseId,
+      {
+        workoutId: value.workoutId,
+        date: value.date.toISOString().slice(0, 10),
+        summary: value.sets
+          .map((set) => `${round(set.weight)}kg × ${set.reps}`)
+          .join(" · "),
+      },
+    ]),
+  );
 }
 
 export type ExerciseStat = {
@@ -226,10 +343,12 @@ export async function getExerciseProgression(
     } else {
       cur.volume += r.weight * r.reps;
       cur.best1RM = Math.max(cur.best1RM, oneRm);
-      if (r.weight > cur.maxWeight) {
-        cur.maxWeight = r.weight;
-        cur.topReps = r.reps;
-      }
+      const top = chooseTopSet(
+        { weight: cur.maxWeight, reps: cur.topReps },
+        { weight: r.weight, reps: r.reps },
+      );
+      cur.maxWeight = top.weight;
+      cur.topReps = top.reps;
     }
   }
 

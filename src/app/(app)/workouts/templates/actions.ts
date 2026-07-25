@@ -1,11 +1,15 @@
 "use server";
 
 import { z } from "zod";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
-import { workoutTemplateExercises, workoutTemplates } from "@/db/schema";
+import {
+  exercises,
+  workoutTemplateExercises,
+  workoutTemplates,
+} from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 
 const schema = z.object({
@@ -23,19 +27,31 @@ export async function createTemplate(input: NewTemplateInput) {
   }
   const { name, exerciseIds } = parsed.data;
 
-  const template = await db
-    .insert(workoutTemplates)
-    .values({ userId: user.id, name })
-    .returning({ id: workoutTemplates.id })
-    .get();
+  const requestedIds = [...new Set(exerciseIds)];
+  const available = await db
+    .select({ id: exercises.id })
+    .from(exercises)
+    .where(inArray(exercises.id, requestedIds))
+    .all();
+  if (available.length !== requestedIds.length) {
+    return { error: "Um dos exercícios selecionados já não está disponível." };
+  }
 
-  await db.insert(workoutTemplateExercises).values(
-    exerciseIds.map((exerciseId, position) => ({
-      templateId: template.id,
-      exerciseId,
-      position,
-    })),
-  );
+  await db.transaction(async (tx) => {
+    const template = await tx
+      .insert(workoutTemplates)
+      .values({ userId: user.id, name })
+      .returning({ id: workoutTemplates.id })
+      .get();
+
+    await tx.insert(workoutTemplateExercises).values(
+      exerciseIds.map((exerciseId, position) => ({
+        templateId: template.id,
+        exerciseId,
+        position,
+      })),
+    );
+  });
 
   revalidatePath("/workouts/templates");
   revalidatePath("/workouts/new");
