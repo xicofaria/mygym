@@ -199,8 +199,12 @@ export function WorkoutForm({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">Repetições</label>
+                <label className="label" htmlFor={`reps-${i}`}>
+                  Repetições
+                </label>
                 <input
+                  id={`reps-${i}`}
+                  aria-label={`Repetições da série ${i + 1}`}
                   type="number"
                   inputMode="numeric"
                   min={1}
@@ -211,8 +215,12 @@ export function WorkoutForm({
                 />
               </div>
               <div>
-                <label className="label">Peso (kg)</label>
+                <label className="label" htmlFor={`weight-${i}`}>
+                  Peso (kg)
+                </label>
                 <input
+                  id={`weight-${i}`}
+                  aria-label={`Peso (kg) da série ${i + 1}`}
                   type="number"
                   inputMode="decimal"
                   min={0}

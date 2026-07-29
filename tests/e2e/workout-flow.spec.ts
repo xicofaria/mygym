@@ -8,20 +8,20 @@ test("login, create, edit and repeat a workout", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "O teu progresso" })).toBeVisible();
 
   await page.goto("/workouts/new");
-  await page.getByLabel("Repetições").fill("10");
-  await page.getByLabel("Peso (kg)").fill("20");
+  await page.getByLabel("Repetições da série 1").fill("10");
+  await page.getByLabel("Peso (kg) da série 1").fill("20");
   await page.getByRole("button", { name: "Guardar treino" }).click();
 
   await expect(page).toHaveURL(/\/workouts$/);
   await expect(page.getByText("10×20kg")).toBeVisible();
 
   await page.getByRole("link", { name: "Editar" }).first().click();
-  await page.getByLabel("Repetições").fill("12");
+  await page.getByLabel("Repetições da série 1").fill("12");
   await page.getByRole("button", { name: "Guardar alterações" }).click();
   await expect(page.getByText("12×20kg")).toBeVisible();
 
   await page.getByRole("link", { name: "Repetir último" }).click();
-  await expect(page.getByLabel("Repetições")).toHaveValue("12");
-  await expect(page.getByLabel("Peso (kg)")).toHaveValue("20");
+  await expect(page.getByLabel("Repetições da série 1")).toHaveValue("12");
+  await expect(page.getByLabel("Peso (kg) da série 1")).toHaveValue("20");
   await expect(page.getByText(/Última: 20kg × 12/)).toBeVisible();
 });
