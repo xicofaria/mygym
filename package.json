@@ -16,7 +16,8 @@
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "db:seed": "node --import tsx scripts/seed.ts",
-    "db:reset": "rm -f dev.db dev.db-shm dev.db-wal && drizzle-kit push && node --import tsx scripts/seed.ts"
+    "db:reset": "rm -f dev.db dev.db-shm dev.db-wal && drizzle-kit push && node --import tsx scripts/seed.ts",
+    "backup:verify": "bash scripts/verify-backup.sh"
   },
   "dependencies": {
     "@libsql/client": "^0.17.4",

@@ -28,6 +28,7 @@ export function proxy(request: NextRequest) {
     "img-src 'self' blob: data:",
     "font-src 'self'",
     `connect-src 'self'${isDev ? " ws:" : ""}`,
+    "worker-src 'self'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
@@ -43,6 +44,9 @@ export function proxy(request: NextRequest) {
 
   const response = NextResponse.next({ request: { headers: requestHeaders } });
   response.headers.set("Content-Security-Policy", csp);
+  if (request.nextUrl.pathname === "/sw.js") {
+    response.headers.set("Cache-Control", "no-cache, no-store, must-revalidate");
+  }
   return response;
 }
 
