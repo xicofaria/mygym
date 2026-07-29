@@ -1,25 +1,42 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createWorkout } from "@/app/(app)/workouts/actions";
+import {
+  createWorkout,
+  updateWorkout,
+} from "@/app/(app)/workouts/actions";
 import { toDateInputValue } from "@/lib/format";
+import type { LastPerformance } from "@/lib/queries";
 
 type Ex = { id: number; name: string };
 type Row = { exerciseId: number; reps: string; weight: string };
+type InitialRow = { exerciseId: number; reps?: number; weight?: number };
 
 export function WorkoutForm({
   exercises,
   initialRows,
+  initialDate,
+  initialNotes,
+  lastPerformance = {},
+  workoutId,
 }: {
   exercises: Ex[];
-  initialRows?: { exerciseId: number }[];
+  initialRows?: InitialRow[];
+  initialDate?: string;
+  initialNotes?: string;
+  lastPerformance?: LastPerformance;
+  workoutId?: number;
 }) {
   const firstId = exercises[0]?.id ?? 0;
-  const [date, setDate] = useState(toDateInputValue());
-  const [notes, setNotes] = useState("");
+  const [date, setDate] = useState(initialDate ?? toDateInputValue());
+  const [notes, setNotes] = useState(initialNotes ?? "");
   const [rows, setRows] = useState<Row[]>(
     initialRows && initialRows.length > 0
-      ? initialRows.map((r) => ({ exerciseId: r.exerciseId, reps: "", weight: "" }))
+      ? initialRows.map((row) => ({
+          exerciseId: row.exerciseId,
+          reps: row.reps == null ? "" : String(row.reps),
+          weight: row.weight == null ? "" : String(row.weight),
+        }))
       : [{ exerciseId: firstId, reps: "", weight: "" }],
   );
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +50,13 @@ export function WorkoutForm({
       const last = rs[rs.length - 1];
       return [...rs, last ? { ...last } : { exerciseId: firstId, reps: "", weight: "" }];
     });
+  }
+  function duplicateRow(i: number) {
+    setRows((current) => [
+      ...current.slice(0, i + 1),
+      { ...current[i] },
+      ...current.slice(i + 1),
+    ]);
   }
   function removeRow(i: number) {
     setRows((rs) => (rs.length > 1 ? rs.filter((_, idx) => idx !== i) : rs));
@@ -62,11 +86,15 @@ export function WorkoutForm({
     }
 
     start(async () => {
-      const res = await createWorkout({
+      const input = {
         date,
         notes: notes || undefined,
         entries,
-      });
+      };
+      const res =
+        workoutId == null
+          ? await createWorkout(input)
+          : await updateWorkout(workoutId, input);
       if (res?.error) setError(res.error);
       // On success the server action redirects to /workouts.
     });
@@ -109,19 +137,47 @@ export function WorkoutForm({
         {rows.map((row, i) => (
           <div key={i} className="card flex flex-col gap-3">
             <div className="flex items-center gap-2">
-              <select
-                className="input"
-                value={row.exerciseId}
-                onChange={(e) =>
-                  update(i, { exerciseId: Number(e.target.value) })
-                }
+              <div className="min-w-0 flex-1">
+                <select
+                  aria-label={`Exercício da série ${i + 1}`}
+                  className="input"
+                  value={row.exerciseId}
+                  onChange={(e) =>
+                    update(i, { exerciseId: Number(e.target.value) })
+                  }
+                >
+                  {exercises.map((ex) => (
+                    <option key={ex.id} value={ex.id}>
+                      {ex.name}
+                    </option>
+                  ))}
+                </select>
+                {lastPerformance[row.exerciseId] && (
+                  <p className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
+                    Última: {lastPerformance[row.exerciseId].summary}
+                  </p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => duplicateRow(i)}
+                aria-label="Duplicar série"
+                title="Duplicar série"
+                className="shrink-0 rounded-lg p-2 text-zinc-400 hover:bg-black/5 hover:text-indigo-600 dark:hover:bg-white/10 dark:hover:text-indigo-400"
               >
-                {exercises.map((ex) => (
-                  <option key={ex.id} value={ex.id}>
-                    {ex.name}
-                  </option>
-                ))}
-              </select>
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-5 w-5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <rect x="8" y="8" width="11" height="11" rx="2" />
+                  <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+                </svg>
+              </button>
               <button
                 type="button"
                 onClick={() => removeRow(i)}
@@ -143,8 +199,12 @@ export function WorkoutForm({
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="label">Repetições</label>
+                <label className="label" htmlFor={`reps-${i}`}>
+                  Repetições
+                </label>
                 <input
+                  id={`reps-${i}`}
+                  aria-label={`Repetições da série ${i + 1}`}
                   type="number"
                   inputMode="numeric"
                   min={1}
@@ -155,8 +215,12 @@ export function WorkoutForm({
                 />
               </div>
               <div>
-                <label className="label">Peso (kg)</label>
+                <label className="label" htmlFor={`weight-${i}`}>
+                  Peso (kg)
+                </label>
                 <input
+                  id={`weight-${i}`}
+                  aria-label={`Peso (kg) da série ${i + 1}`}
                   type="number"
                   inputMode="decimal"
                   min={0}
@@ -187,7 +251,11 @@ export function WorkoutForm({
         className="btn-primary sticky bottom-24 w-full shadow-lg"
         disabled={pending}
       >
-        {pending ? "A guardar…" : "Guardar treino"}
+        {pending
+          ? "A guardar…"
+          : workoutId == null
+            ? "Guardar treino"
+            : "Guardar alterações"}
       </button>
     </form>
   );

@@ -20,9 +20,16 @@ export default async function WorkoutsPage({
         }
         action={
           isSelf ? (
-            <Link href="/workouts/new" className="btn-primary">
-              + Registar
-            </Link>
+            <div className="flex gap-2">
+              {workouts.length > 0 && (
+                <Link href="/workouts/new?repeat=last" className="btn-ghost">
+                  Repetir último
+                </Link>
+              )}
+              <Link href="/workouts/new" className="btn-primary">
+                + Registar
+              </Link>
+            </div>
           ) : undefined
         }
       />

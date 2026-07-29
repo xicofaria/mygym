@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { fmtDate } from "@/lib/format";
 import type { WorkoutWithSets } from "@/lib/queries";
 import { deleteWorkout } from "@/app/(app)/workouts/actions";
@@ -15,11 +16,19 @@ export function WorkoutCard({
       <div className="mb-2.5 flex items-center justify-between">
         <span className="font-semibold">{fmtDate(workout.date)}</span>
         {deletable && (
-          <DeleteButton
-            action={deleteWorkout}
-            id={workout.id}
-            confirmText="Eliminar este treino?"
-          />
+          <div className="flex items-center gap-1">
+            <Link
+              href={`/workouts/${workout.id}/edit`}
+              className="rounded-lg px-2 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-indigo-950/30"
+            >
+              Editar
+            </Link>
+            <DeleteButton
+              action={deleteWorkout}
+              id={workout.id}
+              confirmText="Eliminar este treino?"
+            />
+          </div>
         )}
       </div>
 

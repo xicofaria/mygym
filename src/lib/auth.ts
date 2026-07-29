@@ -6,6 +6,7 @@ import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users, type User } from "@/db/schema";
+import { getSessionSecret } from "./env";
 
 /**
  * Lightweight cookie-session auth for a 2-person app.
@@ -19,9 +20,7 @@ import { users, type User } from "@/db/schema";
 const COOKIE = "gym_session";
 const MAX_AGE = 60 * 60 * 24 * 30; // 30 days, in seconds
 
-const secret = new TextEncoder().encode(
-  process.env.SESSION_SECRET ?? "dev-insecure-secret-change-me",
-);
+const secret = new TextEncoder().encode(getSessionSecret());
 
 export function hashPassword(pw: string): Promise<string> {
   return bcrypt.hash(pw, 10);

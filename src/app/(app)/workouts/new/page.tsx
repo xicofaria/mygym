@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { getExerciseCatalog, getWorkoutTemplates, getWorkoutTemplate } from "@/lib/queries";
+import {
+  getExerciseCatalog,
+  getLastPerformanceByExercise,
+  getLatestWorkoutForRepeat,
+  getWorkoutTemplate,
+  getWorkoutTemplates,
+} from "@/lib/queries";
 import { PageHeader } from "@/components/ui";
 import { WorkoutForm } from "@/components/workout-form";
 import { AddExercise } from "@/components/add-exercise";
@@ -8,26 +14,37 @@ import { AddExercise } from "@/components/add-exercise";
 export default async function NewWorkoutPage({
   searchParams,
 }: {
-  searchParams: Promise<{ template?: string }>;
+  searchParams: Promise<{ template?: string; repeat?: string }>;
 }) {
   const user = await requireUser();
-  const { template: templateParam } = await searchParams;
+  const { template: templateParam, repeat } = await searchParams;
   const templateId = Number(templateParam);
+  const shouldRepeat = repeat === "last";
 
-  const [catalog, templates, activeTemplate] = await Promise.all([
+  const [catalog, templates, activeTemplate, repeatedWorkout, lastPerformance] =
+    await Promise.all([
     getExerciseCatalog(),
     getWorkoutTemplates(user.id),
-    Number.isInteger(templateId) && templateId > 0
+    !shouldRepeat && Number.isInteger(templateId) && templateId > 0
       ? getWorkoutTemplate(templateId, user.id)
       : Promise.resolve(null),
+    shouldRepeat
+      ? getLatestWorkoutForRepeat(user.id)
+      : Promise.resolve(null),
+    getLastPerformanceByExercise(user.id),
   ]);
 
   const exercises = catalog.map((e) => ({ id: e.id, name: e.name }));
+  const initialRows =
+    repeatedWorkout?.entries ??
+    activeTemplate?.exercises.map((exercise) => ({
+      exerciseId: exercise.id,
+    }));
 
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title="Registar treino"
+        title={repeatedWorkout ? "Repetir último treino" : "Registar treino"}
         action={
           <Link href="/workouts" className="btn-ghost">
             Cancelar
@@ -52,7 +69,7 @@ export default async function NewWorkoutPage({
             <Link
               href="/workouts/new"
               className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                !activeTemplate
+                !activeTemplate && !repeatedWorkout
                   ? "bg-indigo-600 text-white"
                   : "bg-black/5 text-zinc-600 dark:bg-white/10 dark:text-zinc-300"
               }`}
@@ -77,11 +94,14 @@ export default async function NewWorkoutPage({
       )}
 
       <WorkoutForm
-        key={activeTemplate?.id ?? "blank"}
+        key={
+          repeatedWorkout
+            ? `repeat-${repeatedWorkout.id}`
+            : (activeTemplate?.id ?? "blank")
+        }
         exercises={exercises}
-        initialRows={activeTemplate?.exercises.map((e) => ({
-          exerciseId: e.id,
-        }))}
+        initialRows={initialRows}
+        lastPerformance={lastPerformance}
       />
 
       <div className="border-t border-black/5 pt-4 dark:border-white/10">
