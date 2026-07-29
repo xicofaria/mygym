@@ -41,6 +41,29 @@ After the workflows have run once on `main`, configure the branch ruleset to:
 
 Repository settings are intentionally not changed by the workflow itself.
 
+## Runtime controls in the application
+
+`next.config.ts` sets `X-Content-Type-Options`, `X-Frame-Options`,
+`Referrer-Policy`, `Permissions-Policy` and HSTS on every route.
+
+The Content-Security-Policy is separate because it is nonce-based, and a nonce
+has to be minted per request: `src/proxy.ts` generates one, puts it on the
+request so Next can stamp it onto the scripts it emits during SSR, and sets the
+matching header on the response. `script-src` therefore needs no
+`'unsafe-inline'` — it is `'nonce-…' 'strict-dynamic'`, so an injected script
+without the nonce does not execute.
+
+Two consequences worth knowing before changing this:
+
+- **Every HTML route must render dynamically.** A prerendered page has no
+  nonce, so its scripts would all be blocked. `src/app/not-found.tsx` calls
+  `connection()` for this reason; any new statically rendered page needs the
+  same treatment.
+- **`style-src` keeps `'unsafe-inline'`.** A nonce only whitelists `<style>`
+  elements, never `style="…"` attributes, and Recharts styles its SVG that way.
+  `style-src-attr` would be the surgical fix but Safari support is patchy, and
+  this is a phone-first PWA.
+
 ## Production controls outside GitHub
 
 The deployment platform should provide:

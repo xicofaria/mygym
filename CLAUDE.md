@@ -22,9 +22,13 @@ conventions that differ from older Next and already bit this codebase:
 
 - `cookies()`, and page `params` / `searchParams`, are **async** — always `await`
   them. Pages type props as `Promise<…>`.
-- Middleware is renamed to **`proxy.ts`** (there is no `middleware.ts`). We do
-  **not** use it — per the Next docs, auth is enforced in server components and
-  in every server action, not at the proxy layer.
+- Middleware is renamed to **`proxy.ts`** (there is no `middleware.ts`).
+  `src/proxy.ts` exists for exactly one job: minting the per-request CSP nonce,
+  which has to happen before rendering. **Never move auth into it** — per the
+  Next docs, auth is enforced in server components and in every server action,
+  not at the proxy layer. Because the nonce is stamped during SSR, every page
+  that serves HTML must render dynamically; that is why `src/app/not-found.tsx`
+  calls `connection()`.
 - **Tailwind v4:** `@apply` can only reference real utilities, not other custom
   component classes. In `globals.css` each `.btn-*` variant repeats the base
   button utilities rather than `@apply btn`.
