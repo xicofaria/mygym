@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createBodyMetric } from "@/app/(app)/body/actions";
 import { toDateInputValue } from "@/lib/format";
@@ -67,6 +67,7 @@ export function BodyMetricForm() {
   const [draftReady, setDraftReady] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [restoredDraft, setRestoredDraft] = useState(false);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     const draft = readLocalDraft(localStorage, DRAFT_KEY, isBodyMetricDraft);
@@ -89,7 +90,7 @@ export function BodyMetricForm() {
   }, []);
 
   useEffect(() => {
-    if (!draftReady || !dirty || !open) return;
+    if (!draftReady || !dirty || !open || submittingRef.current) return;
     writeLocalDraft(localStorage, DRAFT_KEY, { date, notes, values });
   }, [date, dirty, draftReady, notes, open, values]);
 
@@ -119,16 +120,19 @@ export function BodyMetricForm() {
     input.notes = notes || undefined;
 
     const draft = { date, notes, values };
+    submittingRef.current = true;
     removeLocalDraft(localStorage, DRAFT_KEY);
 
     start(async () => {
       try {
         const res = await createBodyMetric(input as never);
         if (res?.error) {
+          submittingRef.current = false;
           writeLocalDraft(localStorage, DRAFT_KEY, draft);
           setError(res.error);
           return;
         }
+        submittingRef.current = false;
         setValues(emptyValues());
         setNotes("");
         setOpen(false);
@@ -136,6 +140,7 @@ export function BodyMetricForm() {
         setRestoredDraft(false);
         router.refresh();
       } catch {
+        submittingRef.current = false;
         writeLocalDraft(localStorage, DRAFT_KEY, draft);
         setError(
           "Sem ligação ao servidor. O rascunho ficou guardado neste dispositivo.",

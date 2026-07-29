@@ -17,7 +17,8 @@ async function fillSet(page: Page, repsValue: string, weightValue?: string) {
   }
 }
 
-test("login, create, edit and repeat a workout", async ({ page }) => {
+test("login, create, edit and repeat a workout", async ({ page }, testInfo) => {
+  const fixtureNotes = `Treino E2E principal — tentativa ${testInfo.retry}`;
   await page.goto("/login");
   await page.getByLabel("Email").fill("e2e@example.com");
   await page.getByLabel("Palavra-passe").fill("e2e-password-123");
@@ -26,18 +27,34 @@ test("login, create, edit and repeat a workout", async ({ page }) => {
 
   await page.goto("/workouts/new");
   await fillSet(page, "10", "20");
+  await page.getByPlaceholder("Como correu?").fill(fixtureNotes);
   await page.getByRole("button", { name: "Guardar treino" }).click();
 
   await expect(page).toHaveURL(/\/workouts$/);
-  await expect(page.getByText("10×20kg")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        localStorage.getItem("gym-tracker:workout-draft:new"),
+      ),
+    )
+    .toBeNull();
+  let workout = page.locator(".card").filter({ hasText: fixtureNotes });
+  await expect(workout.getByText("10×20kg")).toBeVisible();
 
-  await page.getByRole("link", { name: "Editar" }).first().click();
+  await workout.getByRole("link", { name: "Editar" }).click();
   await fillSet(page, "12");
   await page.getByRole("button", { name: "Guardar alterações" }).click();
-  await expect(page.getByText("12×20kg")).toBeVisible();
+  workout = page.locator(".card").filter({ hasText: fixtureNotes });
+  await expect(workout.getByText("12×20kg")).toBeVisible();
 
   await page.getByRole("link", { name: "Repetir último" }).click();
   await expect(reps(page)).toHaveValue("12");
   await expect(weight(page)).toHaveValue("20");
   await expect(page.getByText(/Última: 20kg × 12/)).toBeVisible();
+
+  await page.goto("/workouts");
+  workout = page.locator(".card").filter({ hasText: fixtureNotes });
+  page.once("dialog", (dialog) => dialog.accept());
+  await workout.getByRole("button", { name: "Eliminar" }).click();
+  await expect(page.getByText(fixtureNotes)).toHaveCount(0);
 });

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   createWorkout,
   updateWorkout,
@@ -52,6 +53,7 @@ export function WorkoutForm({
   lastPerformance?: LastPerformance;
   workoutId?: number;
 }) {
+  const router = useRouter();
   const firstId = exercises[0]?.id ?? 0;
   const [date, setDate] = useState(initialDate ?? toDateInputValue());
   const [notes, setNotes] = useState(initialNotes ?? "");
@@ -69,6 +71,7 @@ export function WorkoutForm({
   const [draftReady, setDraftReady] = useState(false);
   const [restoredDraft, setRestoredDraft] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const submittingRef = useRef(false);
   const draftKey = `gym-tracker:workout-draft:${workoutId ?? "new"}`;
 
   useEffect(() => {
@@ -91,7 +94,7 @@ export function WorkoutForm({
   }, [draftKey]);
 
   useEffect(() => {
-    if (!draftReady || !dirty) return;
+    if (!draftReady || !dirty || submittingRef.current) return;
     writeLocalDraft(localStorage, draftKey, { date, notes, rows });
   }, [date, dirty, draftKey, draftReady, notes, rows]);
 
@@ -143,6 +146,7 @@ export function WorkoutForm({
     }
 
     const draft = { date, notes, rows };
+    submittingRef.current = true;
     removeLocalDraft(localStorage, draftKey);
 
     start(async () => {
@@ -157,12 +161,19 @@ export function WorkoutForm({
             ? await createWorkout(input)
             : await updateWorkout(workoutId, input);
         if (res?.error) {
+          submittingRef.current = false;
           writeLocalDraft(localStorage, draftKey, draft);
           setError(res.error);
+          return;
         }
-        // On success the server action redirects to /workouts, and the draft
-        // stays cleared. A network failure restores it below.
+        // A passive draft effect may have raced with the first removal while
+        // the action was in flight. Clear once more after the server confirms
+        // the write, then navigate from the client.
+        removeLocalDraft(localStorage, draftKey);
+        submittingRef.current = false;
+        router.push("/workouts");
       } catch {
+        submittingRef.current = false;
         writeLocalDraft(localStorage, draftKey, draft);
         setError(
           "Sem ligação ao servidor. O rascunho ficou guardado neste dispositivo.",

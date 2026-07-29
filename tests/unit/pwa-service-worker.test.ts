@@ -24,6 +24,7 @@ function loadWorker(fetchImpl: typeof fetch) {
   const listeners = new Map<string, WorkerListener>();
   const stored: { request: Request; response: Response }[] = [];
   const offlineResponse = new Response("offline");
+  let skipWaitingCalls = 0;
 
   const cache = {
     put: async (request: Request, response: Response) => {
@@ -44,7 +45,9 @@ function loadWorker(fetchImpl: typeof fetch) {
     addEventListener: (type: string, listener: WorkerListener) => {
       listeners.set(type, listener);
     },
-    skipWaiting: async () => undefined,
+    skipWaiting: async () => {
+      skipWaitingCalls += 1;
+    },
   };
 
   const source = readFileSync(
@@ -65,7 +68,14 @@ function loadWorker(fetchImpl: typeof fetch) {
 
   const fetchListener = listeners.get("fetch");
   assert.ok(fetchListener, "o service worker deve registar o evento fetch");
-  return { fetchListener, stored };
+  const messageListener = listeners.get("message");
+  assert.ok(messageListener, "o service worker deve registar o evento message");
+  return {
+    fetchListener,
+    messageListener,
+    skipWaitingCalls: () => skipWaitingCalls,
+    stored,
+  };
 }
 
 function dispatchFetch(
@@ -103,6 +113,22 @@ test("não interceta API nem pedidos de escrita", () => {
   assert.equal(postResult, undefined);
   assert.equal(networkCalls, 0);
   assert.equal(stored.length, 0);
+});
+
+test("aceita pedidos de atualização apenas da própria origem", () => {
+  const worker = loadWorker(async () => new Response("network"));
+
+  worker.messageListener({
+    data: { type: "SKIP_WAITING" },
+    origin: "https://evil.example",
+  });
+  assert.equal(worker.skipWaitingCalls(), 0);
+
+  worker.messageListener({
+    data: { type: "SKIP_WAITING" },
+    origin: "https://gym.example",
+  });
+  assert.equal(worker.skipWaitingCalls(), 1);
 });
 
 test("usa apenas a shell pública quando uma navegação falha", async () => {

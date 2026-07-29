@@ -3,7 +3,6 @@
 import { z } from "zod";
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { exercises, sets, workouts } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
@@ -66,7 +65,7 @@ export async function createWorkout(input: NewWorkoutInput) {
   });
 
   revalidateWorkoutPages();
-  redirect("/workouts");
+  return { success: true as const };
 }
 
 export async function updateWorkout(id: number, input: NewWorkoutInput) {
@@ -103,7 +102,7 @@ export async function updateWorkout(id: number, input: NewWorkoutInput) {
   });
 
   revalidateWorkoutPages();
-  redirect("/workouts");
+  return { success: true as const };
 }
 
 export async function deleteWorkout(id: number) {
