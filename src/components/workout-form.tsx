@@ -1,16 +1,41 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   createWorkout,
   updateWorkout,
 } from "@/app/(app)/workouts/actions";
 import { toDateInputValue } from "@/lib/format";
+import {
+  readLocalDraft,
+  removeLocalDraft,
+  writeLocalDraft,
+} from "@/lib/local-draft";
 import type { LastPerformance } from "@/lib/queries";
 
 type Ex = { id: number; name: string };
 type Row = { exerciseId: number; reps: string; weight: string };
 type InitialRow = { exerciseId: number; reps?: number; weight?: number };
+type WorkoutDraft = { date: string; notes: string; rows: Row[] };
+
+function isWorkoutDraft(value: unknown): value is WorkoutDraft {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Partial<WorkoutDraft>;
+  return (
+    typeof candidate.date === "string" &&
+    typeof candidate.notes === "string" &&
+    Array.isArray(candidate.rows) &&
+    candidate.rows.length > 0 &&
+    candidate.rows.every(
+      (row) =>
+        typeof row === "object" &&
+        row !== null &&
+        typeof row.exerciseId === "number" &&
+        typeof row.reps === "string" &&
+        typeof row.weight === "string",
+    )
+  );
+}
 
 export function WorkoutForm({
   exercises,
@@ -41,17 +66,48 @@ export function WorkoutForm({
   );
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const [draftReady, setDraftReady] = useState(false);
+  const [restoredDraft, setRestoredDraft] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const draftKey = `gym-tracker:workout-draft:${workoutId ?? "new"}`;
+
+  useEffect(() => {
+    const draft = readLocalDraft(localStorage, draftKey, isWorkoutDraft);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      if (draft) {
+        setDate(draft.date);
+        setNotes(draft.notes);
+        setRows(draft.rows);
+        setRestoredDraft(true);
+        setDirty(true);
+      }
+      setDraftReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [draftKey]);
+
+  useEffect(() => {
+    if (!draftReady || !dirty) return;
+    writeLocalDraft(localStorage, draftKey, { date, notes, rows });
+  }, [date, dirty, draftKey, draftReady, notes, rows]);
 
   function update(i: number, patch: Partial<Row>) {
+    setDirty(true);
     setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
   }
   function addSet() {
+    setDirty(true);
     setRows((rs) => {
       const last = rs[rs.length - 1];
       return [...rs, last ? { ...last } : { exerciseId: firstId, reps: "", weight: "" }];
     });
   }
   function duplicateRow(i: number) {
+    setDirty(true);
     setRows((current) => [
       ...current.slice(0, i + 1),
       { ...current[i] },
@@ -59,6 +115,7 @@ export function WorkoutForm({
     ]);
   }
   function removeRow(i: number) {
+    setDirty(true);
     setRows((rs) => (rs.length > 1 ? rs.filter((_, idx) => idx !== i) : rs));
   }
 
@@ -85,18 +142,32 @@ export function WorkoutForm({
       return;
     }
 
+    const draft = { date, notes, rows };
+    removeLocalDraft(localStorage, draftKey);
+
     start(async () => {
-      const input = {
-        date,
-        notes: notes || undefined,
-        entries,
-      };
-      const res =
-        workoutId == null
-          ? await createWorkout(input)
-          : await updateWorkout(workoutId, input);
-      if (res?.error) setError(res.error);
-      // On success the server action redirects to /workouts.
+      try {
+        const input = {
+          date,
+          notes: notes || undefined,
+          entries,
+        };
+        const res =
+          workoutId == null
+            ? await createWorkout(input)
+            : await updateWorkout(workoutId, input);
+        if (res?.error) {
+          writeLocalDraft(localStorage, draftKey, draft);
+          setError(res.error);
+        }
+        // On success the server action redirects to /workouts, and the draft
+        // stays cleared. A network failure restores it below.
+      } catch {
+        writeLocalDraft(localStorage, draftKey, draft);
+        setError(
+          "Sem ligação ao servidor. O rascunho ficou guardado neste dispositivo.",
+        );
+      }
     });
   }
 
@@ -118,7 +189,10 @@ export function WorkoutForm({
             type="date"
             className="input"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(e) => {
+              setDate(e.target.value);
+              setDirty(true);
+            }}
             required
           />
         </div>
@@ -127,7 +201,10 @@ export function WorkoutForm({
           <input
             className="input"
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={(e) => {
+              setNotes(e.target.value);
+              setDirty(true);
+            }}
             placeholder="Como correu?"
           />
         </div>
@@ -243,6 +320,12 @@ export function WorkoutForm({
       {error && (
         <p className="text-sm font-medium text-red-600 dark:text-red-400">
           {error}
+        </p>
+      )}
+
+      {restoredDraft && !error && (
+        <p className="text-sm font-medium text-amber-700 dark:text-amber-300">
+          Recuperámos o rascunho guardado neste dispositivo.
         </p>
       )}
 

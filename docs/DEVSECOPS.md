@@ -64,6 +64,18 @@ Two consequences worth knowing before changing this:
   `style-src-attr` would be the surgical fix but Safari support is patchy, and
   this is a phone-first PWA.
 
+## Offline boundary
+
+`public/sw.js` caches only the public `/offline` response and immutable
+`/_next/static/` assets. It deliberately bypasses authenticated HTML, RSC/API
+responses, Server Actions, non-GET requests and cross-origin resources. Do not
+expand that cache to user-specific pages: both people can use the same installed
+PWA and a shared HTML cache would leak one person's history to the other.
+
+Workout and body-measurement forms persist drafts in device-local storage. A
+draft is convenience recovery, not a confirmed write: it only becomes part of
+the database after the authenticated Server Action succeeds.
+
 ## Production controls outside GitHub
 
 The deployment platform should provide:
@@ -72,3 +84,6 @@ The deployment platform should provide:
 - separate preview and production secrets;
 - Turso backup/restore procedures;
 - deployment protection so only a green commit can reach production.
+
+The backup and recovery procedure, including a local integrity-checking restore,
+is documented in [`BACKUP_RESTORE.md`](BACKUP_RESTORE.md).

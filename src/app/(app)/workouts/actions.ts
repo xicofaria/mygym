@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { exercises, sets, workouts } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { deleteOwnedRecord } from "@/lib/owned-resource";
 import { buildWorkoutSetRows } from "@/lib/workout";
 
 const entrySchema = z.object({
@@ -107,8 +108,24 @@ export async function updateWorkout(id: number, input: NewWorkoutInput) {
 
 export async function deleteWorkout(id: number) {
   const user = await requireUser();
-  await db
-    .delete(workouts)
-    .where(and(eq(workouts.id, id), eq(workouts.userId, user.id)));
+  await deleteOwnedRecord({
+    id,
+    userId: user.id,
+    findOwnedId: async (workoutId, userId) => {
+      const workout = await db
+        .select({ id: workouts.id })
+        .from(workouts)
+        .where(and(eq(workouts.id, workoutId), eq(workouts.userId, userId)))
+        .get();
+      return workout?.id ?? null;
+    },
+    deleteOwned: async (workoutId, userId) => {
+      await db
+        .delete(workouts)
+        .where(
+          and(eq(workouts.id, workoutId), eq(workouts.userId, userId)),
+        );
+    },
+  });
   revalidateWorkoutPages();
 }

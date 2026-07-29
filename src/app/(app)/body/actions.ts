@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { bodyMetrics } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { deleteOwnedRecord } from "@/lib/owned-resource";
 
 const schema = z.object({
   date: z.string().min(1),
@@ -63,9 +64,27 @@ export async function createBodyMetric(input: NewBodyMetricInput) {
 
 export async function deleteBodyMetric(id: number) {
   const user = await requireUser();
-  await db
-    .delete(bodyMetrics)
-    .where(and(eq(bodyMetrics.id, id), eq(bodyMetrics.userId, user.id)));
+  await deleteOwnedRecord({
+    id,
+    userId: user.id,
+    findOwnedId: async (metricId, userId) => {
+      const metric = await db
+        .select({ id: bodyMetrics.id })
+        .from(bodyMetrics)
+        .where(
+          and(eq(bodyMetrics.id, metricId), eq(bodyMetrics.userId, userId)),
+        )
+        .get();
+      return metric?.id ?? null;
+    },
+    deleteOwned: async (metricId, userId) => {
+      await db
+        .delete(bodyMetrics)
+        .where(
+          and(eq(bodyMetrics.id, metricId), eq(bodyMetrics.userId, userId)),
+        );
+    },
+  });
   revalidatePath("/dashboard");
   revalidatePath("/body");
 }

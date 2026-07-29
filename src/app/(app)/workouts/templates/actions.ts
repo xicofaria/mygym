@@ -11,6 +11,7 @@ import {
   workoutTemplates,
 } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
+import { deleteOwnedRecord } from "@/lib/owned-resource";
 
 const schema = z.object({
   name: z.string().trim().min(1).max(80),
@@ -60,11 +61,33 @@ export async function createTemplate(input: NewTemplateInput) {
 
 export async function deleteTemplate(id: number) {
   const user = await requireUser();
-  await db
-    .delete(workoutTemplates)
-    .where(
-      and(eq(workoutTemplates.id, id), eq(workoutTemplates.userId, user.id)),
-    );
+  await deleteOwnedRecord({
+    id,
+    userId: user.id,
+    findOwnedId: async (templateId, userId) => {
+      const template = await db
+        .select({ id: workoutTemplates.id })
+        .from(workoutTemplates)
+        .where(
+          and(
+            eq(workoutTemplates.id, templateId),
+            eq(workoutTemplates.userId, userId),
+          ),
+        )
+        .get();
+      return template?.id ?? null;
+    },
+    deleteOwned: async (templateId, userId) => {
+      await db
+        .delete(workoutTemplates)
+        .where(
+          and(
+            eq(workoutTemplates.id, templateId),
+            eq(workoutTemplates.userId, userId),
+          ),
+        );
+    },
+  });
   revalidatePath("/workouts/templates");
   revalidatePath("/workouts/new");
 }

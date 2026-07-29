@@ -22,6 +22,9 @@ UI is in **European Portuguese (pt-PT)**. Weights and measurements are
 - **Two-person, shared view** — see your own progress or switch to your
   training partner's via a simple toggle
 - **Installable PWA** — add it to your phone's home screen like a native app
+- **Resilient with poor signal** — an offline fallback and connection warning
+  keep the app understandable, while workout and measurement drafts survive a
+  dropped connection on the current device
 
 ## Stack
 
@@ -70,6 +73,7 @@ Log in with the credentials you set in `.env.local` (`SEED_USER1_*` /
 | `npm run db:seed`                     | Upsert the two users + starter exercise catalog  |
 | `npm run db:reset`                    | Wipe `dev.db`, re-push schema, re-seed           |
 | `npm run db:studio`                   | Drizzle Studio — browse the database in a GUI    |
+| `npm run backup:verify -- backup.sql` | Restore and integrity-check a dump temporarily   |
 
 ## Deploying (Vercel + Turso)
 
@@ -100,14 +104,12 @@ Ideas for where to take this next, roughly in order of usefulness:
 - [ ] **Training-day calendar / heatmap** — a GitHub-contributions-style grid
       on the dashboard showing which days you trained, for an at-a-glance view
       of consistency.
-- [ ] **Offline support** — the app is installable (PWA manifest is in place),
-      but there's no service worker yet, so it needs a network connection.
-      Worth adding if you want to log a workout at a gym with poor signal.
+- [x] **Poor-network resilience** — a service worker provides a public offline
+      fallback without caching authenticated pages, and workout/body forms keep
+      local drafts until they can be submitted online.
 - [ ] **Password reset / account settings page** — right now, changing an
       email or password means editing `.env.local` and re-running
       `npm run db:seed`.
-- [ ] **CSV export** of workout/body-measurement history, for backups or
-      analysis outside the app.
 
 ## Notes
 
@@ -116,4 +118,6 @@ product — there's no sign-up flow, and accounts are provisioned by editing
 `.env.local` and running `npm run db:seed`. See `CLAUDE.md` for architecture
 notes if you're extending it with an AI coding assistant. See
 [`docs/DEVSECOPS.md`](docs/DEVSECOPS.md), [`SECURITY.md`](SECURITY.md), and
-[`CONTRIBUTING.md`](CONTRIBUTING.md) for delivery and security guidance.
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for delivery and security guidance. The
+tested Turso recovery runbook is in
+[`docs/BACKUP_RESTORE.md`](docs/BACKUP_RESTORE.md).
