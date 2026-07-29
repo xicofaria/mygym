@@ -21,10 +21,14 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "npm run dev",
+    // Production build, not `next dev`: the dev server compiles the client
+    // bundle on demand, so hydration lags and a click can land on the
+    // still-unhydrated form, which then submits natively instead of running
+    // the server action.
+    command: "npm run build && npm run start",
     url: "http://127.0.0.1:3000/login",
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 180_000,
     env: {
       DATABASE_URL: process.env.DATABASE_URL ?? "file:./e2e.db",
       SESSION_SECRET:
