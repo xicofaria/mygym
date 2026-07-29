@@ -19,6 +19,7 @@ async function fillSet(page: Page, repsValue: string, weightValue?: string) {
 
 test("login, create, edit and repeat a workout", async ({ page }, testInfo) => {
   const fixtureNotes = `Treino E2E principal — tentativa ${testInfo.retry}`;
+  const workoutDate = new Date().toISOString().slice(0, 10);
   await page.goto("/login");
   await page.getByLabel("Email").fill("e2e@example.com");
   await page.getByLabel("Palavra-passe").fill("e2e-password-123");
@@ -27,6 +28,7 @@ test("login, create, edit and repeat a workout", async ({ page }, testInfo) => {
 
   await page.goto("/workouts/new");
   await fillSet(page, "10", "20");
+  await page.getByLabel("Data").fill(workoutDate);
   await page.getByPlaceholder("Como correu?").fill(fixtureNotes);
   await page.getByRole("button", { name: "Guardar treino" }).click();
 
@@ -40,6 +42,19 @@ test("login, create, edit and repeat a workout", async ({ page }, testInfo) => {
     .toBeNull();
   let workout = page.locator(".card").filter({ hasText: fixtureNotes });
   await expect(workout.getByText("10×20kg")).toBeVisible();
+
+  await page.goto("/dashboard");
+  const calendarDay = page.locator(
+    `[data-workout-date="${workoutDate}"]`,
+  );
+  await expect(calendarDay).toBeVisible();
+  await expect(calendarDay).toHaveAttribute("data-count", /^[1-9]\d*$/);
+  await calendarDay.click();
+  await expect(page).toHaveURL(
+    new RegExp(`/workouts\\?date=${workoutDate}$`),
+  );
+  workout = page.locator(".card").filter({ hasText: fixtureNotes });
+  await expect(workout).toBeVisible();
 
   await workout.getByRole("link", { name: "Editar" }).click();
   await fillSet(page, "12");

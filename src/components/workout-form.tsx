@@ -195,8 +195,11 @@ export function WorkoutForm({
     <form onSubmit={submit} className="flex flex-col gap-4">
       <div className="card grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className="label">Data</label>
+          <label className="label" htmlFor="workout-date">
+            Data
+          </label>
           <input
+            id="workout-date"
             type="date"
             className="input"
             value={date}

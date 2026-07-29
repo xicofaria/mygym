@@ -10,16 +10,23 @@ import {
 import { PageHeader } from "@/components/ui";
 import { WorkoutForm } from "@/components/workout-form";
 import { AddExercise } from "@/components/add-exercise";
+import { readDateKey } from "@/lib/workout-calendar";
 
 export default async function NewWorkoutPage({
   searchParams,
 }: {
-  searchParams: Promise<{ template?: string; repeat?: string }>;
+  searchParams: Promise<{
+    template?: string | string[];
+    repeat?: string | string[];
+    date?: string | string[];
+  }>;
 }) {
   const user = await requireUser();
-  const { template: templateParam, repeat } = await searchParams;
+  const { template: templateParam, repeat, date: dateParam } =
+    await searchParams;
   const templateId = Number(templateParam);
   const shouldRepeat = repeat === "last";
+  const initialDate = readDateKey(dateParam);
 
   const [catalog, templates, activeTemplate, repeatedWorkout, lastPerformance] =
     await Promise.all([
@@ -101,6 +108,7 @@ export default async function NewWorkoutPage({
         }
         exercises={exercises}
         initialRows={initialRows}
+        initialDate={initialDate ?? undefined}
         lastPerformance={lastPerformance}
       />
 
