@@ -17,6 +17,14 @@ import {
 } from "drizzle-orm/migrator";
 
 const MIGRATIONS_TABLE = "__drizzle_migrations";
+// Production was managed with `drizzle-kit push` before migrations were
+// introduced. Migration 0000 was generated after these two tables were added,
+// so its exact predecessor is the baseline without them. Keep the published
+// migration files immutable and recognise that predecessor by full fingerprint.
+const PRE_BASELINE_MISSING_TABLES = new Set([
+  "planned_workout_groups",
+  "routine_groups",
+]);
 const DEFAULT_MIGRATIONS_FOLDER = fileURLToPath(
   new URL("../drizzle", import.meta.url),
 );
@@ -116,6 +124,7 @@ export type MigrateDatabaseOptions = {
 export type MigrateDatabaseResult = {
   initialState:
     | "empty"
+    | "pre-baseline-without-ledger"
     | "legacy-without-ledger"
     | "tracked"
     | "current-without-ledger";
@@ -436,6 +445,25 @@ async function deriveKnownSchemas(
   }
 }
 
+function deriveDeployedPreBaselineSchema(
+  baseline: SchemaDescription,
+): SchemaDescription {
+  for (const tableName of PRE_BASELINE_MISSING_TABLES) {
+    if (!baseline.tables.some((table) => table.name === tableName)) {
+      throw new Error(
+        `A baseline não contém a tabela de compatibilidade ${tableName}.`,
+      );
+    }
+  }
+
+  return {
+    tables: baseline.tables.filter(
+      (table) => !PRE_BASELINE_MISSING_TABLES.has(table.name),
+    ),
+    viewsAndTriggers: baseline.viewsAndTriggers,
+  };
+}
+
 async function tableExists(client: Client, tableName: string): Promise<boolean> {
   const result = await client.execute({
     sql: "SELECT 1 AS found FROM sqlite_schema WHERE type = 'table' AND name = ?",
@@ -531,23 +559,33 @@ async function assertNoForeignKeyViolations(
 async function readLegacyDataSnapshot(
   client: Client,
 ): Promise<LegacyDataSnapshot> {
-  const [plansResult, groupsResult, sequenceResult] = await client.batch(
-    [
-      `
+  const hasPlannedWorkoutGroups = await tableExists(
+    client,
+    "planned_workout_groups",
+  );
+  const statements = [
+    `
         SELECT id, user_id, date, template_id, notes, created_at
         FROM planned_workouts
         ORDER BY id
       `,
-      `
-        SELECT id, planned_workout_id, name, position
-        FROM planned_workout_groups
-        ORDER BY id
-      `,
-      `SELECT seq FROM sqlite_sequence WHERE name = 'planned_workouts'`,
-    ],
-    "read",
-  );
-  if (!plansResult || !groupsResult || !sequenceResult) {
+    ...(hasPlannedWorkoutGroups
+      ? [
+          `
+            SELECT id, planned_workout_id, name, position
+            FROM planned_workout_groups
+            ORDER BY id
+          `,
+        ]
+      : []),
+    `SELECT seq FROM sqlite_sequence WHERE name = 'planned_workouts'`,
+  ];
+  const results = await client.batch(statements, "read");
+  const plansResult = results[0];
+  const groupsResult = hasPlannedWorkoutGroups ? results[1] : null;
+  const sequenceResult = results[hasPlannedWorkoutGroups ? 2 : 1];
+
+  if (!plansResult || !sequenceResult) {
     throw new Error("Não foi possível criar o snapshot dos planos legados.");
   }
 
@@ -569,18 +607,19 @@ async function readLegacyDataSnapshot(
         "Criação do plano legado",
       ),
     })),
-    groups: groupsResult.rows.map((row) => ({
-      id: asNumber(getValue(row, "id"), "ID do grupo de plano legado"),
-      plannedWorkoutId: asNumber(
-        getValue(row, "planned_workout_id"),
-        "Plano do grupo legado",
-      ),
-      name: asString(getValue(row, "name"), "Nome do grupo legado"),
-      position: asNumber(
-        getValue(row, "position"),
-        "Posição do grupo legado",
-      ),
-    })),
+    groups:
+      groupsResult?.rows.map((row) => ({
+        id: asNumber(getValue(row, "id"), "ID do grupo de plano legado"),
+        plannedWorkoutId: asNumber(
+          getValue(row, "planned_workout_id"),
+          "Plano do grupo legado",
+        ),
+        name: asString(getValue(row, "name"), "Nome do grupo legado"),
+        position: asNumber(
+          getValue(row, "position"),
+          "Posição do grupo legado",
+        ),
+      })) ?? [],
     sequence:
       sequenceResult.rows.length === 0
         ? null
@@ -781,6 +820,12 @@ export async function migrateDatabase({
   });
   validateMigrationDefinitions(migrations);
   const knownSchemas = await deriveKnownSchemas(migrations);
+  const baselineSchema = knownSchemas[1];
+  if (!baselineSchema) {
+    throw new Error("Não foi possível derivar o schema da baseline.");
+  }
+  const deployedPreBaselineSchema =
+    deriveDeployedPreBaselineSchema(baselineSchema);
 
   const client = createClient(
     authToken?.trim() ? { url, authToken } : { url },
@@ -796,6 +841,10 @@ export async function migrateDatabase({
       schemaBefore,
       knownSchemas,
     );
+    const matchesDeployedPreBaseline = isDeepStrictEqual(
+      schemaBefore,
+      deployedPreBaselineSchema,
+    );
     const appliedBefore = ledgerBefore.entries.length;
 
     if (appliedBefore > 0) {
@@ -807,6 +856,8 @@ export async function migrateDatabase({
       initialState = "tracked";
     } else if (matchingPositions.includes(0)) {
       initialState = "empty";
+    } else if (matchesDeployedPreBaseline) {
+      initialState = "pre-baseline-without-ledger";
     } else if (matchingPositions.includes(1)) {
       initialState = "legacy-without-ledger";
     } else if (
@@ -822,7 +873,8 @@ export async function migrateDatabase({
     }
 
     await assertNoForeignKeyViolations(client, "antes");
-    const legacySnapshot = matchingPositions.includes(1)
+    const legacySnapshot =
+      matchingPositions.includes(1) || matchesDeployedPreBaseline
       ? await readLegacyDataSnapshot(client)
       : null;
 
