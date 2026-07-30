@@ -14,9 +14,14 @@ UI is in **European Portuguese (pt-PT)**. Weights and measurements are
 - **Fast repeat and editing** — repeat the previous session with its values,
   duplicate individual sets, see the last performance, and correct saved workouts
 - **Reusable workout templates** — save a routine (e.g. "Treino de Pernas")
-  and start a new session from it instead of picking exercises from scratch
+  and start a new session from it instead of picking exercises from scratch;
+  a day planned by muscle group suggests the templates that train it
 - **Exercise progression** — per-exercise history with top weight, estimated
-  1RM, and volume charts over time
+  1RM, and volume charts over time; sessions that beat every earlier one are
+  marked as personal records, on the exercise page and on the workout itself
+- **Editable exercise catalog** — rename an exercise or change its muscle group
+  without touching logged sets; deleting is refused while any set or template
+  still uses it
 - **Body progress** — track bodyweight, body fat %, BMI and tape measurements
   (waist, chest, arms, thighs, hips), with a summary of how much each one
   changed over a chosen period (30 days, 3 months, 1 year or all time),

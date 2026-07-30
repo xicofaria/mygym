@@ -19,6 +19,7 @@ import {
   calculateDashboardWeekMetrics,
   currentLisbonWeekRange,
 } from "./dashboard-metrics";
+import { markRecords, type RecordFlags } from "./personal-records";
 import { resolveViewedUserId } from "./viewer";
 import { chooseTopSet } from "./workout";
 import {
@@ -306,6 +307,8 @@ export type ProgressionPoint = {
   best1RM: number;
   volume: number;
   topSet: string; // e.g. "24kg × 12"
+  /** Set when this session beat every earlier one for this exercise. */
+  record?: RecordFlags;
 };
 
 /** Per-session progression for one exercise + user (oldest → newest). */
@@ -313,11 +316,15 @@ export async function getExerciseProgression(
   exerciseId: number,
   userId: number,
 ): Promise<{
-  exercise: { id: number; name: string } | null;
+  exercise: { id: number; name: string; muscleGroup: string | null } | null;
   points: ProgressionPoint[];
 }> {
   const exercise = await db
-    .select({ id: exercises.id, name: exercises.name })
+    .select({
+      id: exercises.id,
+      name: exercises.name,
+      muscleGroup: exercises.muscleGroup,
+    })
     .from(exercises)
     .where(eq(exercises.id, exerciseId))
     .get();
@@ -381,7 +388,69 @@ export async function getExerciseProgression(
       topSet: `${round(s.maxWeight)}kg × ${s.topReps}`,
     }));
 
+  // Mark on the rounded values, so a badge never contradicts the number shown.
+  const records = markRecords(points);
+  for (const point of points) {
+    const flags = records.get(point.workoutId);
+    if (flags) point.record = flags;
+  }
+
   return { exercise, points };
+}
+
+/** Which exercises each session set a personal record for. */
+export async function getPersonalRecords(
+  userId: number,
+): Promise<Map<number, Set<number>>> {
+  const rows = await db
+    .select({
+      workoutId: workouts.id,
+      exerciseId: sets.exerciseId,
+      date: workouts.date,
+      reps: sets.reps,
+      weight: sets.weight,
+    })
+    .from(sets)
+    .innerJoin(workouts, eq(sets.workoutId, workouts.id))
+    .where(eq(workouts.userId, userId))
+    .all();
+
+  // exerciseId → workoutId → that session's best effort
+  const byExercise = new Map<
+    number,
+    Map<number, { workoutId: number; date: string; maxWeight: number; best1RM: number }>
+  >();
+  for (const row of rows) {
+    let sessions = byExercise.get(row.exerciseId);
+    if (!sessions) {
+      sessions = new Map();
+      byExercise.set(row.exerciseId, sessions);
+    }
+    const oneRm = round(epley1RM(row.weight, row.reps));
+    const weight = round(row.weight);
+    const current = sessions.get(row.workoutId);
+    if (!current) {
+      sessions.set(row.workoutId, {
+        workoutId: row.workoutId,
+        date: row.date.toISOString().slice(0, 10),
+        maxWeight: weight,
+        best1RM: oneRm,
+      });
+    } else {
+      current.maxWeight = Math.max(current.maxWeight, weight);
+      current.best1RM = Math.max(current.best1RM, oneRm);
+    }
+  }
+
+  const byWorkout = new Map<number, Set<number>>();
+  for (const [exerciseId, sessions] of byExercise) {
+    for (const workoutId of markRecords([...sessions.values()]).keys()) {
+      const forWorkout = byWorkout.get(workoutId) ?? new Set<number>();
+      forWorkout.add(exerciseId);
+      byWorkout.set(workoutId, forWorkout);
+    }
+  }
+  return byWorkout;
 }
 
 export async function getBodyMetrics(userId: number) {
@@ -453,7 +522,7 @@ export async function getDashboard(userId: number): Promise<Dashboard> {
 export type TemplateWithExercises = {
   id: number;
   name: string;
-  exercises: { id: number; name: string }[];
+  exercises: { id: number; name: string; muscleGroup: string | null }[];
 };
 
 /** Reusable named routines belonging to a user (e.g. "Treino de Pernas"). */
@@ -477,6 +546,7 @@ export async function getWorkoutTemplates(
     exercises: t.items.map((i) => ({
       id: i.exercise.id,
       name: i.exercise.name,
+      muscleGroup: i.exercise.muscleGroup,
     })),
   }));
 }
@@ -614,6 +684,7 @@ export async function getWorkoutTemplate(
     exercises: t.items.map((i) => ({
       id: i.exercise.id,
       name: i.exercise.name,
+      muscleGroup: i.exercise.muscleGroup,
     })),
   };
 }

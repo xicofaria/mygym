@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getDashboard, getPageContext } from "@/lib/queries";
+import { getDashboard, getPageContext, getPersonalRecords } from "@/lib/queries";
 import { EmptyState, PageHeader, StatCard } from "@/components/ui";
 import { WorkoutCard } from "@/components/workout-card";
 import { ProgressChart } from "@/components/progress-chart";
@@ -11,7 +11,10 @@ export default async function DashboardPage({
   searchParams: Promise<{ user?: string }>;
 }) {
   const { viewed, isSelf, query } = await getPageContext(searchParams);
-  const data = await getDashboard(viewed.id);
+  const [data, records] = await Promise.all([
+    getDashboard(viewed.id),
+    getPersonalRecords(viewed.id),
+  ]);
 
   const weightSub =
     data.weightChange == null ? (
@@ -104,7 +107,11 @@ export default async function DashboardPage({
         ) : (
           <div className="flex flex-col gap-3">
             {data.recent.map((w) => (
-              <WorkoutCard key={w.id} workout={w} />
+              <WorkoutCard
+                key={w.id}
+                workout={w}
+                recordExerciseIds={records.get(w.id)}
+              />
             ))}
           </div>
         )}

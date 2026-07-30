@@ -114,6 +114,25 @@ carries a `goal`** (`down` for waist and body fat, `up` for chest/arm/thigh,
 `deltaTone()` maps a change plus its goal to good/bad/neutral colouring, so
 green never means "the number went down" by itself.
 
+**Personal records.** `src/lib/personal-records.ts` is pure and unit-tested:
+`markRecords()` walks an exercise's sessions oldest → newest and flags the ones
+that beat every earlier session, on heaviest set or on estimated 1RM. Two rules
+matter — **the first session is never a record** (nothing to beat, and badging
+it would mark every exercise the first time you try it), and **ties never
+count**, only strict improvements. Records are derived on read, so editing or
+deleting a workout re-evaluates them with no stored state to migrate.
+`getPersonalRecords(userId)` returns `workoutId → Set<exerciseId>` for badges in
+lists; `getExerciseProgression` marks each point instead.
+
+**Template suggestions.** `src/lib/template-match.ts` connects a day planned by
+muscle group to the saved templates that train it. Matching goes through
+`formatMuscleGroup`, so the seeded English catalog (`Chest`, `Legs`) compares
+against pt-PT plan groups, and a small `CONTAINS` map handles broader groups
+holding narrower ones — the catalog files biceps and triceps under `Arms`, so a
+"Tríceps" day would otherwise match nothing. Ranking subtracts half a point per
+group the template trains that was not planned, so a focused template beats a
+full-body one instead of losing to it for touching more muscles.
+
 **Workout templates.** `workoutTemplates` + `workoutTemplateExercises` (schema)
 are per-user, ordered lists of exercises with no reps/weight (e.g. "Treino de
 Pernas" → Squat, Leg Press). `getWorkoutTemplates`/`getWorkoutTemplate` in
