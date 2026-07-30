@@ -15,20 +15,20 @@ try {
 }
 
 const STARTER_EXERCISES: { name: string; muscleGroup: string }[] = [
-  { name: "Bench Press", muscleGroup: "Chest" },
-  { name: "Incline Dumbbell Press", muscleGroup: "Chest" },
-  { name: "Squat", muscleGroup: "Legs" },
-  { name: "Leg Press", muscleGroup: "Legs" },
-  { name: "Romanian Deadlift", muscleGroup: "Legs" },
-  { name: "Deadlift", muscleGroup: "Back" },
-  { name: "Barbell Row", muscleGroup: "Back" },
-  { name: "Pull Up", muscleGroup: "Back" },
-  { name: "Lat Pulldown", muscleGroup: "Back" },
-  { name: "Overhead Press", muscleGroup: "Shoulders" },
-  { name: "Lateral Raise", muscleGroup: "Shoulders" },
-  { name: "Bicep Curl", muscleGroup: "Arms" },
-  { name: "Tricep Pushdown", muscleGroup: "Arms" },
-  { name: "Plank", muscleGroup: "Core" },
+  { name: "Bench Press", muscleGroup: "Peito" },
+  { name: "Incline Dumbbell Press", muscleGroup: "Peito" },
+  { name: "Squat", muscleGroup: "Pernas" },
+  { name: "Leg Press", muscleGroup: "Pernas" },
+  { name: "Romanian Deadlift", muscleGroup: "Pernas" },
+  { name: "Deadlift", muscleGroup: "Dorsal" },
+  { name: "Barbell Row", muscleGroup: "Dorsal" },
+  { name: "Pull Up", muscleGroup: "Dorsal" },
+  { name: "Lat Pulldown", muscleGroup: "Dorsal" },
+  { name: "Overhead Press", muscleGroup: "Ombros" },
+  { name: "Lateral Raise", muscleGroup: "Ombros" },
+  { name: "Bicep Curl", muscleGroup: "Braços" },
+  { name: "Tricep Pushdown", muscleGroup: "Braços" },
+  { name: "Plank", muscleGroup: "Abdominais" },
 ];
 
 async function main() {

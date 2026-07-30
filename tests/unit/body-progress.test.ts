@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   buildBodyProgress,
   deltaTone,
+  rangeStart,
   readBodyFieldKey,
   readBodyRange,
   type BodyMetricInput,
@@ -131,6 +132,44 @@ test("a single measurement has a value but nothing to compare against", () => {
     value: 80,
     delta: null,
   });
+});
+
+test("uses insertion order for multiple measurements on the same day", () => {
+  const older = metric("2026-07-28", { weightKg: 81 });
+  const newer = metric("2026-07-28", { weightKg: 80 });
+  const progress = buildBodyProgress([newer, older], "all", TODAY);
+
+  assert.equal(
+    progress.fields.find((field) => field.key === "weightKg")?.latest,
+    80,
+  );
+  assert.deepEqual(
+    progress.history.map((row) => row.id),
+    [newer.id, older.id],
+  );
+  assert.equal(progress.history[0]?.cells.weightKg?.delta, -1);
+});
+
+test("anchors ranges in Lisbon and excludes future measurements", () => {
+  const instant = new Date("2026-07-31T23:30:00.000Z"); // 1 Aug in Lisbon
+  const progress = buildBodyProgress(
+    [
+      metric("2026-07-01", { weightKg: 90 }),
+      metric("2026-07-02", { weightKg: 89 }),
+      metric("2026-08-01", { weightKg: 88 }),
+      metric("2026-08-02", { weightKg: 50 }),
+    ],
+    "30d",
+    instant,
+  );
+
+  assert.equal(rangeStart("30d", instant)?.toISOString().slice(0, 10), "2026-07-02");
+  assert.equal(progress.measurementCount, 2);
+  assert.equal(
+    progress.fields.find((field) => field.key === "weightKg")?.latest,
+    88,
+  );
+  assert.equal(progress.totalCount, 3);
 });
 
 test("tone follows each measure's goal, not the sign of the change", () => {

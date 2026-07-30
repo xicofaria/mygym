@@ -1,6 +1,7 @@
 import { monthDateKeys } from "./month-calendar";
 import { normalizeGroupNames } from "./muscle-groups";
-import { dateFromKey, dateKey } from "./workout-calendar";
+import { lisbonDateKey } from "./format";
+import { dateFromKey } from "./workout-calendar";
 
 /**
  * The weekly split: which muscle groups belong to each weekday, and how it
@@ -59,7 +60,7 @@ export function planRoutineApplication({
   existingPlanDates: readonly string[];
   today?: Date;
 }): { date: string; groups: string[] }[] {
-  const todayKey = dateKey(today);
+  const todayKey = lisbonDateKey(today);
   const taken = new Set(existingPlanDates);
 
   return monthDateKeys(month)

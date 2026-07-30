@@ -1,5 +1,11 @@
 import { sql, relations } from "drizzle-orm";
-import { sqliteTable, integer, text, real } from "drizzle-orm/sqlite-core";
+import {
+  sqliteTable,
+  integer,
+  text,
+  real,
+  uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 /**
  * Data model for the 2-person gym tracker.
@@ -11,7 +17,7 @@ import { sqliteTable, integer, text, real } from "drizzle-orm/sqlite-core";
  *                  (this is the "Exercise X: 3 series, 12 reps, 24kg" from a paper log)
  * body_metrics   – bodyweight + tape measurements over time, per user
  * planned_workouts – a workout scheduled for a date (optionally from a
- *                  template); "done" is derived from real workouts on that day
+ *                  template), optionally linked to the session that completed it
  *
  * All timestamps are stored as Unix seconds (SQLite integer) and surfaced as JS Dates.
  */
@@ -105,20 +111,36 @@ export const workoutTemplateExercises = sqliteTable(
   },
 );
 
-export const plannedWorkouts = sqliteTable("planned_workouts", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  userId: integer("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  date: integer("date", { mode: "timestamp" }).notNull(),
-  templateId: integer("template_id").references(() => workoutTemplates.id, {
-    onDelete: "cascade",
-  }),
-  notes: text("notes"),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .notNull()
-    .default(sql`(unixepoch())`),
-});
+export const plannedWorkouts = sqliteTable(
+  "planned_workouts",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    date: integer("date", { mode: "timestamp" }).notNull(),
+    templateId: integer("template_id").references(() => workoutTemplates.id, {
+      onDelete: "set null",
+    }),
+    /** The real session that completed this exact plan, if any. */
+    workoutId: integer("workout_id")
+      .unique()
+      .references(() => workouts.id, { onDelete: "set null" }),
+    /** Non-null only for plans materialized from the weekly routine. */
+    routineDate: integer("routine_date", { mode: "timestamp" }),
+    notes: text("notes"),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => [
+    // SQLite permits repeated NULL values, so manual plans remain unrestricted.
+    uniqueIndex("planned_workouts_user_routine_date_unique").on(
+      table.userId,
+      table.routineDate,
+    ),
+  ],
+);
 
 /** What a planned session trains ("Peito", "Tríceps", …), in display order. */
 export const plannedWorkoutGroups = sqliteTable("planned_workout_groups", {
@@ -211,6 +233,10 @@ export const plannedWorkoutsRelations = relations(
     template: one(workoutTemplates, {
       fields: [plannedWorkouts.templateId],
       references: [workoutTemplates.id],
+    }),
+    workout: one(workouts, {
+      fields: [plannedWorkouts.workoutId],
+      references: [workouts.id],
     }),
     groups: many(plannedWorkoutGroups),
   }),

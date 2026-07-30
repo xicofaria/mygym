@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import {
   applyRoutineToMonth,
   saveRoutineDay,
@@ -35,8 +35,13 @@ export function RoutineEditor({
   const [applied, setApplied] = useState<string | null>(null);
   const [saving, startSave] = useTransition();
   const [applying, startApply] = useTransition();
+  const saveInFlight = useRef(false);
+  const applyInFlight = useRef(false);
 
   function update(weekday: number, groups: string[]) {
+    if (saveInFlight.current || applyInFlight.current) return;
+    const previousGroups = routine[weekday] ?? [];
+    saveInFlight.current = true;
     setRoutine((current) => ({ ...current, [weekday]: groups }));
     setError(null);
     setApplied(null);
@@ -44,16 +49,34 @@ export function RoutineEditor({
     startSave(async () => {
       try {
         const res = await saveRoutineDay({ weekday, groups });
-        if (res?.error) setError(res.error);
+        if ("error" in res) {
+          setRoutine((current) => ({
+            ...current,
+            [weekday]: previousGroups,
+          }));
+          setError(res.error ?? "Não foi possível guardar a rotina.");
+        } else {
+          setRoutine((current) => ({
+            ...current,
+            [weekday]: res.groups,
+          }));
+        }
       } catch {
+        setRoutine((current) => ({
+          ...current,
+          [weekday]: previousGroups,
+        }));
         setError("Sem ligação ao servidor. A rotina não ficou guardada.");
       } finally {
+        saveInFlight.current = false;
         setSavingDay(null);
       }
     });
   }
 
   function apply() {
+    if (saveInFlight.current || applyInFlight.current) return;
+    applyInFlight.current = true;
     setError(null);
     setApplied(null);
     startApply(async () => {
@@ -70,11 +93,15 @@ export function RoutineEditor({
         );
       } catch {
         setError("Sem ligação ao servidor. Tenta novamente.");
+      } finally {
+        applyInFlight.current = false;
       }
     });
   }
 
   const hasAnyGroup = Object.values(routine).some((groups) => groups.length > 0);
+  const savingRoutine = saving || savingDay != null;
+  const interactionBlocked = savingRoutine || applying;
 
   return (
     <div className="flex flex-col gap-4">
@@ -88,7 +115,8 @@ export function RoutineEditor({
                 type="button"
                 onClick={() => setOpenDay(open ? null : day.weekday)}
                 aria-expanded={open}
-                className="flex w-full cursor-pointer items-center gap-3 text-left"
+                disabled={interactionBlocked}
+                className="flex w-full cursor-pointer items-center gap-3 text-left disabled:cursor-wait disabled:opacity-60"
               >
                 <span className="w-28 shrink-0 text-sm font-semibold">
                   {day.long}
@@ -126,6 +154,7 @@ export function RoutineEditor({
                 <GroupPicker
                   value={groups}
                   onChange={(next) => update(day.weekday, next)}
+                  disabled={interactionBlocked}
                 />
               )}
             </section>
@@ -147,7 +176,7 @@ export function RoutineEditor({
             value={month}
             onChange={(event) => setMonth(event.target.value)}
             aria-label="Mês a preencher"
-            disabled={applying}
+            disabled={interactionBlocked}
           >
             {months.map((option) => (
               <option key={option.key} value={option.key}>
@@ -159,7 +188,7 @@ export function RoutineEditor({
             type="button"
             onClick={apply}
             className="btn-primary shrink-0"
-            disabled={applying || !hasAnyGroup}
+            disabled={interactionBlocked || !hasAnyGroup}
           >
             {applying ? "A aplicar…" : "Aplicar"}
           </button>

@@ -12,18 +12,17 @@ import { MonthCalendar } from "@/components/month-calendar";
 import { PlanWorkoutForm } from "@/components/plan-workout-form";
 import { DeleteButton } from "@/components/delete-button";
 import { deletePlannedWorkout } from "./actions";
-import { fmtDate } from "@/lib/format";
+import { fmtDate, lisbonDateKey, lisbonMonthKey } from "@/lib/format";
 import { formatGroupNames } from "@/lib/muscle-groups";
 import {
   addUtcDays,
   dateFromKey,
-  dateKey,
   readDateKey,
 } from "@/lib/workout-calendar";
 import {
+  aggregatePlanLabels,
   buildMonthCalendar,
   monthGridRange,
-  monthKeyOf,
   readMonthKey,
 } from "@/lib/month-calendar";
 
@@ -44,7 +43,7 @@ export default async function WorkoutsPage({
   const monthKey =
     readMonthKey(params.month) ??
     selectedDate?.slice(0, 7) ??
-    monthKeyOf(new Date());
+    lisbonMonthKey();
   const range = monthGridRange(monthKey);
 
   const [workouts, monthWorkoutDates, monthPlans, dayPlans, templates] =
@@ -79,15 +78,23 @@ export default async function WorkoutsPage({
     monthWorkoutDates,
     monthPlans.map((plan) => plan.date),
   );
-  const todayKey = dateKey(new Date());
+  const todayKey = lisbonDateKey();
   const canPlanSelectedDay =
     isSelf && selectedDate != null && selectedDate >= todayKey;
-  const dayIsDone = workouts.length > 0;
 
   const ownerLabel = isSelf ? "Os teus treinos" : `Treinos de ${viewed.name}`;
   const registerHref = selectedDate
     ? `/workouts/new?date=${selectedDate}`
     : "/workouts/new";
+  const planLabels = aggregatePlanLabels(
+    monthPlans.map((plan) => ({
+      date: plan.date.toISOString().slice(0, 10),
+      label:
+        plan.groups.length > 0
+          ? formatGroupNames(plan.groups)
+          : (plan.template?.name ?? "Treino planeado"),
+    })),
+  );
   const showActions = isSelf || selectedDate != null;
 
   return (
@@ -136,14 +143,7 @@ export default async function WorkoutsPage({
         calendar={calendar}
         selectedDate={selectedDate}
         viewedUserId={isSelf ? undefined : viewed.id}
-        planLabels={Object.fromEntries(
-          monthPlans
-            .filter((plan) => plan.groups.length > 0)
-            .map((plan) => [
-              plan.date.toISOString().slice(0, 10),
-              formatGroupNames(plan.groups),
-            ]),
-        )}
+        planLabels={planLabels}
       />
 
       {selectedDate && (dayPlans.length > 0 || canPlanSelectedDay) && (
@@ -152,63 +152,72 @@ export default async function WorkoutsPage({
             Planos para {fmtDate(dateFromKey(selectedDate))}
           </h2>
 
-          {dayPlans.map((plan) => (
-            <div
-              key={plan.id}
-              data-plan-id={plan.id}
-              className="flex items-start gap-2"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-pretty">
-                  {plan.groups.length > 0
-                    ? formatGroupNames(plan.groups)
-                    : (plan.template?.name ?? "Treino planeado")}
-                </p>
-                {(plan.notes ||
-                  (plan.groups.length > 0 && plan.template)) && (
-                  <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                    {[plan.groups.length > 0 ? plan.template?.name : null, plan.notes]
-                      .filter(Boolean)
-                      .join(" · ")}
+          {dayPlans.map((plan) => {
+            const isDone = plan.workoutId != null;
+            const registrationParams = new URLSearchParams({
+              date: selectedDate,
+              plan: String(plan.id),
+            });
+            if (plan.template) {
+              registrationParams.set("template", String(plan.template.id));
+            }
+            return (
+              <div
+                key={plan.id}
+                data-plan-id={plan.id}
+                className="flex items-start gap-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-pretty">
+                    {plan.groups.length > 0
+                      ? formatGroupNames(plan.groups)
+                      : (plan.template?.name ?? "Treino planeado")}
                   </p>
+                  {(plan.notes ||
+                    (plan.groups.length > 0 && plan.template)) && (
+                    <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+                      {[
+                        plan.groups.length > 0 ? plan.template?.name : null,
+                        plan.notes,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                  )}
+                </div>
+                <span
+                  className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
+                    isDone
+                      ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                      : selectedDate < todayKey
+                        ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
+                        : "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400"
+                  }`}
+                >
+                  {isDone
+                    ? "Concluído"
+                    : selectedDate < todayKey
+                      ? "Não realizado"
+                      : "Planeado"}
+                </span>
+                {isSelf && !isDone && (
+                  <Link
+                    href={`/workouts/new?${registrationParams.toString()}`}
+                    className="btn-ghost shrink-0 px-3 py-1.5 text-xs"
+                  >
+                    Registar
+                  </Link>
+                )}
+                {isSelf && (
+                  <DeleteButton
+                    action={deletePlannedWorkout}
+                    id={plan.id}
+                    confirmText="Remover este plano?"
+                  />
                 )}
               </div>
-              <span
-                className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-                  dayIsDone
-                    ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
-                    : selectedDate < todayKey
-                      ? "bg-amber-500/10 text-amber-700 dark:text-amber-400"
-                      : "bg-indigo-500/10 text-indigo-700 dark:text-indigo-400"
-                }`}
-              >
-                {dayIsDone
-                  ? "Concluído"
-                  : selectedDate < todayKey
-                    ? "Não realizado"
-                    : "Planeado"}
-              </span>
-              {isSelf && !dayIsDone && (
-                <Link
-                  href={
-                    plan.template
-                      ? `/workouts/new?date=${selectedDate}&template=${plan.template.id}`
-                      : registerHref
-                  }
-                  className="btn-ghost shrink-0 px-3 py-1.5 text-xs"
-                >
-                  Registar
-                </Link>
-              )}
-              {isSelf && (
-                <DeleteButton
-                  action={deletePlannedWorkout}
-                  id={plan.id}
-                  confirmText="Remover este plano?"
-                />
-              )}
-            </div>
-          ))}
+            );
+          })}
 
           {canPlanSelectedDay && (
             <PlanWorkoutForm

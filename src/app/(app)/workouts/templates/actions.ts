@@ -15,7 +15,7 @@ import { deleteOwnedRecord } from "@/lib/owned-resource";
 
 const schema = z.object({
   name: z.string().trim().min(1).max(80),
-  exerciseIds: z.array(z.number().int().positive()).min(1),
+  exerciseIds: z.array(z.number().int().positive()).min(1).max(100),
 });
 
 export type NewTemplateInput = z.infer<typeof schema>;
@@ -46,7 +46,7 @@ export async function createTemplate(input: NewTemplateInput) {
       .get();
 
     await tx.insert(workoutTemplateExercises).values(
-      exerciseIds.map((exerciseId, position) => ({
+      requestedIds.map((exerciseId, position) => ({
         templateId: template.id,
         exerciseId,
         position,

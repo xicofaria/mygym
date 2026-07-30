@@ -4,6 +4,8 @@ import { getRoutine } from "@/lib/queries";
 import { PageHeader } from "@/components/ui";
 import { RoutineEditor } from "@/components/routine-editor";
 import { monthKeyOf } from "@/lib/month-calendar";
+import { lisbonMonthKey } from "@/lib/format";
+import { dateFromKey } from "@/lib/workout-calendar";
 
 const monthFormatter = new Intl.DateTimeFormat("pt-PT", {
   month: "long",
@@ -13,9 +15,14 @@ const monthFormatter = new Intl.DateTimeFormat("pt-PT", {
 
 /** This month plus the next two — the horizon worth planning ahead. */
 function upcomingMonths(today: Date) {
+  const currentMonth = dateFromKey(`${lisbonMonthKey(today)}-01`);
   return [0, 1, 2].map((offset) => {
     const date = new Date(
-      Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + offset, 1),
+      Date.UTC(
+        currentMonth.getUTCFullYear(),
+        currentMonth.getUTCMonth() + offset,
+        1,
+      ),
     );
     const label = monthFormatter.format(date);
     return {

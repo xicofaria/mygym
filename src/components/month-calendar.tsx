@@ -37,7 +37,7 @@ function dayLabel(day: MonthCalendarDay, planLabel?: string): string {
   if (day.plannedCount > 0) {
     parts.push(
       planLabel
-        ? `planeado: ${planLabel}`
+        ? `${day.plannedCount === 1 ? "planeado" : "planeados"}: ${planLabel}`
         : `${day.plannedCount} ${day.plannedCount === 1 ? "plano" : "planos"}`,
     );
   }

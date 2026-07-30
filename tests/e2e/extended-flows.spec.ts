@@ -47,14 +47,17 @@ test("login inválido é recusado sem criar uma sessão", async ({ page }) => {
 
 test("uma medição corporal pode ser criada, isolada e eliminada", async ({
   page,
-}) => {
-  const notes = "Medição E2E isolada";
+}, testInfo) => {
+  const day = 15 + testInfo.retry;
+  const date = `2026-01-${String(day).padStart(2, "0")}`;
+  const formattedDate = `${String(day).padStart(2, "0")}/01/2026`;
+  const notes = `Medição E2E isolada — tentativa ${testInfo.retry}`;
   await login(page, OWNER);
   await page.goto("/body");
   await page.getByRole("button", { name: "+ Adicionar medição" }).click();
 
   const form = page.locator("form").filter({ hasText: "Gordura corporal (%)" });
-  await form.getByLabel("Data").fill("2026-01-15");
+  await form.getByLabel("Data").fill(date);
   await form.getByLabel("Peso (kg)").fill("81.4");
   await form.getByLabel("Cintura (cm)").fill("88.5");
   await form.getByLabel("Notas (opcional)").fill(notes);
@@ -62,7 +65,7 @@ test("uma medição corporal pode ser criada, isolada e eliminada", async ({
 
   // The fixture is backdated, so the full range is where its row shows up.
   await page.goto("/body?range=all");
-  const row = page.locator("tr").filter({ hasText: "15/01/2026" });
+  const row = page.locator("tr").filter({ hasText: formattedDate });
   await expect(row).toContainText("81.4");
   await expect(row).toContainText("88.5");
   await expect(page.getByText(notes)).toBeVisible();
@@ -77,7 +80,7 @@ test("uma medição corporal pode ser criada, isolada e eliminada", async ({
 
   await page.goto("/body?range=all");
   await expect(page.getByText(notes)).toBeVisible();
-  const ownedRow = page.locator("tr").filter({ hasText: "15/01/2026" });
+  const ownedRow = page.locator("tr").filter({ hasText: formattedDate });
   await confirmDeletion(
     page,
     ownedRow.getByRole("button", { name: "Eliminar" }),
@@ -88,7 +91,12 @@ test("uma medição corporal pode ser criada, isolada e eliminada", async ({
 test("um modelo de treino pode ser criado, usado e eliminado", async ({
   page,
 }) => {
-  const name = "Modelo E2E peito e pernas";
+  const runId = Date.now().toString(36);
+  const name = `Modelo E2E peito e pernas ${runId}`;
+  const planNotes = `Plano que mantém dados ${runId}`;
+  const futureDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
   await login(page, OWNER);
   await page.goto("/workouts/templates");
   await page.getByRole("button", { name: "+ Novo modelo" }).click();
@@ -112,6 +120,39 @@ test("um modelo de treino pode ser criado, usado e eliminado", async ({
     page.getByLabel("Exercício da série 2").locator("option:checked"),
   ).toHaveText("Squat");
 
+  // A plan can keep using the model while switching prefills without losing
+  // either its date or its identity in the URL.
+  await page.goto(`/workouts?date=${futureDate}`);
+  const planForm = page
+    .locator("form")
+    .filter({ hasText: "O que vais treinar" });
+  await planForm.getByRole("button", { name: "Peito", exact: true }).click();
+  await planForm.getByLabel("Começar de um modelo (opcional)").selectOption({
+    label: name,
+  });
+  await planForm.getByLabel("Notas do plano").fill(planNotes);
+  await planForm.getByRole("button", { name: "Planear treino" }).click();
+  const plan = page.locator("[data-plan-id]").filter({ hasText: planNotes });
+  await expect(plan).toContainText(name);
+
+  await plan.getByRole("link", { name: "Registar", exact: true }).click();
+  await expect(page).toHaveURL(
+    new RegExp(
+      `/workouts/new\\?date=${futureDate}&plan=\\d+&template=\\d+$`,
+    ),
+  );
+  await page.getByRole("link", { name: "Do zero", exact: true }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/workouts/new\\?date=${futureDate}&plan=\\d+$`),
+  );
+  await expect(page.getByLabel("Data")).toHaveValue(futureDate);
+  await page.getByRole("link", { name, exact: true }).click();
+  await expect(page).toHaveURL(
+    new RegExp(
+      `/workouts/new\\?date=${futureDate}&plan=\\d+&template=\\d+$`,
+    ),
+  );
+
   await page.goto("/workouts/templates");
   const ownedTemplate = page.locator(".card").filter({ hasText: name });
   await confirmDeletion(
@@ -119,12 +160,28 @@ test("um modelo de treino pode ser criado, usado e eliminado", async ({
     ownedTemplate.getByRole("button", { name: "Eliminar" }),
   );
   await expect(page.getByText(name)).toHaveCount(0);
+
+  // Removing the template clears only the optional FK: the plan, its notes
+  // and its muscle groups survive.
+  await page.goto(`/workouts?date=${futureDate}`);
+  const preservedPlan = page
+    .locator("[data-plan-id]")
+    .filter({ hasText: planNotes });
+  await expect(preservedPlan).toContainText("Peito");
+  await expect(preservedPlan).toContainText(planNotes);
+  await expect(preservedPlan).not.toContainText(name);
+
+  await confirmDeletion(
+    page,
+    preservedPlan.getByRole("button", { name: "Eliminar" }),
+  );
+  await expect(page.getByText(planNotes)).toHaveCount(0);
 });
 
 test("treinos ficam isolados e só o proprietário os pode editar ou eliminar", async ({
   page,
-}) => {
-  const notes = "Treino E2E para testar propriedade";
+}, testInfo) => {
+  const notes = `Treino E2E para testar propriedade — tentativa ${testInfo.retry}`;
   await login(page, OWNER);
   const workout = await createWorkout(page, notes);
   await expect(workout).toBeVisible();
@@ -169,10 +226,18 @@ test("o rascunho de treino sobrevive a uma perda de ligação", async ({
   page,
 }) => {
   const notes = "Rascunho E2E guardado localmente";
-  const draftKey = "gym-tracker:workout-draft:new";
   await login(page, OWNER);
   await page.goto("/workouts/new");
-  await page.evaluate((key) => localStorage.removeItem(key), draftKey);
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage)) {
+      if (
+        key === "gym-tracker:workout-draft:new" ||
+        /^gym-tracker:workout-draft:user-\d+:new$/.test(key)
+      ) {
+        localStorage.removeItem(key);
+      }
+    }
+  });
   await page.reload();
   await expect(page.getByRole("status")).toHaveCount(0);
 
@@ -181,7 +246,12 @@ test("o rascunho de treino sobrevive a uma perda de ligação", async ({
   await page.getByPlaceholder("Como correu?").fill(notes);
   await expect
     .poll(() =>
-      page.evaluate((key) => localStorage.getItem(key), draftKey),
+      page.evaluate(() => {
+        const key = Object.keys(localStorage).find((candidate) =>
+          /^gym-tracker:workout-draft:user-\d+:new$/.test(candidate),
+        );
+        return key ? localStorage.getItem(key) : null;
+      }),
     )
     .not.toBeNull();
 
@@ -190,7 +260,12 @@ test("o rascunho de treino sobrevive a uma perda de ligação", async ({
   await page.getByLabel("Repetições da série 1").fill("11");
   await expect
     .poll(() =>
-      page.evaluate((key) => localStorage.getItem(key), draftKey),
+      page.evaluate(() => {
+        const key = Object.keys(localStorage).find((candidate) =>
+          /^gym-tracker:workout-draft:user-\d+:new$/.test(candidate),
+        );
+        return key ? localStorage.getItem(key) : null;
+      }),
     )
     .toContain('"reps":"11"');
 
@@ -204,7 +279,13 @@ test("o rascunho de treino sobrevive a uma perda de ligação", async ({
   await expect(page.getByLabel("Repetições da série 1")).toHaveValue("11");
   await expect(page.getByLabel("Peso (kg) da série 1")).toHaveValue("35");
   await expect(page.getByPlaceholder("Como correu?")).toHaveValue(notes);
-  await page.evaluate((key) => localStorage.removeItem(key), draftKey);
+  await page.evaluate(() => {
+    for (const key of Object.keys(localStorage)) {
+      if (/^gym-tracker:workout-draft:user-\d+:new$/.test(key)) {
+        localStorage.removeItem(key);
+      }
+    }
+  });
 });
 
 test("um rascunho do formulário em branco não substitui uma data pedida no URL", async ({
@@ -230,9 +311,12 @@ test("um rascunho do formulário em branco não substitui uma data pedida no URL
   await page.getByLabel("Repetições da série 1").fill("5");
   await expect
     .poll(() =>
-      page.evaluate(() =>
-        localStorage.getItem("gym-tracker:workout-draft:new"),
-      ),
+      page.evaluate(() => {
+        const key = Object.keys(localStorage).find((candidate) =>
+          /^gym-tracker:workout-draft:user-\d+:new$/.test(candidate),
+        );
+        return key ? localStorage.getItem(key) : null;
+      }),
     )
     .not.toBeNull();
 

@@ -29,14 +29,24 @@ both npm and GitHub Actions dependencies weekly.
 
 ## Database schema delivery
 
-`Database schema` runs on pushes to `main` that change `src/db/schema.ts` or
-`drizzle.config.ts` (and on manual dispatch): it applies the Drizzle schema to
-the production Turso database with a non-interactive `drizzle-kit push`. It
-needs the `DATABASE_URL` and `DATABASE_AUTH_TOKEN` repository secrets and
-refuses to run without them (otherwise the drizzle config would silently fall
-back to a local file). It never passes `--force`, so destructive changes
-(dropping or renaming columns) fail the job on purpose and must be applied
-manually after backing up (`turso db shell <db> .dump > backup.sql`).
+After a production Vercel build compiles successfully, its npm `postbuild`
+verifies the Drizzle migration ledger and applies pending versioned migrations
+before Vercel can activate that build. The runner accepts only an empty,
+recognised legacy, or current schema, checks foreign keys and indexes after the
+transaction, and exits non-zero on any mismatch. The guard requires Vercel's
+production markers and a `libsql://` URL; preview and ordinary `npm run build`
+runs skip it.
+
+This guarantee requires **Automatically expose System Environment Variables**
+to stay enabled in Vercel and the package build command (`npm run build`) not to
+be overridden. Treat a local `vercel build --prod` as a real production
+operation because it can receive those production markers and credentials.
+
+`Database schema` is a manual recovery workflow restricted to `main` and the
+GitHub `production` environment. Its database secrets are exposed only to the
+validation and migration steps, not dependency installation. Both paths use
+the same migration runner. Back up production before introducing a migration
+that rewrites or removes data (`turso db shell <db> .dump > backup.sql`).
 
 ## Recommended branch protection
 

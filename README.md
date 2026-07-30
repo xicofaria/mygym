@@ -56,8 +56,8 @@ npm install
 cp .env.example .env.local
 # then edit .env.local: set a SESSION_SECRET and your two accounts' credentials
 
-# 2. Create the SQLite schema and seed the two accounts + exercise catalog
-npm run db:push
+# 2. Apply the versioned migrations and seed both accounts + exercise catalog
+npm run db:migrate
 npm run db:seed
 
 # 3. Run it
@@ -72,17 +72,18 @@ Log in with the credentials you set in `.env.local` (`SEED_USER1_*` /
 | Command                              | What it does                                    |
 | ------------------------------------- | ------------------------------------------------ |
 | `npm run dev`                         | Dev server                                       |
-| `npm run build`                       | Production build (also typechecks)               |
+| `npm run build`                       | Production build; applies prod schema on Vercel  |
 | `npm run start`                       | Serve the production build                       |
 | `npm run lint`                        | ESLint                                           |
 | `npm run typecheck`                   | TypeScript validation                            |
 | `npm test`                            | Unit tests                                       |
 | `npm run test:e2e`                    | Playwright browser workflow                      |
 | `npm run check`                       | Lint + types + unit tests + production build     |
-| `npm run db:push`                     | Apply `src/db/schema.ts` to the database (dev)   |
-| `npm run db:generate` / `db:migrate`  | Generate + run SQL migrations (prod workflow)    |
+| `npm run db:migrate`                  | Verify and apply pending SQL migrations           |
+| `npm run db:generate`                 | Generate a versioned migration after schema edits |
+| `npm run db:push`                     | Sync a disposable development database only       |
 | `npm run db:seed`                     | Upsert the two users + starter exercise catalog  |
-| `npm run db:reset`                    | Wipe `dev.db`, re-push schema, re-seed           |
+| `npm run db:reset`                    | Wipe `dev.db`, migrate it, and re-seed            |
 | `npm run db:studio`                   | Drizzle Studio — browse the database in a GUI    |
 | `npm run backup:verify -- backup.sql` | Restore and integrity-check a dump temporarily   |
 
@@ -97,11 +98,16 @@ A plain SQLite file doesn't persist on serverless hosts, so production uses
    - `DATABASE_AUTH_TOKEN` — the Turso auth token
    - `SESSION_SECRET` — a fresh secret, **different from your local one**
      (generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
-3. Create the schema on Turso: run `npm run db:generate` then
-   `npm run db:migrate` (or `db:push`) pointed at the Turso URL.
-4. Seed it: `npm run db:seed` (with real names/emails/passwords — **not** the
+3. In Vercel, enable **Automatically expose System Environment Variables** and
+   keep the default package build command (`npm run build`).
+4. Deploy. After a successful compile, the build verifies the migration ledger
+   and applies pending versioned migrations before Vercel activates it; preview
+   and ordinary local builds skip this step.
+5. Seed it: `npm run db:seed` (with real names/emails/passwords — **not** the
    `changeme123` defaults).
-5. Deploy. No code changes are needed between local dev and production.
+
+The manual `Database schema` GitHub workflow is an emergency recovery path for
+`main`, not part of the normal deployment sequence.
 
 ## Next steps
 

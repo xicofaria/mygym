@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "postbuild": "node --import tsx scripts/apply-production-schema.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
@@ -13,10 +14,11 @@
     "check": "npm run lint && npm run typecheck && npm test && npm run build",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "node --import tsx scripts/migrate-database.ts",
     "db:studio": "drizzle-kit studio",
     "db:seed": "node --import tsx scripts/seed.ts",
-    "db:reset": "rm -f dev.db dev.db-shm dev.db-wal && drizzle-kit push && node --import tsx scripts/seed.ts",
+    "db:prepare:e2e": "node --import tsx scripts/prepare-e2e-database.ts",
+    "db:reset": "rm -f dev.db dev.db-shm dev.db-wal && npm run db:migrate && npm run db:seed",
     "backup:verify": "bash scripts/verify-backup.sh"
   },
   "dependencies": {

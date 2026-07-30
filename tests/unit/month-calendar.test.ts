@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  aggregatePlanLabels,
   buildMonthCalendar,
   isMonthKey,
   monthGridRange,
@@ -61,10 +62,38 @@ test("renders full Monday-based weeks padded with adjacent months", () => {
   );
 });
 
+test("aggregates every planned-session label on the same calendar day", () => {
+  assert.deepEqual(
+    aggregatePlanLabels([
+      { date: "2026-07-20", label: "Peito · Tríceps" },
+      { date: "2026-07-20", label: "Pernas" },
+      { date: "2026-07-21", label: "Cardio" },
+    ]),
+    {
+      "2026-07-20": "Peito · Tríceps + Pernas",
+      "2026-07-21": "Cardio",
+    },
+  );
+});
+
 test("month navigation crosses year boundaries", () => {
   const january = buildMonthCalendar("2026-01", [], [], dateFromKey("2026-01-10"));
   assert.equal(january.previousMonth, "2025-12");
   assert.equal(january.nextMonth, "2026-02");
+});
+
+test("marks today using Lisbon's civil day", () => {
+  const calendar = buildMonthCalendar(
+    "2026-07",
+    [],
+    [],
+    new Date("2026-07-30T23:30:00.000Z"),
+  );
+  const days = calendar.weeks.flat();
+
+  assert.equal(days.find((day) => day.date === "2026-07-31")?.isToday, true);
+  assert.equal(days.find((day) => day.date === "2026-07-31")?.isFuture, false);
+  assert.equal(days.find((day) => day.date === "2026-08-01")?.isFuture, true);
 });
 
 test("grid range covers the first Monday through the Sunday after month end", () => {

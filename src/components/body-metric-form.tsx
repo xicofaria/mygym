@@ -28,7 +28,7 @@ type BodyMetricDraft = {
   values: Record<FieldKey, string>;
 };
 
-const DRAFT_KEY = "gym-tracker:body-metric-draft";
+const LEGACY_DRAFT_KEY = "gym-tracker:body-metric-draft";
 
 function emptyValues(): Record<FieldKey, string> {
   return Object.fromEntries(FIELDS.map((f) => [f.key, ""])) as Record<
@@ -56,8 +56,9 @@ function num(s: string): number | undefined {
   return s.trim() !== "" && Number.isFinite(n) ? n : undefined;
 }
 
-export function BodyMetricForm() {
+export function BodyMetricForm({ userId }: { userId: number }) {
   const router = useRouter();
+  const draftKey = `gym-tracker:body-metric-draft:user-${userId}`;
   const [open, setOpen] = useState(false);
   const [date, setDate] = useState(toDateInputValue());
   const [values, setValues] = useState<Record<FieldKey, string>>(emptyValues);
@@ -69,8 +70,21 @@ export function BodyMetricForm() {
   const [restoredDraft, setRestoredDraft] = useState(false);
   const submittingRef = useRef(false);
 
+  function resetForm() {
+    setDate(toDateInputValue());
+    setValues(emptyValues());
+    setNotes("");
+    setOpen(false);
+    setError(null);
+    setDirty(false);
+    setRestoredDraft(false);
+  }
+
   useEffect(() => {
-    const draft = readLocalDraft(localStorage, DRAFT_KEY, isBodyMetricDraft);
+    // Never restore the pre-account draft: it may have been written by a
+    // different user of this browser.
+    removeLocalDraft(localStorage, LEGACY_DRAFT_KEY);
+    const draft = readLocalDraft(localStorage, draftKey, isBodyMetricDraft);
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
@@ -87,12 +101,12 @@ export function BodyMetricForm() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [draftKey]);
 
   useEffect(() => {
     if (!draftReady || !dirty || !open || submittingRef.current) return;
-    writeLocalDraft(localStorage, DRAFT_KEY, { date, notes, values });
-  }, [date, dirty, draftReady, notes, open, values]);
+    writeLocalDraft(localStorage, draftKey, { date, notes, values });
+  }, [date, dirty, draftKey, draftReady, notes, open, values]);
 
   if (!open) {
     return (
@@ -121,27 +135,23 @@ export function BodyMetricForm() {
 
     const draft = { date, notes, values };
     submittingRef.current = true;
-    removeLocalDraft(localStorage, DRAFT_KEY);
+    removeLocalDraft(localStorage, draftKey);
 
     start(async () => {
       try {
         const res = await createBodyMetric(input as never);
         if (res?.error) {
           submittingRef.current = false;
-          writeLocalDraft(localStorage, DRAFT_KEY, draft);
+          writeLocalDraft(localStorage, draftKey, draft);
           setError(res.error);
           return;
         }
         submittingRef.current = false;
-        setValues(emptyValues());
-        setNotes("");
-        setOpen(false);
-        setDirty(false);
-        setRestoredDraft(false);
+        resetForm();
         router.refresh();
       } catch {
         submittingRef.current = false;
-        writeLocalDraft(localStorage, DRAFT_KEY, draft);
+        writeLocalDraft(localStorage, draftKey, draft);
         setError(
           "Sem ligação ao servidor. O rascunho ficou guardado neste dispositivo.",
         );
@@ -160,6 +170,7 @@ export function BodyMetricForm() {
           type="date"
           className="input"
           value={date}
+          max={toDateInputValue()}
           onChange={(e) => {
             setDate(e.target.value);
             setDirty(true);
@@ -227,13 +238,8 @@ export function BodyMetricForm() {
           type="button"
           className="btn-ghost"
           onClick={() => {
-            removeLocalDraft(localStorage, DRAFT_KEY);
-            setValues(emptyValues());
-            setNotes("");
-            setOpen(false);
-            setError(null);
-            setDirty(false);
-            setRestoredDraft(false);
+            removeLocalDraft(localStorage, draftKey);
+            resetForm();
           }}
         >
           Cancelar

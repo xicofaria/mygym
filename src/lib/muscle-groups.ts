@@ -23,6 +23,20 @@ export const MUSCLE_GROUP_SUGGESTIONS = [
 export const MAX_GROUP_NAME_LENGTH = 30;
 export const MAX_GROUPS_PER_DAY = 8;
 
+const LEGACY_MUSCLE_GROUP_LABELS: Readonly<Record<string, string>> = {
+  arms: "Braços",
+  back: "Dorsal",
+  chest: "Peito",
+  core: "Abdominais",
+  legs: "Pernas",
+  shoulders: "Ombros",
+};
+
+/** Keeps older seeded exercise data readable in pt-PT without rewriting it. */
+export function formatMuscleGroup(value: string): string {
+  return LEGACY_MUSCLE_GROUP_LABELS[value.trim().toLowerCase()] ?? value;
+}
+
 /** Trims and collapses whitespace; returns null when nothing usable is left. */
 export function normalizeGroupName(value: string): string | null {
   const trimmed = value.replace(/\s+/g, " ").trim();

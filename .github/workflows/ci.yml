@@ -81,11 +81,6 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Prepare isolated database
-        run: |
-          npm run db:push
-          npm run db:seed
-
       - name: Run browser tests
         run: npm run test:e2e
 

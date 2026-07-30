@@ -7,9 +7,14 @@ import { db } from "@/db";
 import { bodyMetrics } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { deleteOwnedRecord } from "@/lib/owned-resource";
+import {
+  dateFromKey,
+  isCurrentOrPastDateKey,
+  isDateKey,
+} from "@/lib/workout-calendar";
 
 const schema = z.object({
-  date: z.string().min(1),
+  date: z.string().refine(isDateKey),
   weightKg: z.number().positive().max(500).optional(),
   heightCm: z.number().positive().max(300).optional(),
   waistCm: z.number().positive().max(300).optional(),
@@ -29,6 +34,10 @@ export async function createBodyMetric(input: NewBodyMetricInput) {
   if (!parsed.success) return { error: "Verifica os dados e tenta novamente." };
   const d = parsed.data;
 
+  if (!isCurrentOrPastDateKey(d.date)) {
+    return { error: "A medição não pode ter uma data futura ou inválida." };
+  }
+
   const measurements = [
     d.weightKg,
     d.heightCm,
@@ -45,7 +54,7 @@ export async function createBodyMetric(input: NewBodyMetricInput) {
 
   await db.insert(bodyMetrics).values({
     userId: user.id,
-    date: new Date(d.date),
+    date: dateFromKey(d.date),
     weightKg: d.weightKg ?? null,
     heightCm: d.heightCm ?? null,
     waistCm: d.waistCm ?? null,

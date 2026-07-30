@@ -47,19 +47,19 @@ npm run test:e2e       # Playwright browser flow
 npm run check          # lint + typecheck + unit tests + production build
 npx tsc --noEmit       # typecheck only
 
-npm run db:push        # apply src/db/schema.ts to the DB (dev workflow)
-npm run db:generate    # generate SQL migrations (prod workflow)
-npm run db:migrate     # run migrations
+npm run db:push        # sync a disposable development DB only
+npm run db:generate    # generate a versioned SQL migration
+npm run db:migrate     # verify the ledger and apply pending migrations
 npm run db:seed        # upsert the 2 users + starter exercise catalog
-npm run db:reset       # wipe dev.db, re-push schema, re-seed
+npm run db:reset       # wipe dev.db, migrate it, re-seed
 npm run db:studio      # browse the DB
 ```
 
 GitHub Actions run lint, typechecking, unit tests, a production build, a
 Playwright workout flow, CodeQL, dependency review, Gitleaks, and npm audit.
-Merges to `main` that change `src/db/schema.ts` also apply the schema to the
-production Turso DB (additive changes only — destructive ones fail the job and
-stay manual). See `docs/DEVSECOPS.md`.
+Production Vercel builds apply verified, versioned migrations in `postbuild`;
+the manual database workflow on `main` is the recovery path. See
+`docs/DEVSECOPS.md`.
 
 ## Architecture
 
@@ -157,15 +157,16 @@ anything. Editing `/workouts/routine` saves per weekday as you toggle chips
 
 - Import alias: `@/*` → `src/*`.
 - Scripts that run **outside** Next (via `tsx`) — `scripts/seed.ts`,
-  `drizzle.config.ts` — must `process.loadEnvFile(".env.local")` **before** any
+  `scripts/migrate-database.ts`, `drizzle.config.ts` — must
+  `process.loadEnvFile(".env.local")` **before** any
   import that reads env, and therefore import the db module dynamically.
 - Env vars: `DATABASE_URL`, `DATABASE_AUTH_TOKEN` (prod), `SESSION_SECRET`,
   `SEED_USER1_*` / `SEED_USER2_*`. Local values live in `.env.local` (gitignored).
-- Adding a field/table: edit `src/db/schema.ts` → `npm run db:push`; add reads to
+- Adding a field/table: edit `src/db/schema.ts`, run `npm run db:generate`,
+  inspect the generated SQL, and test `npm run db:migrate`; add reads to
   `queries.ts` and writes as a new/updated server action.
-- `db:push` prompts interactively on data-loss changes (e.g. dropping a
-  column); non-interactively use `npx drizzle-kit push --force` (only after
-  confirming the loss is expected/acceptable).
+- Never use `db:push` to evolve a persistent database. It is reserved for
+  disposable prototyping; versioned migrations are the source of truth.
 - `<html>`/`<body>` in `src/app/layout.tsx` have `suppressHydrationWarning`
   because browser extensions (e.g. Dark Reader) inject attributes like
   `data-darkreader-proxy-injected` client-side, which otherwise trips a

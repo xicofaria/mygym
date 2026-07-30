@@ -4,13 +4,23 @@ import {
   getExerciseCatalog,
   getLastPerformanceByExercise,
   getLatestWorkoutForRepeat,
+  getPlannedWorkout,
   getWorkoutTemplate,
   getWorkoutTemplates,
 } from "@/lib/queries";
-import { PageHeader } from "@/components/ui";
+import { EmptyState, PageHeader } from "@/components/ui";
 import { WorkoutForm } from "@/components/workout-form";
 import { AddExercise } from "@/components/add-exercise";
-import { readDateKey } from "@/lib/workout-calendar";
+import { dateKey, readDateKey } from "@/lib/workout-calendar";
+
+function readPositiveInteger(
+  value: string | string[] | undefined,
+): number | null {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  if (!candidate || !/^\d+$/.test(candidate)) return null;
+  const parsed = Number(candidate);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : null;
+}
 
 export default async function NewWorkoutPage({
   searchParams,
@@ -19,27 +29,71 @@ export default async function NewWorkoutPage({
     template?: string | string[];
     repeat?: string | string[];
     date?: string | string[];
+    plan?: string | string[];
   }>;
 }) {
   const user = await requireUser();
-  const { template: templateParam, repeat, date: dateParam } =
-    await searchParams;
-  const templateId = Number(templateParam);
+  const {
+    template: templateParam,
+    repeat,
+    date: dateParam,
+    plan: planParam,
+  } = await searchParams;
+  const templateId = readPositiveInteger(templateParam);
+  const plannedWorkoutId = readPositiveInteger(planParam);
   const shouldRepeat = repeat === "last";
-  const initialDate = readDateKey(dateParam);
+  const requestedDate = readDateKey(dateParam);
+
+  const linkedPlan = plannedWorkoutId
+    ? await getPlannedWorkout(plannedWorkoutId, user.id)
+    : null;
+  const initialDate = linkedPlan ? dateKey(linkedPlan.date) : requestedDate;
 
   const [catalog, templates, activeTemplate, repeatedWorkout, lastPerformance] =
     await Promise.all([
-    getExerciseCatalog(),
-    getWorkoutTemplates(user.id),
-    !shouldRepeat && Number.isInteger(templateId) && templateId > 0
-      ? getWorkoutTemplate(templateId, user.id)
-      : Promise.resolve(null),
-    shouldRepeat
-      ? getLatestWorkoutForRepeat(user.id)
-      : Promise.resolve(null),
-    getLastPerformanceByExercise(user.id),
-  ]);
+      getExerciseCatalog(),
+      getWorkoutTemplates(user.id),
+      !shouldRepeat && templateId != null
+        ? getWorkoutTemplate(templateId, user.id)
+        : Promise.resolve(null),
+      shouldRepeat
+        ? getLatestWorkoutForRepeat(user.id)
+        : Promise.resolve(null),
+      getLastPerformanceByExercise(user.id),
+    ]);
+
+  if (
+    plannedWorkoutId != null &&
+    (!linkedPlan || linkedPlan.workoutId != null)
+  ) {
+    const completed = linkedPlan?.workoutId != null;
+    return (
+      <div className="flex flex-col gap-4">
+        <PageHeader title="Registar treino" />
+        <EmptyState
+          title={
+            completed ? "Este plano já foi concluído" : "Plano não encontrado"
+          }
+          hint={
+            completed
+              ? "Cada plano só pode ficar associado a uma sessão."
+              : "O plano pode ter sido removido ou pertencer a outra conta."
+          }
+          href="/workouts"
+          cta="Voltar aos treinos"
+        />
+      </div>
+    );
+  }
+
+  function workoutHref(nextTemplateId?: number): string {
+    const params = new URLSearchParams();
+    if (initialDate) params.set("date", initialDate);
+    if (linkedPlan) params.set("plan", String(linkedPlan.id));
+    if (nextTemplateId != null) params.set("template", String(nextTemplateId));
+    const query = params.toString();
+    return query ? `/workouts/new?${query}` : "/workouts/new";
+  }
 
   const exercises = catalog.map((e) => ({ id: e.id, name: e.name }));
   const initialRows =
@@ -55,6 +109,7 @@ export default async function NewWorkoutPage({
    */
   const draftScope = [
     initialDate ? `date:${initialDate}` : null,
+    linkedPlan ? `plan:${linkedPlan.id}` : null,
     activeTemplate ? `tpl:${activeTemplate.id}` : null,
     repeatedWorkout ? "repeat" : null,
   ]
@@ -66,7 +121,10 @@ export default async function NewWorkoutPage({
       <PageHeader
         title={repeatedWorkout ? "Repetir último treino" : "Registar treino"}
         action={
-          <Link href="/workouts" className="btn-ghost">
+          <Link
+            href={initialDate ? `/workouts?date=${initialDate}` : "/workouts"}
+            className="btn-ghost"
+          >
             Cancelar
           </Link>
         }
@@ -87,7 +145,7 @@ export default async function NewWorkoutPage({
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
-              href="/workouts/new"
+              href={workoutHref()}
               className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
                 !activeTemplate && !repeatedWorkout
                   ? "bg-indigo-600 text-white"
@@ -99,7 +157,7 @@ export default async function NewWorkoutPage({
             {templates.map((t) => (
               <Link
                 key={t.id}
-                href={`/workouts/new?template=${t.id}`}
+                href={workoutHref(t.id)}
                 className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
                   activeTemplate?.id === t.id
                     ? "bg-indigo-600 text-white"
@@ -117,13 +175,15 @@ export default async function NewWorkoutPage({
         key={
           repeatedWorkout
             ? `repeat-${repeatedWorkout.id}`
-            : (activeTemplate?.id ?? "blank")
+            : `${linkedPlan?.id ?? "free"}-${activeTemplate?.id ?? "blank"}`
         }
+        userId={user.id}
         exercises={exercises}
         initialRows={initialRows}
         initialDate={initialDate ?? undefined}
         draftScope={draftScope}
         lastPerformance={lastPerformance}
+        plannedWorkoutId={linkedPlan?.id}
       />
 
       <div className="border-t border-black/5 pt-4 dark:border-white/10">

@@ -4,6 +4,9 @@ export type WorkoutEntry = {
   weight: number;
 };
 
+/** Upper bound for one submission, well below SQLite parameter limits. */
+export const MAX_SETS_PER_WORKOUT = 500;
+
 export type StoredWorkoutSet = WorkoutEntry & {
   workoutId: number;
   setNumber: number;
