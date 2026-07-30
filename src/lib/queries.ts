@@ -1,9 +1,10 @@
 import "server-only";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, gte, lt } from "drizzle-orm";
 import { db } from "@/db";
 import {
   bodyMetrics,
   exercises,
+  plannedWorkouts,
   sets,
   users,
   workoutTemplates,
@@ -473,6 +474,58 @@ export async function getWorkoutTemplates(
       id: i.exercise.id,
       name: i.exercise.name,
     })),
+  }));
+}
+
+/** Dates of every workout within [from, to), for calendar aggregation. */
+export async function getWorkoutDatesInRange(
+  userId: number,
+  from: Date,
+  to: Date,
+): Promise<Date[]> {
+  const rows = await db
+    .select({ date: workouts.date })
+    .from(workouts)
+    .where(
+      and(
+        eq(workouts.userId, userId),
+        gte(workouts.date, from),
+        lt(workouts.date, to),
+      ),
+    )
+    .all();
+  return rows.map((row) => row.date);
+}
+
+export type PlannedWorkoutWithTemplate = {
+  id: number;
+  date: Date;
+  notes: string | null;
+  template: { id: number; name: string } | null;
+};
+
+/** Planned workouts within [from, to), with the template they came from. */
+export async function getPlannedWorkouts(
+  userId: number,
+  from: Date,
+  to: Date,
+): Promise<PlannedWorkoutWithTemplate[]> {
+  const rows = await db.query.plannedWorkouts.findMany({
+    where: and(
+      eq(plannedWorkouts.userId, userId),
+      gte(plannedWorkouts.date, from),
+      lt(plannedWorkouts.date, to),
+    ),
+    orderBy: [asc(plannedWorkouts.date), asc(plannedWorkouts.id)],
+    with: { template: true },
+  });
+  return rows.map((plan) => ({
+    id: plan.id,
+    date: plan.date,
+    notes: plan.notes,
+    template: plan.template
+      ? { id: plan.template.id, name: plan.template.name }
+      : null,
   }));
 }
 

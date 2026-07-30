@@ -110,7 +110,18 @@ page + actions (`createTemplate`, `deleteTemplate`). `/workouts/new` accepts
 actually resets state (a plain prop change would not, since `useState`'s
 initial value only applies on first mount).
 
-## Conventions & gotchas
+**Calendar & planned workouts.** All calendar date math uses the UTC-midnight
+convention (workout dates are stored as `new Date("YYYY-MM-DD")`, i.e. UTC
+midnight, so ISO `YYYY-MM-DD` keys and exact-equality date filters line up).
+`src/lib/workout-calendar.ts` (52-week dashboard heatmap + `readDateKey`
+query-param validation) and `src/lib/month-calendar.ts` (month grid for
+`/workouts` + `readMonthKey`) are pure, unit-tested modules. `plannedWorkouts`
+(schema) schedules a workout on a date, optionally tied to one of the user's
+templates; "done" is **derived** — a plan counts as concluded when the user has
+any real workout on that date — so nothing needs updating when a workout is
+logged or deleted. `/workouts` accepts `?month=YYYY-MM` and `?date=YYYY-MM-DD`
+(both strictly validated); a selected future day offers `PlanWorkoutForm`, and
+"Registar" links to `/workouts/new?date=…&template=…`, which prefills both.
 
 - Import alias: `@/*` → `src/*`.
 - Scripts that run **outside** Next (via `tsx`) — `scripts/seed.ts`,

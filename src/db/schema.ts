@@ -10,6 +10,8 @@ import { sqliteTable, integer, text, real } from "drizzle-orm/sqlite-core";
  * sets           – a single set within a workout: exercise × setNumber × reps × weight
  *                  (this is the "Exercise X: 3 series, 12 reps, 24kg" from a paper log)
  * body_metrics   – bodyweight + tape measurements over time, per user
+ * planned_workouts – a workout scheduled for a date (optionally from a
+ *                  template); "done" is derived from real workouts on that day
  *
  * All timestamps are stored as Unix seconds (SQLite integer) and surfaced as JS Dates.
  */
@@ -103,10 +105,26 @@ export const workoutTemplateExercises = sqliteTable(
   },
 );
 
+export const plannedWorkouts = sqliteTable("planned_workouts", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  date: integer("date", { mode: "timestamp" }).notNull(),
+  templateId: integer("template_id").references(() => workoutTemplates.id, {
+    onDelete: "cascade",
+  }),
+  notes: text("notes"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   workouts: many(workouts),
   bodyMetrics: many(bodyMetrics),
   workoutTemplates: many(workoutTemplates),
+  plannedWorkouts: many(plannedWorkouts),
 }));
 
 export const workoutTemplatesRelations = relations(
@@ -158,9 +176,21 @@ export const bodyMetricsRelations = relations(bodyMetrics, ({ one }) => ({
   user: one(users, { fields: [bodyMetrics.userId], references: [users.id] }),
 }));
 
+export const plannedWorkoutsRelations = relations(plannedWorkouts, ({ one }) => ({
+  user: one(users, {
+    fields: [plannedWorkouts.userId],
+    references: [users.id],
+  }),
+  template: one(workoutTemplates, {
+    fields: [plannedWorkouts.templateId],
+    references: [workoutTemplates.id],
+  }),
+}));
+
 export type User = typeof users.$inferSelect;
 export type Exercise = typeof exercises.$inferSelect;
 export type Workout = typeof workouts.$inferSelect;
 export type WorkoutSet = typeof sets.$inferSelect;
 export type BodyMetric = typeof bodyMetrics.$inferSelect;
 export type WorkoutTemplate = typeof workoutTemplates.$inferSelect;
+export type PlannedWorkout = typeof plannedWorkouts.$inferSelect;

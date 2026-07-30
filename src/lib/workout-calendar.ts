@@ -24,7 +24,7 @@ export type WorkoutCalendarData = {
   weeks: WorkoutCalendarWeek[];
 };
 
-function dateKey(date: Date): string {
+export function dateKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
@@ -48,7 +48,7 @@ export function dateFromKey(value: string): Date {
   return new Date(`${value}T00:00:00.000Z`);
 }
 
-function startOfUtcWeek(date: Date): Date {
+export function startOfUtcWeek(date: Date): Date {
   const start = new Date(
     Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
   );
@@ -57,7 +57,7 @@ function startOfUtcWeek(date: Date): Date {
   return start;
 }
 
-function addUtcDays(date: Date, amount: number): Date {
+export function addUtcDays(date: Date, amount: number): Date {
   return new Date(date.getTime() + amount * DAY_MS);
 }
 
