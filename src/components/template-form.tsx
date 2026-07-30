@@ -47,8 +47,11 @@ export function TemplateForm({ exercises }: { exercises: Ex[] }) {
   return (
     <form onSubmit={submit} className="card flex flex-col gap-3">
       <div>
-        <label className="label">Nome do modelo</label>
+        <label className="label" htmlFor="template-name">
+          Nome do modelo
+        </label>
         <input
+          id="template-name"
           className="input"
           value={name}
           onChange={(e) => setName(e.target.value)}

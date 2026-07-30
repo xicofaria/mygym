@@ -22,6 +22,11 @@ export function LoginForm() {
           required
           className="input"
           placeholder="tu@exemplo.com"
+          // React resets the form after an action, which would also wipe the
+          // email on a wrong password. Put it back so only the password is
+          // retyped.
+          defaultValue={state.email ?? ""}
+          key={state.email ?? ""}
         />
       </div>
       <div>

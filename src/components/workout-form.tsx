@@ -217,8 +217,11 @@ export function WorkoutForm({
           />
         </div>
         <div>
-          <label className="label">Notas (opcional)</label>
+          <label className="label" htmlFor="workout-notes">
+            Notas (opcional)
+          </label>
           <input
+            id="workout-notes"
             className="input"
             value={notes}
             onChange={(e) => {
