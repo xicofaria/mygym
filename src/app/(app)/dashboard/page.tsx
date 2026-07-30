@@ -3,6 +3,7 @@ import { getDashboard, getPageContext } from "@/lib/queries";
 import { EmptyState, PageHeader, StatCard } from "@/components/ui";
 import { WorkoutCard } from "@/components/workout-card";
 import { ProgressChart } from "@/components/progress-chart";
+import { WorkoutCalendar } from "@/components/workout-calendar";
 
 export default async function DashboardPage({
   searchParams,
@@ -56,6 +57,11 @@ export default async function DashboardPage({
         />
         <StatCard label="Total de treinos" value={data.totalWorkouts} />
       </div>
+
+      <WorkoutCalendar
+        calendar={data.calendar}
+        viewedUserId={isSelf ? undefined : viewed.id}
+      />
 
       {data.weightSeries.length >= 2 && (
         <div className="card">

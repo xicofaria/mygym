@@ -13,6 +13,10 @@ import { requireUser } from "./auth";
 import { epley1RM, round } from "./format";
 import { resolveViewedUserId } from "./viewer";
 import { chooseTopSet } from "./workout";
+import {
+  buildWorkoutCalendar,
+  type WorkoutCalendarData,
+} from "./workout-calendar";
 
 /** All users, for the "whose data am I viewing" switcher. */
 export async function getAllUsers() {
@@ -71,9 +75,12 @@ export type WorkoutWithSets = {
 export async function getWorkouts(
   userId: number,
   limit?: number,
+  date?: Date,
 ): Promise<WorkoutWithSets[]> {
   const rows = await db.query.workouts.findMany({
-    where: eq(workouts.userId, userId),
+    where: date
+      ? and(eq(workouts.userId, userId), eq(workouts.date, date))
+      : eq(workouts.userId, userId),
     orderBy: [desc(workouts.date), desc(workouts.id)],
     limit,
     with: {
@@ -381,11 +388,20 @@ export type Dashboard = {
   latestWeight: number | null;
   weightChange: number | null; // vs. previous entry
   weightSeries: { date: string; weightKg: number }[];
+  calendar: WorkoutCalendarData;
   recent: WorkoutWithSets[];
 };
 
 export async function getDashboard(userId: number): Promise<Dashboard> {
-  const recent = await getWorkouts(userId, 20);
+  const [recent, workoutDates, bodyMetricRows] = await Promise.all([
+    getWorkouts(userId, 20),
+    db
+      .select({ date: workouts.date })
+      .from(workouts)
+      .where(eq(workouts.userId, userId))
+      .all(),
+    getBodyMetrics(userId),
+  ]);
 
   const weekAgo = new Date();
   weekAgo.setDate(weekAgo.getDate() - 7);
@@ -400,15 +416,9 @@ export async function getDashboard(userId: number): Promise<Dashboard> {
     }
   }
 
-  const totalWorkouts = (
-    await db
-      .select({ id: workouts.id })
-      .from(workouts)
-      .where(eq(workouts.userId, userId))
-      .all()
-  ).length;
+  const totalWorkouts = workoutDates.length;
 
-  const weights = (await getBodyMetrics(userId))
+  const weights = bodyMetricRows
     .filter((m) => m.weightKg != null)
     .map((m) => ({ date: m.date, weightKg: m.weightKg as number }))
     .sort((a, b) => a.date.getTime() - b.date.getTime());
@@ -430,6 +440,7 @@ export async function getDashboard(userId: number): Promise<Dashboard> {
       date: w.date.toISOString().slice(0, 10),
       weightKg: w.weightKg,
     })),
+    calendar: buildWorkoutCalendar(workoutDates.map((workout) => workout.date)),
     recent: recent.slice(0, 5),
   };
 }

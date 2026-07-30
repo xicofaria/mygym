@@ -19,6 +19,8 @@ UI is in **European Portuguese (pt-PT)**. Weights and measurements are
   1RM, and volume charts over time
 - **Body measurements** — track bodyweight, body fat %, and tape measurements
   (waist, chest, arms, thighs, hips), with trend charts
+- **Workout calendar** — a 52-week activity heatmap links each training day
+  to its filtered workout history
 - **Two-person, shared view** — see your own progress or switch to your
   training partner's via a simple toggle
 - **Installable PWA** — add it to your phone's home screen like a native app
@@ -101,9 +103,8 @@ Ideas for where to take this next, roughly in order of usefulness:
       exercise performance, duplicate sets, and edit saved sessions.
 - [x] **Automated quality and security gates** — CI, Playwright, CodeQL,
       dependency review, secret scanning, npm audit, and Dependabot.
-- [ ] **Training-day calendar / heatmap** — a GitHub-contributions-style grid
-      on the dashboard showing which days you trained, for an at-a-glance view
-      of consistency.
+- [x] **Training-day calendar / heatmap** — a GitHub-contributions-style grid
+      on the dashboard shows consistency and opens the workouts from each day.
 - [x] **Poor-network resilience** — a service worker provides a public offline
       fallback without caching authenticated pages, and workout/body forms keep
       local drafts until they can be submitted online.
