@@ -1,16 +1,20 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { createClient, type Client } from "@libsql/client";
+import { createClient, type Client, type InStatement } from "@libsql/client";
 import { readMigrationFiles } from "drizzle-orm/migrator";
 import test from "node:test";
 import { migrateDatabase } from "../../scripts/migrate-database";
 
 const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const MIGRATIONS_FOLDER = join(REPOSITORY_ROOT, "drizzle");
+const PRE_PR10_SCHEMA_FIXTURE = join(
+  REPOSITORY_ROOT,
+  "tests/fixtures/pre-pr10-production-schema.sql",
+);
 
 async function withTemporaryDatabase(
   run: (database: { url: string; path: string }) => Promise<void>,
@@ -34,10 +38,11 @@ function migrationStatements(index: number): string[] {
   return migration.sql.map((statement) => statement.trim()).filter(Boolean);
 }
 
-async function createLegacyDatabase(client: Client): Promise<void> {
-  await client.migrate(migrationStatements(0));
-  await client.batch(
-    [
+async function insertLegacyData(
+  client: Client,
+  includePlannedWorkoutGroup: boolean,
+): Promise<void> {
+  const statements: InStatement[] = [
       {
         sql: `
           INSERT INTO users (id, email, name, password_hash, created_at)
@@ -109,6 +114,9 @@ async function createLegacyDatabase(client: Client): Promise<void> {
         sql: "DELETE FROM planned_workouts WHERE id = ?",
         args: [999],
       },
+  ];
+  if (includePlannedWorkoutGroup) {
+    statements.push(
       {
         sql: `
           INSERT INTO planned_workout_groups
@@ -117,9 +125,25 @@ async function createLegacyDatabase(client: Client): Promise<void> {
         `,
         args: [300, 200, "Peito", 0],
       },
-    ],
-    "write",
+    );
+  }
+  await client.batch(statements, "write");
+}
+
+async function createLegacyDatabase(client: Client): Promise<void> {
+  await client.migrate(migrationStatements(0));
+  await insertLegacyData(client, true);
+}
+
+async function createDeployedPreBaselineDatabase(client: Client): Promise<void> {
+  const sql = await readFile(PRE_PR10_SCHEMA_FIXTURE, "utf8");
+  await client.migrate(
+    sql
+      .split("--> statement-breakpoint")
+      .map((statement) => statement.trim())
+      .filter(Boolean),
   );
+  await insertLegacyData(client, false);
 }
 
 async function createCurrentDatabaseWithoutLedger(client: Client): Promise<void> {
@@ -329,6 +353,188 @@ test("migra o legado sem perder dados ou filhos e só faz backfill inequívoco",
       assert.equal((await client.execute("PRAGMA foreign_key_check")).rows.length, 0);
     } finally {
       client.close();
+    }
+  });
+});
+
+test("migra o schema real de produção anterior ao PR #10", async () => {
+  await withTemporaryDatabase(async ({ url }) => {
+    const setup = createClient({ url });
+    try {
+      await createDeployedPreBaselineDatabase(setup);
+      const tables = await setup.execute(`
+        SELECT name FROM sqlite_schema
+        WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
+        ORDER BY name
+      `);
+      assert.deepEqual(
+        tables.rows.map((row) => row.name),
+        [
+          "body_metrics",
+          "exercises",
+          "planned_workouts",
+          "sets",
+          "users",
+          "workout_template_exercises",
+          "workout_templates",
+          "workouts",
+        ],
+      );
+    } finally {
+      setup.close();
+    }
+
+    const result = await migrateDatabase({
+      url,
+      migrationsFolder: MIGRATIONS_FOLDER,
+    });
+    assert.deepEqual(result, {
+      initialState: "pre-baseline-without-ledger",
+      migrationsApplied: 2,
+      ledgerImported: false,
+    });
+
+    const client = createClient({ url });
+    try {
+      const plans = await client.execute(`
+        SELECT id, workout_id, notes
+        FROM planned_workouts
+        ORDER BY id
+      `);
+      assert.deepEqual(
+        plans.rows.map((row) => ({
+          id: Number(row.id),
+          workoutId: row.workout_id === null ? null : Number(row.workout_id),
+          notes: row.notes,
+        })),
+        [
+          { id: 200, workoutId: 100, notes: "Plano inequívoco" },
+          { id: 201, workoutId: null, notes: "Plano ambíguo A" },
+          { id: 202, workoutId: null, notes: "Plano ambíguo B" },
+        ],
+      );
+      assert.equal(
+        Number(
+          (
+            await client.execute(
+              "SELECT count(*) AS count FROM planned_workout_groups",
+            )
+          ).rows[0]?.count,
+        ),
+        0,
+      );
+      assert.equal(
+        Number(
+          (
+            await client.execute(
+              "SELECT count(*) AS count FROM routine_groups",
+            )
+          ).rows[0]?.count,
+        ),
+        0,
+      );
+      const sequence = await client.execute(
+        "SELECT seq FROM sqlite_sequence WHERE name = 'planned_workouts'",
+      );
+      assert.equal(Number(sequence.rows[0]?.seq), 999);
+      assert.equal((await readLedger(client)).rows.length, 2);
+      assert.equal((await client.execute("PRAGMA foreign_key_check")).rows.length, 0);
+    } finally {
+      client.close();
+    }
+  });
+});
+
+test("recusa uma variante parcial do schema anterior à baseline", async () => {
+  await withTemporaryDatabase(async ({ url }) => {
+    const setup = createClient({ url });
+    try {
+      await createDeployedPreBaselineDatabase(setup);
+      await setup.execute(
+        "ALTER TABLE planned_workouts ADD COLUMN unexpected text",
+      );
+    } finally {
+      setup.close();
+    }
+
+    await assert.rejects(
+      migrateDatabase({ url, migrationsFolder: MIGRATIONS_FOLDER }),
+      /Schema desconhecido ou parcial/,
+    );
+
+    const check = createClient({ url });
+    try {
+      const ledger = await check.execute(`
+        SELECT count(*) AS count FROM sqlite_schema
+        WHERE type = 'table' AND name = '__drizzle_migrations'
+      `);
+      assert.equal(Number(ledger.rows[0]?.count), 0);
+    } finally {
+      check.close();
+    }
+  });
+});
+
+test("recusa o schema anterior à baseline quando o ledger não está vazio", async () => {
+  await withTemporaryDatabase(async ({ url }) => {
+    const firstMigration = readMigrationFiles({
+      migrationsFolder: MIGRATIONS_FOLDER,
+    })[0];
+    assert.ok(firstMigration);
+
+    const setup = createClient({ url });
+    try {
+      await createDeployedPreBaselineDatabase(setup);
+      await setup.batch(
+        [
+          `
+            CREATE TABLE __drizzle_migrations (
+              id SERIAL PRIMARY KEY,
+              hash text NOT NULL,
+              created_at numeric
+            )
+          `,
+          {
+            sql: `
+              INSERT INTO __drizzle_migrations (hash, created_at)
+              VALUES (?, ?)
+            `,
+            args: [firstMigration.hash, firstMigration.folderMillis],
+          },
+        ],
+        "write",
+      );
+    } finally {
+      setup.close();
+    }
+
+    await assert.rejects(
+      migrateDatabase({ url, migrationsFolder: MIGRATIONS_FOLDER }),
+      /schema não corresponde à posição registada no ledger/i,
+    );
+
+    const check = createClient({ url });
+    try {
+      const objects = await check.execute(`
+        SELECT name FROM sqlite_schema
+        WHERE type = 'table'
+          AND name IN ('planned_workout_groups', 'routine_groups')
+        ORDER BY name
+      `);
+      assert.deepEqual(objects.rows, []);
+      assert.equal((await readLedger(check)).rows.length, 1);
+      assert.equal(
+        Number(
+          (
+            await check.execute(
+              "SELECT count(*) AS count FROM planned_workouts",
+            )
+          ).rows[0]?.count,
+        ),
+        3,
+      );
+    } finally {
+      check.close();
     }
   });
 });
