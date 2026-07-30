@@ -4,10 +4,17 @@ import { z } from "zod";
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
-import { exercises, sets, workouts } from "@/db/schema";
+import {
+  exercises,
+  plannedWorkouts,
+  sets,
+  workoutTemplates,
+  workouts,
+} from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { deleteOwnedRecord } from "@/lib/owned-resource";
 import { buildWorkoutSetRows } from "@/lib/workout";
+import { dateFromKey, isDateKey } from "@/lib/workout-calendar";
 
 const entrySchema = z.object({
   exerciseId: z.number().int().positive(),
@@ -103,6 +110,75 @@ export async function updateWorkout(id: number, input: NewWorkoutInput) {
 
   revalidateWorkoutPages();
   return { success: true as const };
+}
+
+const plannedWorkoutSchema = z.object({
+  date: z.string().refine(isDateKey),
+  templateId: z.number().int().positive().optional(),
+  notes: z.string().max(1000).optional(),
+});
+
+export type NewPlannedWorkoutInput = z.infer<typeof plannedWorkoutSchema>;
+
+export async function createPlannedWorkout(input: NewPlannedWorkoutInput) {
+  const user = await requireUser();
+  const parsed = plannedWorkoutSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: "Escolhe uma data válida para o plano." };
+  }
+  const { date, templateId, notes } = parsed.data;
+
+  if (templateId != null) {
+    const template = await db
+      .select({ id: workoutTemplates.id })
+      .from(workoutTemplates)
+      .where(
+        and(
+          eq(workoutTemplates.id, templateId),
+          eq(workoutTemplates.userId, user.id),
+        ),
+      )
+      .get();
+    if (!template) {
+      return { error: "Esse modelo já não está disponível." };
+    }
+  }
+
+  await db.insert(plannedWorkouts).values({
+    userId: user.id,
+    date: dateFromKey(date),
+    templateId: templateId ?? null,
+    notes: notes?.trim() || null,
+  });
+
+  revalidatePath("/workouts");
+  return { success: true as const };
+}
+
+export async function deletePlannedWorkout(id: number) {
+  const user = await requireUser();
+  await deleteOwnedRecord({
+    id,
+    userId: user.id,
+    findOwnedId: async (planId, userId) => {
+      const plan = await db
+        .select({ id: plannedWorkouts.id })
+        .from(plannedWorkouts)
+        .where(
+          and(eq(plannedWorkouts.id, planId), eq(plannedWorkouts.userId, userId)),
+        )
+        .get();
+      return plan?.id ?? null;
+    },
+    deleteOwned: async (planId, userId) => {
+      await db
+        .delete(plannedWorkouts)
+        .where(
+          and(eq(plannedWorkouts.id, planId), eq(plannedWorkouts.userId, userId)),
+        );
+    },
+  });
+  revalidatePath("/workouts");
 }
 
 export async function deleteWorkout(id: number) {
