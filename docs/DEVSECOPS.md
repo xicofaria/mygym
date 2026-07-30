@@ -27,6 +27,17 @@ security controls in the same delivery path.
 All third-party actions are pinned to immutable commit SHAs. Dependabot checks
 both npm and GitHub Actions dependencies weekly.
 
+## Database schema delivery
+
+`Database schema` runs on pushes to `main` that change `src/db/schema.ts` or
+`drizzle.config.ts` (and on manual dispatch): it applies the Drizzle schema to
+the production Turso database with a non-interactive `drizzle-kit push`. It
+needs the `DATABASE_URL` and `DATABASE_AUTH_TOKEN` repository secrets and
+refuses to run without them (otherwise the drizzle config would silently fall
+back to a local file). It never passes `--force`, so destructive changes
+(dropping or renaming columns) fail the job on purpose and must be applied
+manually after backing up (`turso db shell <db> .dump > backup.sql`).
+
 ## Recommended branch protection
 
 After the workflows have run once on `main`, configure the branch ruleset to:

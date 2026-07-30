@@ -73,3 +73,65 @@ test("login, create, edit and repeat a workout", async ({ page }, testInfo) => {
   await workout.getByRole("button", { name: "Eliminar" }).click();
   await expect(page.getByText(fixtureNotes)).toHaveCount(0);
 });
+
+test("planear um treino e registá-lo a partir do calendário mensal", async ({
+  page,
+}) => {
+  // Unique per run: a failed attempt leaves fixtures behind on a reused
+  // local database, and duplicated text would trip strict-mode locators.
+  const runId = Date.now().toString(36);
+  const planNotes = `Plano E2E ${runId}`;
+  const workoutNotes = `Sessão E2E ${runId}`;
+  const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("e2e@example.com");
+  await page.getByLabel("Palavra-passe").fill("e2e-password-123");
+  await page.getByRole("button", { name: "Iniciar sessão" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+
+  // Selecting a future day shows the plan form; the month view follows the date.
+  await page.goto(`/workouts?date=${futureDate}`);
+  const dayCell = page.locator(`[data-month-date="${futureDate}"]`);
+  await expect(dayCell).toBeVisible();
+
+  // A controlled input only keeps its value after hydration; asserting it
+  // stuck keeps a pre-hydration click from submitting the form natively.
+  await page.waitForLoadState("networkidle");
+  await page.getByPlaceholder("Notas (opcional)").fill(planNotes);
+  await expect(page.getByPlaceholder("Notas (opcional)")).toHaveValue(planNotes);
+  await page.getByRole("button", { name: "Planear treino" }).click();
+
+  const planRow = page.locator("[data-plan-id]").filter({ hasText: planNotes });
+  await expect(planRow).toBeVisible();
+  await expect(dayCell).toHaveAttribute("data-planned", /^[1-9]\d*$/);
+  await expect(planRow.getByText("Planeado", { exact: true })).toBeVisible();
+
+  // Register the planned workout; the form comes prefilled with the date.
+  await planRow.getByRole("link", { name: "Registar", exact: true }).click();
+  await expect(page).toHaveURL(
+    new RegExp(`/workouts/new\\?date=${futureDate}$`),
+  );
+  await expect(page.getByLabel("Data")).toHaveValue(futureDate);
+  await fillSet(page, "10", "30");
+  await page.getByPlaceholder("Como correu?").fill(workoutNotes);
+  await page.getByRole("button", { name: "Guardar treino" }).click();
+  await expect(page).toHaveURL(/\/workouts$/);
+
+  // The day now counts as done and the plan shows as concluded.
+  await page.goto(`/workouts?date=${futureDate}`);
+  await expect(dayCell).toHaveAttribute("data-workouts", /^[1-9]\d*$/);
+  await expect(planRow.getByText("Concluído")).toBeVisible();
+
+  // Clean up the fixtures: first the plan, then the workout.
+  page.once("dialog", (dialog) => dialog.accept());
+  await planRow.getByRole("button", { name: "Eliminar" }).click();
+  await expect(page.getByText(planNotes)).toHaveCount(0);
+
+  const doneWorkout = page.locator(".card").filter({ hasText: workoutNotes });
+  page.once("dialog", (dialog) => dialog.accept());
+  await doneWorkout.getByRole("button", { name: "Eliminar" }).click();
+  await expect(page.getByText(workoutNotes)).toHaveCount(0);
+});
