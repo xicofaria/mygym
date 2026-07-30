@@ -294,6 +294,9 @@ export async function getExercisesWithStats(
 }
 
 export type ProgressionPoint = {
+  /** The session this point came from. Two workouts can share a date, so this
+   * — not `date` — is what uniquely identifies a point. */
+  workoutId: number;
   date: string; // ISO day
   maxWeight: number;
   best1RM: number;
@@ -362,9 +365,11 @@ export async function getExerciseProgression(
     }
   }
 
-  const points: ProgressionPoint[] = [...bySession.values()]
-    .sort((a, b) => a.date.getTime() - b.date.getTime())
+  const points: ProgressionPoint[] = [...bySession.entries()]
+    .map(([workoutId, session]) => ({ workoutId, ...session }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime() || a.workoutId - b.workoutId)
     .map((s) => ({
+      workoutId: s.workoutId,
       date: s.date.toISOString().slice(0, 10),
       maxWeight: round(s.maxWeight),
       best1RM: round(s.best1RM),
