@@ -57,7 +57,9 @@ npm run db:studio      # browse the DB
 
 GitHub Actions run lint, typechecking, unit tests, a production build, a
 Playwright workout flow, CodeQL, dependency review, Gitleaks, and npm audit.
-See `docs/DEVSECOPS.md`.
+Merges to `main` that change `src/db/schema.ts` also apply the schema to the
+production Turso DB (additive changes only — destructive ones fail the job and
+stay manual). See `docs/DEVSECOPS.md`.
 
 ## Architecture
 
