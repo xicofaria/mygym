@@ -135,3 +135,60 @@ test("planear um treino e registá-lo a partir do calendário mensal", async ({
   await doneWorkout.getByRole("button", { name: "Eliminar" }).click();
   await expect(page.getByText(workoutNotes)).toHaveCount(0);
 });
+
+test("escolher os grupos musculares de um treino planeado", async ({ page }) => {
+  const futureDate = new Date(Date.now() + 9 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  // A custom group keeps the run unique on a database that persists locally.
+  const customGroup = `Grupo E2E ${Date.now().toString(36)}`;
+
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("e2e@example.com");
+  await page.getByLabel("Palavra-passe").fill("e2e-password-123");
+  await page.getByRole("button", { name: "Iniciar sessão" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+
+  // The weekly split persists and survives a reload.
+  await page.goto("/workouts/routine");
+  await page.waitForLoadState("networkidle");
+  const sunday = page.locator("section").filter({ hasText: "Domingo" });
+  await sunday.getByRole("button", { name: /Domingo/ }).click();
+  await sunday.getByRole("button", { name: "Mobilidade", exact: true }).click();
+  await expect(sunday.getByText("Mobilidade").first()).toBeVisible();
+
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+  await expect(
+    page.locator("section").filter({ hasText: "Domingo" }).getByText("Mobilidade"),
+  ).toBeVisible();
+
+  // Planning a day records what it trains, suggestions plus anything typed.
+  await page.goto(`/workouts?date=${futureDate}`);
+  await page.waitForLoadState("networkidle");
+  const planForm = page.locator("form").filter({ hasText: "O que vais treinar" });
+  await planForm.getByRole("button", { name: "Peito", exact: true }).click();
+  await planForm.getByRole("button", { name: "Tríceps", exact: true }).click();
+  await planForm.getByLabel("Adicionar outro grupo").fill(customGroup);
+  await planForm.getByRole("button", { name: "Adicionar" }).click();
+  await planForm.getByRole("button", { name: "Planear treino" }).click();
+
+  const planRow = page.locator("[data-plan-id]").filter({ hasText: customGroup });
+  await expect(planRow).toContainText("Peito · Tríceps");
+  await expect(page.locator(`[data-month-date="${futureDate}"]`)).toHaveAttribute(
+    "data-planned",
+    /^[1-9]\d*$/,
+  );
+
+  // Clean up both fixtures so a rerun starts from the same state.
+  page.once("dialog", (dialog) => dialog.accept());
+  await planRow.getByRole("button", { name: "Eliminar" }).click();
+  await expect(page.getByText(customGroup)).toHaveCount(0);
+
+  await page.goto("/workouts/routine");
+  await page.waitForLoadState("networkidle");
+  const sundayAgain = page.locator("section").filter({ hasText: "Domingo" });
+  await sundayAgain.getByRole("button", { name: /Domingo/ }).click();
+  await sundayAgain.getByRole("button", { name: "Mobilidade", exact: true }).click();
+  await expect(sundayAgain.getByText("Descanso")).toBeVisible();
+});

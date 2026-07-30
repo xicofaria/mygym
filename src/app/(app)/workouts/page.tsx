@@ -13,6 +13,7 @@ import { PlanWorkoutForm } from "@/components/plan-workout-form";
 import { DeleteButton } from "@/components/delete-button";
 import { deletePlannedWorkout } from "./actions";
 import { fmtDate } from "@/lib/format";
+import { formatGroupNames } from "@/lib/muscle-groups";
 import {
   addUtcDays,
   dateFromKey,
@@ -108,6 +109,11 @@ export default async function WorkoutsPage({
                   Ver todos
                 </Link>
               )}
+              {isSelf && (
+                <Link href="/workouts/routine" className="btn-ghost">
+                  Rotina
+                </Link>
+              )}
               {isSelf && workouts.length > 0 && (
                 <Link
                   href="/workouts/new?repeat=last"
@@ -130,6 +136,14 @@ export default async function WorkoutsPage({
         calendar={calendar}
         selectedDate={selectedDate}
         viewedUserId={isSelf ? undefined : viewed.id}
+        planLabels={Object.fromEntries(
+          monthPlans
+            .filter((plan) => plan.groups.length > 0)
+            .map((plan) => [
+              plan.date.toISOString().slice(0, 10),
+              formatGroupNames(plan.groups),
+            ]),
+        )}
       />
 
       {selectedDate && (dayPlans.length > 0 || canPlanSelectedDay) && (
@@ -142,15 +156,20 @@ export default async function WorkoutsPage({
             <div
               key={plan.id}
               data-plan-id={plan.id}
-              className="flex items-center gap-2"
+              className="flex items-start gap-2"
             >
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">
-                  {plan.template?.name ?? "Treino planeado"}
+                <p className="text-sm font-medium text-pretty">
+                  {plan.groups.length > 0
+                    ? formatGroupNames(plan.groups)
+                    : (plan.template?.name ?? "Treino planeado")}
                 </p>
-                {plan.notes && (
+                {(plan.notes ||
+                  (plan.groups.length > 0 && plan.template)) && (
                   <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
-                    {plan.notes}
+                    {[plan.groups.length > 0 ? plan.template?.name : null, plan.notes]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </p>
                 )}
               </div>

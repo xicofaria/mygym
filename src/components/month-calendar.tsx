@@ -30,13 +30,15 @@ function workoutsHref(params: {
   return query ? `/workouts?${query}` : "/workouts";
 }
 
-function dayLabel(day: MonthCalendarDay): string {
+function dayLabel(day: MonthCalendarDay, planLabel?: string): string {
   const parts = [
     `${day.workoutCount} ${day.workoutCount === 1 ? "treino" : "treinos"}`,
   ];
   if (day.plannedCount > 0) {
     parts.push(
-      `${day.plannedCount} ${day.plannedCount === 1 ? "plano" : "planos"}`,
+      planLabel
+        ? `planeado: ${planLabel}`
+        : `${day.plannedCount} ${day.plannedCount === 1 ? "plano" : "planos"}`,
     );
   }
   return `${dayFormatter.format(dateFromKey(day.date))}: ${parts.join(", ")}`;
@@ -69,10 +71,13 @@ export function MonthCalendar({
   calendar,
   selectedDate,
   viewedUserId,
+  planLabels = {},
 }: {
   calendar: MonthCalendarData;
   selectedDate: string | null;
   viewedUserId?: number;
+  /** Date key → what that day's plan trains, for the cell's label. */
+  planLabels?: Record<string, string>;
 }) {
   const formatted = titleFormatter.format(dateFromKey(`${calendar.month}-01`));
   const title = formatted.charAt(0).toUpperCase() + formatted.slice(1);
@@ -132,7 +137,8 @@ export function MonthCalendar({
                 user: viewedUserId,
               })}
               className={dayClasses(day, isSelected)}
-              aria-label={dayLabel(day)}
+              aria-label={dayLabel(day, planLabels[day.date])}
+              title={planLabels[day.date]}
               aria-current={isSelected ? "date" : undefined}
               data-month-date={day.date}
               data-workouts={day.workoutCount}

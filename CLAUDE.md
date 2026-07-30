@@ -138,6 +138,23 @@ logged or deleted. `/workouts` accepts `?month=YYYY-MM` and `?date=YYYY-MM-DD`
 (both strictly validated); a selected future day offers `PlanWorkoutForm`, and
 "Registar" links to `/workouts/new?date=…&template=…`, which prefills both.
 
+**Muscle groups & the weekly routine.** A plan says *what* it trains
+(`plannedWorkoutGroups`) independently of *which exercises* it starts from (the
+optional template). Groups are plain labels, not an entity — `MUSCLE_GROUP_SUGGESTIONS`
+in `src/lib/muscle-groups.ts` is only a shortcut, and any text the user types is
+equally valid, so never validate against the suggestion list.
+`normalizeGroupNames()` (trim, collapse spaces, drop case-insensitive
+duplicates, cap at 8) is the single funnel every write goes through.
+`routineGroups` stores the recurring weekly split — one row per group per ISO
+weekday (1 = Monday … 7 = Sunday), and a weekday with no rows is a rest day.
+`applyRoutineToMonth` materializes it into planned workouts via the pure
+`planRoutineApplication()` in `src/lib/routine.ts`: **only days from today
+onward that have no plan yet**, so re-running it never duplicates or destroys
+anything. Editing `/workouts/routine` saves per weekday as you toggle chips
+(last write wins); there is no save button.
+
+## Conventions & gotchas
+
 - Import alias: `@/*` → `src/*`.
 - Scripts that run **outside** Next (via `tsx`) — `scripts/seed.ts`,
   `drizzle.config.ts` — must `process.loadEnvFile(".env.local")` **before** any

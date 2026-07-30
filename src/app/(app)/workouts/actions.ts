@@ -6,7 +6,9 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import {
   exercises,
+  plannedWorkoutGroups,
   plannedWorkouts,
+  routineGroups,
   sets,
   workoutTemplates,
   workouts,
@@ -15,6 +17,14 @@ import { requireUser } from "@/lib/auth";
 import { deleteOwnedRecord } from "@/lib/owned-resource";
 import { buildWorkoutSetRows } from "@/lib/workout";
 import { dateFromKey, isDateKey } from "@/lib/workout-calendar";
+import { isMonthKey } from "@/lib/month-calendar";
+import {
+  MAX_GROUPS_PER_DAY,
+  MAX_GROUP_NAME_LENGTH,
+  normalizeGroupNames,
+} from "@/lib/muscle-groups";
+import { getPlannedWorkouts, getRoutine } from "@/lib/queries";
+import { isWeekday, planRoutineApplication } from "@/lib/routine";
 
 const entrySchema = z.object({
   exerciseId: z.number().int().positive(),
@@ -112,13 +122,30 @@ export async function updateWorkout(id: number, input: NewWorkoutInput) {
   return { success: true as const };
 }
 
+const groupNamesSchema = z
+  .array(z.string().max(MAX_GROUP_NAME_LENGTH))
+  .max(MAX_GROUPS_PER_DAY);
+
 const plannedWorkoutSchema = z.object({
   date: z.string().refine(isDateKey),
   templateId: z.number().int().positive().optional(),
+  groups: groupNamesSchema.optional(),
   notes: z.string().max(1000).optional(),
 });
 
 export type NewPlannedWorkoutInput = z.infer<typeof plannedWorkoutSchema>;
+
+/** Confirms a template belongs to the signed-in user; ids are guessable. */
+async function ownsTemplate(templateId: number, userId: number) {
+  const template = await db
+    .select({ id: workoutTemplates.id })
+    .from(workoutTemplates)
+    .where(
+      and(eq(workoutTemplates.id, templateId), eq(workoutTemplates.userId, userId)),
+    )
+    .get();
+  return template != null;
+}
 
 export async function createPlannedWorkout(input: NewPlannedWorkoutInput) {
   const user = await requireUser();
@@ -127,32 +154,141 @@ export async function createPlannedWorkout(input: NewPlannedWorkoutInput) {
     return { error: "Escolhe uma data válida para o plano." };
   }
   const { date, templateId, notes } = parsed.data;
+  const groups = normalizeGroupNames(parsed.data.groups ?? []);
 
-  if (templateId != null) {
-    const template = await db
-      .select({ id: workoutTemplates.id })
-      .from(workoutTemplates)
-      .where(
-        and(
-          eq(workoutTemplates.id, templateId),
-          eq(workoutTemplates.userId, user.id),
-        ),
-      )
-      .get();
-    if (!template) {
-      return { error: "Esse modelo já não está disponível." };
-    }
+  if (templateId != null && !(await ownsTemplate(templateId, user.id))) {
+    return { error: "Esse modelo já não está disponível." };
   }
 
-  await db.insert(plannedWorkouts).values({
-    userId: user.id,
-    date: dateFromKey(date),
-    templateId: templateId ?? null,
-    notes: notes?.trim() || null,
+  if (groups.length === 0 && templateId == null && !notes?.trim()) {
+    return {
+      error: "Escolhe o que vais treinar, um modelo ou escreve uma nota.",
+    };
+  }
+
+  await db.transaction(async (tx) => {
+    const plan = await tx
+      .insert(plannedWorkouts)
+      .values({
+        userId: user.id,
+        date: dateFromKey(date),
+        templateId: templateId ?? null,
+        notes: notes?.trim() || null,
+      })
+      .returning({ id: plannedWorkouts.id })
+      .get();
+
+    if (groups.length > 0) {
+      await tx.insert(plannedWorkoutGroups).values(
+        groups.map((name, position) => ({
+          plannedWorkoutId: plan.id,
+          name,
+          position,
+        })),
+      );
+    }
   });
 
   revalidatePath("/workouts");
   return { success: true as const };
+}
+
+const routineDaySchema = z.object({
+  weekday: z.number().refine(isWeekday),
+  groups: groupNamesSchema,
+});
+
+export type RoutineDayInput = z.infer<typeof routineDaySchema>;
+
+/** Replaces the groups stored for one weekday of the user's weekly split. */
+export async function saveRoutineDay(input: RoutineDayInput) {
+  const user = await requireUser();
+  const parsed = routineDaySchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: "Dia da semana inválido." };
+  }
+  const { weekday } = parsed.data;
+  const groups = normalizeGroupNames(parsed.data.groups);
+
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(routineGroups)
+      .where(
+        and(
+          eq(routineGroups.userId, user.id),
+          eq(routineGroups.weekday, weekday),
+        ),
+      );
+    if (groups.length > 0) {
+      await tx.insert(routineGroups).values(
+        groups.map((name, position) => ({
+          userId: user.id,
+          weekday,
+          name,
+          position,
+        })),
+      );
+    }
+  });
+
+  revalidatePath("/workouts/routine");
+  revalidatePath("/workouts");
+  return { success: true as const, groups };
+}
+
+/**
+ * Materializes the weekly split into planned workouts for a month, from today
+ * onward, skipping days that already have a plan — so it is safe to re-run.
+ */
+export async function applyRoutineToMonth(month: string) {
+  const user = await requireUser();
+  if (!isMonthKey(month)) {
+    return { error: "Mês inválido." };
+  }
+
+  const routine = await getRoutine(user.id);
+  if (routine.length === 0) {
+    return { error: "Define primeiro o que treinas em cada dia da semana." };
+  }
+
+  const monthStart = dateFromKey(`${month}-01`);
+  const nextMonth = new Date(
+    Date.UTC(monthStart.getUTCFullYear(), monthStart.getUTCMonth() + 1, 1),
+  );
+  const existing = await getPlannedWorkouts(user.id, monthStart, nextMonth);
+
+  const toCreate = planRoutineApplication({
+    month,
+    routine,
+    existingPlanDates: existing.map((plan) =>
+      plan.date.toISOString().slice(0, 10),
+    ),
+  });
+
+  if (toCreate.length === 0) {
+    return { success: true as const, created: 0 };
+  }
+
+  await db.transaction(async (tx) => {
+    for (const entry of toCreate) {
+      const plan = await tx
+        .insert(plannedWorkouts)
+        .values({ userId: user.id, date: dateFromKey(entry.date) })
+        .returning({ id: plannedWorkouts.id })
+        .get();
+      await tx.insert(plannedWorkoutGroups).values(
+        entry.groups.map((name, position) => ({
+          plannedWorkoutId: plan.id,
+          name,
+          position,
+        })),
+      );
+    }
+  });
+
+  revalidatePath("/workouts");
+  revalidatePath("/workouts/routine");
+  return { success: true as const, created: toCreate.length };
 }
 
 export async function deletePlannedWorkout(id: number) {

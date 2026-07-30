@@ -120,11 +120,36 @@ export const plannedWorkouts = sqliteTable("planned_workouts", {
     .default(sql`(unixepoch())`),
 });
 
+/** What a planned session trains ("Peito", "Tríceps", …), in display order. */
+export const plannedWorkoutGroups = sqliteTable("planned_workout_groups", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  plannedWorkoutId: integer("planned_workout_id")
+    .notNull()
+    .references(() => plannedWorkouts.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  position: integer("position").notNull(),
+});
+
+/**
+ * The user's recurring weekly split: which muscle groups belong to each
+ * weekday (1 = Monday … 7 = Sunday). A weekday with no rows is a rest day.
+ */
+export const routineGroups = sqliteTable("routine_groups", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  weekday: integer("weekday").notNull(),
+  name: text("name").notNull(),
+  position: integer("position").notNull(),
+});
+
 export const usersRelations = relations(users, ({ many }) => ({
   workouts: many(workouts),
   bodyMetrics: many(bodyMetrics),
   workoutTemplates: many(workoutTemplates),
   plannedWorkouts: many(plannedWorkouts),
+  routineGroups: many(routineGroups),
 }));
 
 export const workoutTemplatesRelations = relations(
@@ -176,15 +201,33 @@ export const bodyMetricsRelations = relations(bodyMetrics, ({ one }) => ({
   user: one(users, { fields: [bodyMetrics.userId], references: [users.id] }),
 }));
 
-export const plannedWorkoutsRelations = relations(plannedWorkouts, ({ one }) => ({
-  user: one(users, {
-    fields: [plannedWorkouts.userId],
-    references: [users.id],
+export const plannedWorkoutsRelations = relations(
+  plannedWorkouts,
+  ({ one, many }) => ({
+    user: one(users, {
+      fields: [plannedWorkouts.userId],
+      references: [users.id],
+    }),
+    template: one(workoutTemplates, {
+      fields: [plannedWorkouts.templateId],
+      references: [workoutTemplates.id],
+    }),
+    groups: many(plannedWorkoutGroups),
   }),
-  template: one(workoutTemplates, {
-    fields: [plannedWorkouts.templateId],
-    references: [workoutTemplates.id],
+);
+
+export const plannedWorkoutGroupsRelations = relations(
+  plannedWorkoutGroups,
+  ({ one }) => ({
+    plannedWorkout: one(plannedWorkouts, {
+      fields: [plannedWorkoutGroups.plannedWorkoutId],
+      references: [plannedWorkouts.id],
+    }),
   }),
+);
+
+export const routineGroupsRelations = relations(routineGroups, ({ one }) => ({
+  user: one(users, { fields: [routineGroups.userId], references: [users.id] }),
 }));
 
 export type User = typeof users.$inferSelect;
@@ -194,3 +237,5 @@ export type WorkoutSet = typeof sets.$inferSelect;
 export type BodyMetric = typeof bodyMetrics.$inferSelect;
 export type WorkoutTemplate = typeof workoutTemplates.$inferSelect;
 export type PlannedWorkout = typeof plannedWorkouts.$inferSelect;
+export type PlannedWorkoutGroup = typeof plannedWorkoutGroups.$inferSelect;
+export type RoutineGroup = typeof routineGroups.$inferSelect;

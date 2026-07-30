@@ -5,11 +5,13 @@ import {
   bodyMetrics,
   exercises,
   plannedWorkouts,
+  routineGroups,
   sets,
   users,
   workoutTemplates,
   workouts,
 } from "@/db/schema";
+import type { RoutineDay } from "./routine";
 import { requireUser } from "./auth";
 import { epley1RM, round } from "./format";
 import { resolveViewedUserId } from "./viewer";
@@ -501,10 +503,12 @@ export type PlannedWorkoutWithTemplate = {
   id: number;
   date: Date;
   notes: string | null;
+  /** Muscle groups this session trains, in display order. */
+  groups: string[];
   template: { id: number; name: string } | null;
 };
 
-/** Planned workouts within [from, to), with the template they came from. */
+/** Planned workouts within [from, to), with their groups and template. */
 export async function getPlannedWorkouts(
   userId: number,
   from: Date,
@@ -517,16 +521,43 @@ export async function getPlannedWorkouts(
       lt(plannedWorkouts.date, to),
     ),
     orderBy: [asc(plannedWorkouts.date), asc(plannedWorkouts.id)],
-    with: { template: true },
+    with: {
+      template: true,
+      groups: { orderBy: (g, { asc: ascending }) => [ascending(g.position)] },
+    },
   });
   return rows.map((plan) => ({
     id: plan.id,
     date: plan.date,
     notes: plan.notes,
+    groups: plan.groups.map((group) => group.name),
     template: plan.template
       ? { id: plan.template.id, name: plan.template.name }
       : null,
   }));
+}
+
+/** The user's weekly split, one entry per weekday that has any groups. */
+export async function getRoutine(userId: number): Promise<RoutineDay[]> {
+  const rows = await db
+    .select({
+      weekday: routineGroups.weekday,
+      name: routineGroups.name,
+    })
+    .from(routineGroups)
+    .where(eq(routineGroups.userId, userId))
+    .orderBy(asc(routineGroups.weekday), asc(routineGroups.position))
+    .all();
+
+  const byWeekday = new Map<number, string[]>();
+  for (const row of rows) {
+    const groups = byWeekday.get(row.weekday);
+    if (groups) groups.push(row.name);
+    else byWeekday.set(row.weekday, [row.name]);
+  }
+  return [...byWeekday.entries()]
+    .map(([weekday, groups]) => ({ weekday, groups }))
+    .sort((a, b) => a.weekday - b.weekday);
 }
 
 /** A single template (scoped to the owner) for pre-filling a new workout. */

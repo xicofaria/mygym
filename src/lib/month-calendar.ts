@@ -66,6 +66,20 @@ export function monthGridRange(monthKey: string): { from: string; to: string } {
   };
 }
 
+/** Every day in the month, as `YYYY-MM-DD` keys, in order. */
+export function monthDateKeys(monthKey: string): string[] {
+  const start = monthStart(monthKey);
+  const keys: string[] = [];
+  for (
+    let day = start;
+    monthKeyOf(day) === monthKey;
+    day = addUtcDays(day, 1)
+  ) {
+    keys.push(dateKey(day));
+  }
+  return keys;
+}
+
 function countByDay(dates: readonly Date[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const date of dates) {

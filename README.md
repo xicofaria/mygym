@@ -24,8 +24,12 @@ UI is in **European Portuguese (pt-PT)**. Weights and measurements are
 - **Workout calendar** — a 52-week activity heatmap links each training day
   to its filtered workout history, and a monthly calendar on the workouts page
   navigates and filters sessions by day
-- **Workout planning** — schedule a workout (optionally from a template) on a
-  future day, then register it from the calendar when it's done
+- **Workout planning** — schedule a workout on a future day by picking what it
+  trains (peito, dorsal, pernas, bíceps… or anything you type), optionally
+  starting from a template, then register it from the calendar when it's done
+- **Weekly routine** — set your split once (Monday: peito, tríceps, ombros;
+  Tuesday: dorsal, bíceps; …) and fill a whole month with one tap; it only
+  adds days that are still free, so you can re-run it safely
 - **Two-person, shared view** — see your own progress or switch to your
   training partner's via a simple toggle
 - **Installable PWA** — add it to your phone's home screen like a native app
