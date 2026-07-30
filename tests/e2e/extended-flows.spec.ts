@@ -336,3 +336,135 @@ test("um rascunho do formulário em branco não substitui uma data pedida no URL
 
   await wipe();
 });
+
+test("um recorde pessoal é marcado só quando supera o anterior", async ({
+  page,
+}) => {
+  const run = Date.now().toString(36).slice(-5);
+  const exercise = `Supino E2E ${run}`;
+  const first = `Primeira sessão ${run}`;
+  const better = `Sessão melhor ${run}`;
+  await login(page, OWNER);
+
+  // A fresh exercise, so no earlier history can influence the comparison.
+  await page.goto("/exercises");
+  await page.getByRole("button", { name: "+ Novo exercício" }).click();
+  await page.getByLabel("Nome do exercício").fill(exercise);
+  await page.getByLabel("Grupo muscular").fill("Peito");
+  await page.getByRole("button", { name: "Adicionar exercício" }).click();
+  await expect(page.getByText(exercise)).toBeVisible();
+
+  const logSession = async (weight: string, notes: string) => {
+    await page.goto("/workouts/new");
+    await page.waitForLoadState("networkidle");
+    await page.getByLabel("Exercício da série 1").selectOption({ label: exercise });
+    await page.getByLabel("Repetições da série 1").fill("8");
+    await page.getByLabel("Peso (kg) da série 1").fill(weight);
+    await page.getByPlaceholder("Como correu?").fill(notes);
+    await page.getByRole("button", { name: "Guardar treino" }).click();
+    await expect(page).toHaveURL(/\/workouts$/);
+  };
+
+  await logSession("50", first);
+  const firstCard = page.locator(".card").filter({ hasText: first });
+  await expect(firstCard).toBeVisible();
+  await expect(firstCard.locator("[data-record]")).toHaveCount(0);
+
+  await logSession("55", better);
+  const betterCard = page.locator(".card").filter({ hasText: better });
+  await expect(betterCard.locator("[data-record]")).toBeVisible();
+  // The earlier session must not gain a badge retroactively.
+  await expect(
+    page.locator(".card").filter({ hasText: first }).locator("[data-record]"),
+  ).toHaveCount(0);
+
+  // Renaming keeps every logged set attached to the exercise.
+  await page.goto("/exercises");
+  await page.getByRole("link", { name: new RegExp(exercise) }).click();
+  await page.waitForURL(/\/exercises\/\d+/);
+  await expect(page.getByText("Recordes")).toBeVisible();
+  await page.getByRole("button", { name: "Editar exercício" }).click();
+  await page.getByLabel("Nome do exercício").fill(`${exercise} renomeado`);
+  await page.getByRole("button", { name: "Guardar", exact: true }).click();
+  await expect(page.getByRole("heading", { name: `${exercise} renomeado` })).toBeVisible();
+  // The sets stayed attached to the exercise through the rename.
+  await expect(page.getByText("55kg × 8")).toBeVisible();
+  await expect(page.getByText("Sessões")).toBeVisible();
+
+  // Deleting is refused while sets still point at it.
+  await page.getByRole("button", { name: "Editar exercício" }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Eliminar do catálogo" }).click();
+  await expect(page.getByText(/não pode ser eliminado/)).toBeVisible();
+
+  // Remove the sessions, and only then may the exercise go.
+  for (const notes of [first, better]) {
+    await page.goto("/workouts");
+    await confirmDeletion(
+      page,
+      page.locator(".card").filter({ hasText: notes }).getByRole("button", { name: "Eliminar" }),
+    );
+    await expect(page.getByText(notes)).toHaveCount(0);
+  }
+  await page.goto("/exercises");
+  await page.getByRole("link", { name: new RegExp(exercise) }).click();
+  await page.waitForURL(/\/exercises\/\d+/);
+  await page.getByRole("button", { name: "Editar exercício" }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Eliminar do catálogo" }).click();
+  await expect(page).toHaveURL(/\/exercises$/);
+  await expect(page.getByText(exercise)).toHaveCount(0);
+});
+
+test("um dia planeado por grupos sugere o modelo que os treina", async ({
+  page,
+}) => {
+  const run = Date.now().toString(36).slice(-5);
+  const templateName = `Modelo peito ${run}`;
+  const planned = new Date(Date.now() + 8 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  await login(page, OWNER);
+
+  await page.goto("/workouts/templates");
+  await page.getByRole("button", { name: "+ Novo modelo" }).click();
+  const form = page.locator("form").filter({ hasText: "Nome do modelo" });
+  await form.getByLabel("Nome do modelo").fill(templateName);
+  await form.getByRole("button", { name: "Bench Press", exact: true }).click();
+  await page.getByRole("button", { name: "Guardar modelo" }).click();
+  await page.waitForTimeout(1500);
+  await page.goto("/workouts/templates");
+  await expect(page.locator(".card").filter({ hasText: templateName })).toBeVisible();
+
+  // Plan the day by muscle group only — no template attached.
+  await page.goto(`/workouts?date=${planned}`);
+  await page.waitForLoadState("networkidle");
+  const planForm = page.locator("form").filter({ hasText: "O que vais treinar" });
+  await planForm.getByRole("button", { name: "Peito", exact: true }).click();
+  await planForm.getByRole("button", { name: "Planear treino" }).click();
+  await page.waitForTimeout(2000);
+
+  const suggestion = page.locator("[data-template-suggestion]").filter({
+    hasText: templateName,
+  });
+  await expect(suggestion).toBeVisible();
+  await suggestion.click();
+  await page.waitForURL(/\/workouts\/new\?/);
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByLabel("Data")).toHaveValue(planned);
+  await expect(
+    page.getByLabel("Exercício da série 1").locator("option:checked"),
+  ).toHaveText("Bench Press");
+
+  await page.goto(`/workouts?date=${planned}`);
+  await confirmDeletion(
+    page,
+    page.locator("[data-plan-id]").getByRole("button", { name: "Eliminar" }).first(),
+  );
+  await page.goto("/workouts/templates");
+  await confirmDeletion(
+    page,
+    page.locator(".card").filter({ hasText: templateName }).getByRole("button", { name: "Eliminar" }),
+  );
+  await expect(page.getByText(templateName)).toHaveCount(0);
+});

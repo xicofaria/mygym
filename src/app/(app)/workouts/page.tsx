@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   getPageContext,
+  getPersonalRecords,
   getPlannedWorkouts,
   getWorkoutDatesInRange,
   getWorkoutTemplates,
@@ -14,6 +15,7 @@ import { DeleteButton } from "@/components/delete-button";
 import { deletePlannedWorkout } from "./actions";
 import { fmtDate, lisbonDateKey, lisbonMonthKey } from "@/lib/format";
 import { formatGroupNames } from "@/lib/muscle-groups";
+import { suggestTemplates } from "@/lib/template-match";
 import {
   addUtcDays,
   dateFromKey,
@@ -46,7 +48,7 @@ export default async function WorkoutsPage({
     lisbonMonthKey();
   const range = monthGridRange(monthKey);
 
-  const [workouts, monthWorkoutDates, monthPlans, dayPlans, templates] =
+  const [workouts, monthWorkoutDates, monthPlans, dayPlans, templates, records] =
     await Promise.all([
       getWorkouts(
         viewed.id,
@@ -71,6 +73,7 @@ export default async function WorkoutsPage({
           )
         : Promise.resolve([]),
       isSelf ? getWorkoutTemplates(me.id) : Promise.resolve([]),
+      getPersonalRecords(viewed.id),
     ]);
 
   const calendar = buildMonthCalendar(
@@ -161,6 +164,12 @@ export default async function WorkoutsPage({
             if (plan.template) {
               registrationParams.set("template", String(plan.template.id));
             }
+            // A day planned by muscle group has no exercises attached, so
+            // offer the saved templates that train it.
+            const suggestions =
+              isSelf && !isDone && !plan.template
+                ? suggestTemplates(plan.groups, templates)
+                : [];
             return (
               <div
                 key={plan.id}
@@ -183,6 +192,27 @@ export default async function WorkoutsPage({
                         .filter(Boolean)
                         .join(" · ")}
                     </p>
+                  )}
+                  {suggestions.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                        Começar de:
+                      </span>
+                      {suggestions.map(({ template }) => {
+                        const params = new URLSearchParams(registrationParams);
+                        params.set("template", String(template.id));
+                        return (
+                          <Link
+                            key={template.id}
+                            href={`/workouts/new?${params.toString()}`}
+                            className="rounded-full bg-indigo-500/10 px-2 py-0.5 text-xs font-medium text-indigo-700 hover:bg-indigo-500/20 dark:text-indigo-400"
+                            data-template-suggestion={template.id}
+                          >
+                            {template.name}
+                          </Link>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
                 <span
@@ -249,7 +279,12 @@ export default async function WorkoutsPage({
       ) : (
         <div className="flex flex-col gap-3">
           {workouts.map((w) => (
-            <WorkoutCard key={w.id} workout={w} deletable={isSelf} />
+            <WorkoutCard
+              key={w.id}
+              workout={w}
+              deletable={isSelf}
+              recordExerciseIds={records.get(w.id)}
+            />
           ))}
         </div>
       )}

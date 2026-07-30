@@ -4,6 +4,8 @@ import { getExerciseProgression, getPageContext } from "@/lib/queries";
 import { PageHeader, StatCard } from "@/components/ui";
 import { ProgressChart } from "@/components/progress-chart";
 import { fmtDate } from "@/lib/format";
+import { describeRecord } from "@/lib/personal-records";
+import { ExerciseSettings } from "@/components/exercise-settings";
 
 export default async function ExerciseDetailPage({
   params,
@@ -23,6 +25,9 @@ export default async function ExerciseDetailPage({
 
   const bestWeight = points.reduce((m, p) => Math.max(m, p.maxWeight), 0);
   const best1RM = points.reduce((m, p) => Math.max(m, p.best1RM), 0);
+  const recordPoints = points.filter((p) => p.record);
+  const recordCount = recordPoints.length;
+  const lastRecord = recordPoints.at(-1);
 
   return (
     <div className="flex flex-col gap-4">
@@ -44,10 +49,19 @@ export default async function ExerciseDetailPage({
         </p>
       ) : (
         <>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <StatCard label="Melhor série" value={`${bestWeight}kg`} />
             <StatCard label="1RM estimado" value={`${best1RM}kg`} />
             <StatCard label="Sessões" value={points.length} />
+            <StatCard
+              label="Recordes"
+              value={recordCount}
+              sub={
+                recordCount === 0
+                  ? "supera a tua melhor série"
+                  : `último em ${fmtDate(lastRecord!.date)}`
+              }
+            />
           </div>
 
           <div className="card">
@@ -80,12 +94,23 @@ export default async function ExerciseDetailPage({
               {[...points].reverse().map((p) => (
                 <div
                   key={p.workoutId}
-                  className="flex items-center justify-between px-4 py-3 text-sm"
+                  className="flex items-center justify-between gap-2 px-4 py-3 text-sm"
                 >
                   <span className="text-zinc-500 dark:text-zinc-400">
                     {fmtDate(p.date)}
                   </span>
-                  <span className="font-medium">{p.topSet}</span>
+                  <span className="flex items-center gap-1.5 font-medium">
+                    {p.topSet}
+                    {p.record && (
+                      <span
+                        className="text-amber-500"
+                        title={describeRecord(p.record)}
+                        aria-label={describeRecord(p.record)}
+                      >
+                        ★
+                      </span>
+                    )}
+                  </span>
                   <span className="text-zinc-500 dark:text-zinc-400">
                     {p.volume.toLocaleString()}kg vol.
                   </span>
@@ -94,6 +119,17 @@ export default async function ExerciseDetailPage({
             </div>
           </section>
         </>
+      )}
+
+      {isSelf && (
+        <div className="mt-2">
+          <ExerciseSettings
+            id={exercise.id}
+            name={exercise.name}
+            muscleGroup={exercise.muscleGroup}
+            usedInSets={points.length > 0}
+          />
+        </div>
       )}
     </div>
   );
