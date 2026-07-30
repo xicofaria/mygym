@@ -39,7 +39,9 @@ export function ProgressChart({
             top: 8,
             right: 8,
             bottom: 0,
-            left: minimal ? 0 : -18,
+            // No negative inset: it used to eat into the Y axis, clipping
+            // labels like "85.4" down to "5.4".
+            left: 0,
           }}
         >
           {!minimal && (
@@ -60,7 +62,7 @@ export function ProgressChart({
           />
           <YAxis
             hide={minimal}
-            width={38}
+            width={44}
             tick={{ fontSize: 11, fill: "#a1a1aa" }}
             tickLine={false}
             axisLine={false}

@@ -60,24 +60,27 @@ test("uma medição corporal pode ser criada, isolada e eliminada", async ({
   await form.getByLabel("Notas (opcional)").fill(notes);
   await form.getByRole("button", { name: "Guardar", exact: true }).click();
 
-  const metric = page.locator(".card").filter({ hasText: notes });
-  await expect(metric).toContainText("81.4 kg");
-  await expect(metric).toContainText("cintura 88.5");
+  // The fixture is backdated, so the full range is where its row shows up.
+  await page.goto("/body?range=all");
+  const row = page.locator("tr").filter({ hasText: "15/01/2026" });
+  await expect(row).toContainText("81.4");
+  await expect(row).toContainText("88.5");
+  await expect(page.getByText(notes)).toBeVisible();
 
   await page.getByRole("button", { name: "E2E Partner" }).click();
   await expect(page.getByRole("heading", { name: "Corpo" })).toBeVisible();
-  await expect(page.getByText("Medidas de E2E Partner")).toBeVisible();
+  await expect(page.getByText("Evolução de E2E Partner")).toBeVisible();
   await expect(page.getByText(notes)).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "+ Adicionar medição" }),
   ).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Eu" }).click();
+  await page.goto("/body?range=all");
   await expect(page.getByText(notes)).toBeVisible();
-  const ownedMetric = page.locator(".card").filter({ hasText: notes });
+  const ownedRow = page.locator("tr").filter({ hasText: "15/01/2026" });
   await confirmDeletion(
     page,
-    ownedMetric.getByRole("button", { name: "Eliminar" }),
+    ownedRow.getByRole("button", { name: "Eliminar" }),
   );
   await expect(page.getByText(notes)).toHaveCount(0);
 });

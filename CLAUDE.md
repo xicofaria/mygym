@@ -99,7 +99,20 @@ cascade on delete (libSQL enforces FKs). `next.config.ts` lists
 **Charts.** `src/components/progress-chart.tsx` is the only Recharts surface
 (`'use client'`); server pages pass plain `{ date, … }[]` arrays into it. Its
 `unit` prop is just the chart's display suffix (e.g. `"kg"`, `" cm"`) — not
-related to the (removed) per-exercise unit field.
+related to the (removed) per-exercise unit field. For a trend line with no axes
+or interaction, prefer `src/components/sparkline.tsx`: plain SVG, renders on the
+server, ships no JS.
+
+**Body progress.** `src/lib/body-progress.ts` is a pure, unit-tested module that
+turns body-metric rows into per-measure progress over a range (`?range=`, one of
+`30d|3m|1y|all`, default `3m`; `?measure=` selects the expanded chart — both
+strictly validated). Two conventions matter. **The baseline for a range is the
+last reading *before* the window** (falling back to the first inside it), so a
+range shows real change over it even when you measure rarely. **Each measure
+carries a `goal`** (`down` for waist and body fat, `up` for chest/arm/thigh,
+`neutral` for weight and hips, since those depend on cutting vs. bulking);
+`deltaTone()` maps a change plus its goal to good/bad/neutral colouring, so
+green never means "the number went down" by itself.
 
 **Workout templates.** `workoutTemplates` + `workoutTemplateExercises` (schema)
 are per-user, ordered lists of exercises with no reps/weight (e.g. "Treino de

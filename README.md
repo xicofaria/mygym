@@ -17,8 +17,10 @@ UI is in **European Portuguese (pt-PT)**. Weights and measurements are
   and start a new session from it instead of picking exercises from scratch
 - **Exercise progression** — per-exercise history with top weight, estimated
   1RM, and volume charts over time
-- **Body measurements** — track bodyweight, body fat %, and tape measurements
-  (waist, chest, arms, thighs, hips), with trend charts
+- **Body progress** — track bodyweight, body fat %, BMI and tape measurements
+  (waist, chest, arms, thighs, hips), with a summary of how much each one
+  changed over a chosen period (30 days, 3 months, 1 year or all time),
+  per-measure trend charts, and a history table showing each entry's change
 - **Workout calendar** — a 52-week activity heatmap links each training day
   to its filtered workout history, and a monthly calendar on the workouts page
   navigates and filters sessions by day
