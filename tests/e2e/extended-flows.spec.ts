@@ -206,3 +206,49 @@ test("o rascunho de treino sobrevive a uma perda de ligação", async ({
   await expect(page.getByPlaceholder("Como correu?")).toHaveValue(notes);
   await page.evaluate((key) => localStorage.removeItem(key), draftKey);
 });
+
+test("um rascunho do formulário em branco não substitui uma data pedida no URL", async ({
+  page,
+}) => {
+  const planned = new Date(Date.now() + 12 * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .slice(0, 10);
+  const wipe = () =>
+    page.evaluate(() =>
+      Object.keys(localStorage)
+        .filter((key) => key.startsWith("gym-tracker:"))
+        .forEach((key) => localStorage.removeItem(key)),
+    );
+
+  await login(page, OWNER);
+  await page.goto("/workouts/new");
+  await wipe();
+  await page.reload();
+  await page.waitForLoadState("networkidle");
+
+  // Typing here saves a draft for the blank form.
+  await page.getByLabel("Repetições da série 1").fill("5");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        localStorage.getItem("gym-tracker:workout-draft:new"),
+      ),
+    )
+    .not.toBeNull();
+
+  // Registering a planned session must keep the planned date, or the workout
+  // would silently be logged on the wrong day.
+  await page.goto(`/workouts/new?date=${planned}`);
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByLabel("Data")).toHaveValue(planned);
+  await expect(page.getByLabel("Repetições da série 1")).toHaveValue("");
+
+  // That form keeps its own draft, so offline recovery still works per URL.
+  await page.getByLabel("Repetições da série 1").fill("9");
+  await page.goto(`/workouts/new?date=${planned}`);
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByLabel("Data")).toHaveValue(planned);
+  await expect(page.getByLabel("Repetições da série 1")).toHaveValue("9");
+
+  await wipe();
+});

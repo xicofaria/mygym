@@ -48,6 +48,19 @@ export default async function NewWorkoutPage({
       exerciseId: exercise.id,
     }));
 
+  /**
+   * Drafts are scoped to what the URL asked for. Without this, a draft left on
+   * the blank form restores over an explicit prefill — silently saving a
+   * planned session on today's date instead of the day it was planned for.
+   */
+  const draftScope = [
+    initialDate ? `date:${initialDate}` : null,
+    activeTemplate ? `tpl:${activeTemplate.id}` : null,
+    repeatedWorkout ? "repeat" : null,
+  ]
+    .filter(Boolean)
+    .join("|");
+
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
@@ -109,6 +122,7 @@ export default async function NewWorkoutPage({
         exercises={exercises}
         initialRows={initialRows}
         initialDate={initialDate ?? undefined}
+        draftScope={draftScope}
         lastPerformance={lastPerformance}
       />
 

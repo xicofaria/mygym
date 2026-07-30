@@ -43,6 +43,7 @@ export function WorkoutForm({
   initialRows,
   initialDate,
   initialNotes,
+  draftScope = "",
   lastPerformance = {},
   workoutId,
 }: {
@@ -50,6 +51,9 @@ export function WorkoutForm({
   initialRows?: InitialRow[];
   initialDate?: string;
   initialNotes?: string;
+  /** Distinguishes drafts of forms opened with different prefills, so a draft
+   * left on the blank form never overwrites an explicit date or template. */
+  draftScope?: string;
   lastPerformance?: LastPerformance;
   workoutId?: number;
 }) {
@@ -72,7 +76,9 @@ export function WorkoutForm({
   const [restoredDraft, setRestoredDraft] = useState(false);
   const [dirty, setDirty] = useState(false);
   const submittingRef = useRef(false);
-  const draftKey = `gym-tracker:workout-draft:${workoutId ?? "new"}`;
+  const draftKey =
+    `gym-tracker:workout-draft:${workoutId ?? "new"}` +
+    (draftScope ? `:${draftScope}` : "");
 
   useEffect(() => {
     const draft = readLocalDraft(localStorage, draftKey, isWorkoutDraft);
