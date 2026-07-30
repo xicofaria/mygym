@@ -1,3 +1,5 @@
+import { lisbonDateKey } from "./format";
+
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 export const WORKOUT_CALENDAR_WEEKS = 52;
@@ -34,6 +36,22 @@ export function isDateKey(value: unknown): value is string {
   }
   const date = new Date(`${value}T00:00:00.000Z`);
   return !Number.isNaN(date.getTime()) && dateKey(date) === value;
+}
+
+/** A real calendar key that is today or later in Lisbon. */
+export function isPlannableDateKey(
+  value: unknown,
+  instant: Date = new Date(),
+): value is string {
+  return isDateKey(value) && value >= lisbonDateKey(instant);
+}
+
+/** A real calendar key that is today or earlier in Lisbon. */
+export function isCurrentOrPastDateKey(
+  value: unknown,
+  instant: Date = new Date(),
+): value is string {
+  return isDateKey(value) && value <= lisbonDateKey(instant);
 }
 
 export function readDateKey(
@@ -76,8 +94,8 @@ export function buildWorkoutCalendar(
   }
   if (Number.isNaN(today.getTime())) throw new RangeError("Data atual inválida.");
 
-  const todayKey = dateKey(today);
-  const currentWeekStart = startOfUtcWeek(today);
+  const todayKey = lisbonDateKey(today);
+  const currentWeekStart = startOfUtcWeek(dateFromKey(todayKey));
   const firstWeekStart = addUtcDays(currentWeekStart, -(weeks - 1) * 7);
   const counts = new Map<string, number>();
 

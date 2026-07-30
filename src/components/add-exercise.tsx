@@ -47,8 +47,11 @@ export function AddExercise() {
   return (
     <form onSubmit={submit} className="card flex flex-col gap-3">
       <div>
-        <label className="label">Nome do exercício</label>
+        <label className="label" htmlFor="exercise-name">
+          Nome do exercício
+        </label>
         <input
+          id="exercise-name"
           className="input"
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -57,8 +60,11 @@ export function AddExercise() {
         />
       </div>
       <div>
-        <label className="label">Grupo muscular</label>
+        <label className="label" htmlFor="exercise-muscle-group">
+          Grupo muscular
+        </label>
         <input
+          id="exercise-muscle-group"
           className="input"
           value={muscleGroup}
           onChange={(e) => setMuscleGroup(e.target.value)}

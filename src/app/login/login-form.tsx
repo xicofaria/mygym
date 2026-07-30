@@ -19,9 +19,15 @@ export function LoginForm() {
           name="email"
           type="email"
           autoComplete="username"
+          maxLength={254}
           required
           className="input"
           placeholder="tu@exemplo.com"
+          // React resets the form after an action, which would also wipe the
+          // email on a wrong password. Put it back so only the password is
+          // retyped.
+          defaultValue={state.email ?? ""}
+          key={state.email ?? ""}
         />
       </div>
       <div>
@@ -33,6 +39,7 @@ export function LoginForm() {
           name="password"
           type="password"
           autoComplete="current-password"
+          maxLength={256}
           required
           className="input"
           placeholder="••••••••"

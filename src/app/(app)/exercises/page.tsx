@@ -3,6 +3,7 @@ import { getExercisesWithStats, getPageContext } from "@/lib/queries";
 import { PageHeader } from "@/components/ui";
 import { AddExercise } from "@/components/add-exercise";
 import { fmtShortDate } from "@/lib/format";
+import { formatMuscleGroup } from "@/lib/muscle-groups";
 
 function Chevron() {
   return (
@@ -52,7 +53,9 @@ export default async function ExercisesPage({
               <div className="min-w-0">
                 <div className="truncate font-semibold">{s.name}</div>
                 <div className="text-xs text-zinc-500 dark:text-zinc-400">
-                  {s.muscleGroup ? `${s.muscleGroup} · ` : ""}
+                  {s.muscleGroup
+                    ? `${formatMuscleGroup(s.muscleGroup)} · `
+                    : ""}
                   {s.lastPerformed
                     ? `última em ${fmtShortDate(s.lastPerformed)}`
                     : ""}

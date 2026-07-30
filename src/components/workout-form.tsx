@@ -19,6 +19,30 @@ type Row = { exerciseId: number; reps: string; weight: string };
 type InitialRow = { exerciseId: number; reps?: number; weight?: number };
 type WorkoutDraft = { date: string; notes: string; rows: Row[] };
 
+const WORKOUT_DRAFT_PREFIX = "gym-tracker:workout-draft:";
+const NAMESPACED_WORKOUT_DRAFT =
+  /^gym-tracker:workout-draft:user-\d+:/;
+
+function removeLegacyWorkoutDrafts(storage: Storage, currentLegacyKey: string) {
+  try {
+    // Snapshot first: mutating Storage while walking its numeric indexes is
+    // inconsistent across browsers and could leave every second key behind.
+    for (const key of Object.keys(storage)) {
+      if (
+        key.startsWith(WORKOUT_DRAFT_PREFIX) &&
+        !NAMESPACED_WORKOUT_DRAFT.test(key)
+      ) {
+        removeLocalDraft(storage, key);
+      }
+    }
+  } catch {
+    // Some privacy modes block enumeration.
+  } finally {
+    // A direct removal still works in some modes that block enumeration.
+    removeLocalDraft(storage, currentLegacyKey);
+  }
+}
+
 function isWorkoutDraft(value: unknown): value is WorkoutDraft {
   if (typeof value !== "object" || value === null) return false;
   const candidate = value as Partial<WorkoutDraft>;
@@ -39,19 +63,28 @@ function isWorkoutDraft(value: unknown): value is WorkoutDraft {
 }
 
 export function WorkoutForm({
+  userId,
   exercises,
   initialRows,
   initialDate,
   initialNotes,
+  draftScope = "",
   lastPerformance = {},
   workoutId,
+  plannedWorkoutId,
 }: {
+  userId: number;
   exercises: Ex[];
   initialRows?: InitialRow[];
   initialDate?: string;
   initialNotes?: string;
+  /** Distinguishes drafts of forms opened with different prefills, so a draft
+   * left on the blank form never overwrites an explicit date or template. */
+  draftScope?: string;
   lastPerformance?: LastPerformance;
   workoutId?: number;
+  /** Exact plan this new session completes. Never accepted when editing. */
+  plannedWorkoutId?: number;
 }) {
   const router = useRouter();
   const firstId = exercises[0]?.id ?? 0;
@@ -72,9 +105,18 @@ export function WorkoutForm({
   const [restoredDraft, setRestoredDraft] = useState(false);
   const [dirty, setDirty] = useState(false);
   const submittingRef = useRef(false);
-  const draftKey = `gym-tracker:workout-draft:${workoutId ?? "new"}`;
+  const legacyDraftKey =
+    `${WORKOUT_DRAFT_PREFIX}${workoutId ?? "new"}` +
+    (draftScope ? `:${draftScope}` : "");
+  const draftKey =
+    `${WORKOUT_DRAFT_PREFIX}user-${userId}:${workoutId ?? "new"}` +
+    (draftScope ? `:${draftScope}` : "");
 
   useEffect(() => {
+    // Drafts written before they were scoped to an authenticated account must
+    // never be restored: the next person using this browser may be another
+    // user. Purge legacy workout drafts without touching account-scoped data.
+    removeLegacyWorkoutDrafts(localStorage, legacyDraftKey);
     const draft = readLocalDraft(localStorage, draftKey, isWorkoutDraft);
     let cancelled = false;
     queueMicrotask(() => {
@@ -91,7 +133,7 @@ export function WorkoutForm({
     return () => {
       cancelled = true;
     };
-  }, [draftKey]);
+  }, [draftKey, legacyDraftKey]);
 
   useEffect(() => {
     if (!draftReady || !dirty || submittingRef.current) return;
@@ -128,8 +170,10 @@ export function WorkoutForm({
     const entries = rows
       .map((r) => ({
         exerciseId: Number(r.exerciseId),
-        reps: Number(r.reps),
-        weight: Number(r.weight),
+        reps: r.reps.trim() === "" ? Number.NaN : Number(r.reps),
+        // `Number("")` is zero; keep an empty weight invalid while still
+        // allowing an explicitly entered 0 kg for bodyweight movements.
+        weight: r.weight.trim() === "" ? Number.NaN : Number(r.weight),
       }))
       .filter(
         (r) =>
@@ -158,7 +202,13 @@ export function WorkoutForm({
         };
         const res =
           workoutId == null
-            ? await createWorkout(input)
+            ? await createWorkout({
+                ...input,
+                plannedWorkoutId:
+                  plannedWorkoutId != null && date === initialDate
+                    ? plannedWorkoutId
+                    : undefined,
+              })
             : await updateWorkout(workoutId, input);
         if (res?.error) {
           submittingRef.current = false;
@@ -211,8 +261,11 @@ export function WorkoutForm({
           />
         </div>
         <div>
-          <label className="label">Notas (opcional)</label>
+          <label className="label" htmlFor="workout-notes">
+            Notas (opcional)
+          </label>
           <input
+            id="workout-notes"
             className="input"
             value={notes}
             onChange={(e) => {

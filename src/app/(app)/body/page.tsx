@@ -106,7 +106,7 @@ export default async function BodyPage({
     measure?: string | string[];
   }>;
 }) {
-  const [{ viewed, isSelf }, params] = await Promise.all([
+  const [{ me, viewed, isSelf }, params] = await Promise.all([
     getPageContext(searchParams),
     searchParams,
   ]);
@@ -139,7 +139,7 @@ export default async function BodyPage({
         }
       />
 
-      {isSelf && <BodyMetricForm />}
+      {isSelf && <BodyMetricForm userId={me.id} />}
 
       {metrics.length === 0 ? (
         <EmptyState

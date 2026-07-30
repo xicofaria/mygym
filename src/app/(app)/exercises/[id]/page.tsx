@@ -79,7 +79,7 @@ export default async function ExerciseDetailPage({
             <div className="card divide-y divide-black/5 p-0 dark:divide-white/10">
               {[...points].reverse().map((p) => (
                 <div
-                  key={p.date}
+                  key={p.workoutId}
                   className="flex items-center justify-between px-4 py-3 text-sm"
                 >
                   <span className="text-zinc-500 dark:text-zinc-400">

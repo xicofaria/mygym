@@ -1,4 +1,5 @@
-import { round } from "./format";
+import { lisbonDateKey, round } from "./format";
+import { addUtcDays, dateFromKey } from "./workout-calendar";
 
 /**
  * Pure progress math for the body page: how each measurement changed over a
@@ -115,9 +116,7 @@ export function readBodyFieldKey(
 /** Inclusive lower bound of a range; null means "no lower bound". */
 export function rangeStart(range: BodyRange, today: Date): Date | null {
   if (range === "all") return null;
-  const start = new Date(
-    Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate()),
-  );
+  const start = dateFromKey(lisbonDateKey(today));
   if (range === "30d") start.setUTCDate(start.getUTCDate() - 30);
   else if (range === "3m") start.setUTCMonth(start.getUTCMonth() - 3);
   else start.setUTCFullYear(start.getUTCFullYear() - 1);
@@ -144,12 +143,19 @@ export function buildBodyProgress(
   range: BodyRange = DEFAULT_BODY_RANGE,
   today: Date = new Date(),
 ): BodyProgress {
-  const ascending = [...metrics].sort(
-    (a, b) => a.date.getTime() - b.date.getTime(),
-  );
+  const tomorrow = addUtcDays(dateFromKey(lisbonDateKey(today)), 1);
+  const ascending = [...metrics]
+    .filter(
+      (metric) =>
+        !Number.isNaN(metric.date.getTime()) && metric.date < tomorrow,
+    )
+    .sort(
+      (a, b) =>
+        a.date.getTime() - b.date.getTime() || a.id - b.id,
+    );
   const start = rangeStart(range, today);
   const inRange = (date: Date) =>
-    start == null || date.getTime() >= start.getTime();
+    date < tomorrow && (start == null || date.getTime() >= start.getTime());
 
   const fields: BodyFieldProgress[] = [];
   for (const def of BODY_FIELDS) {

@@ -1,18 +1,12 @@
 name: Database schema
 
-# Applies src/db/schema.ts to the production Turso database after a merge to
-# main. Vercel's deploy starts at the same time, so there is a window of a few
-# seconds where new code may briefly run before an additive change lands —
-# harmless for additive changes, which are the only kind this job applies:
-# without --force, a non-interactive `drizzle-kit push` fails on anything
-# destructive, keeping data-loss changes a manual, deliberate step.
+# Manual recovery path for the production Turso schema. Normal production
+# deployments run the same verified, versioned migrations from `postbuild`,
+# before Vercel activates a successfully compiled build. Keeping this workflow
+# manual avoids racing a live deployment while retaining a least-privileged
+# repair mechanism.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "src/db/schema.ts"
-      - "drizzle.config.ts"
   workflow_dispatch:
 
 permissions:
@@ -23,17 +17,19 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  push-schema:
-    name: Apply schema to Turso
+  migrate-schema:
+    name: Migrate schema on Turso
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    env:
-      DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
+    environment: production
     steps:
       # Without this guard, missing secrets would make drizzle.config.ts fall
       # back to file:./dev.db and the job would "succeed" without touching prod.
       - name: Ensure production credentials are configured
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "::error::DATABASE_URL secret is not configured."
@@ -46,6 +42,10 @@ jobs:
               exit 1
               ;;
           esac
+          if [ -z "$DATABASE_AUTH_TOKEN" ]; then
+            echo "::error::DATABASE_AUTH_TOKEN secret is not configured."
+            exit 1
+          fi
 
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -61,5 +61,8 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Apply schema
-        run: npx drizzle-kit push
+      - name: Apply migrations
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_AUTH_TOKEN: ${{ secrets.DATABASE_AUTH_TOKEN }}
+        run: npm run db:migrate

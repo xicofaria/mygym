@@ -4,6 +4,7 @@ import {
   dateFromKey,
   startOfUtcWeek,
 } from "./workout-calendar";
+import { lisbonDateKey } from "./format";
 
 /**
  * Pure month-grid math for the monthly calendar on /workouts.
@@ -26,6 +27,21 @@ export type MonthCalendarData = {
   nextMonth: string;
   weeks: MonthCalendarDay[][];
 };
+
+/** Keeps every planned-session label for a day instead of overwriting it. */
+export function aggregatePlanLabels(
+  entries: readonly { date: string; label: string }[],
+): Record<string, string> {
+  const labels = new Map<string, string[]>();
+  for (const entry of entries) {
+    const dayLabels = labels.get(entry.date);
+    if (dayLabels) dayLabels.push(entry.label);
+    else labels.set(entry.date, [entry.label]);
+  }
+  return Object.fromEntries(
+    [...labels].map(([date, dayLabels]) => [date, dayLabels.join(" + ")]),
+  );
+}
 
 export function isMonthKey(value: unknown): value is string {
   return typeof value === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(value);
@@ -66,6 +82,20 @@ export function monthGridRange(monthKey: string): { from: string; to: string } {
   };
 }
 
+/** Every day in the month, as `YYYY-MM-DD` keys, in order. */
+export function monthDateKeys(monthKey: string): string[] {
+  const start = monthStart(monthKey);
+  const keys: string[] = [];
+  for (
+    let day = start;
+    monthKeyOf(day) === monthKey;
+    day = addUtcDays(day, 1)
+  ) {
+    keys.push(dateKey(day));
+  }
+  return keys;
+}
+
 function countByDay(dates: readonly Date[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const date of dates) {
@@ -87,7 +117,7 @@ export function buildMonthCalendar(
   const range = monthGridRange(monthKey);
   const gridStart = dateFromKey(range.from);
   const gridEnd = dateFromKey(range.to);
-  const todayKey = dateKey(today);
+  const todayKey = lisbonDateKey(today);
   const workoutCounts = countByDay(workoutDates);
   const plannedCounts = countByDay(plannedDates);
 

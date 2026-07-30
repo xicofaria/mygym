@@ -47,19 +47,19 @@ npm run test:e2e       # Playwright browser flow
 npm run check          # lint + typecheck + unit tests + production build
 npx tsc --noEmit       # typecheck only
 
-npm run db:push        # apply src/db/schema.ts to the DB (dev workflow)
-npm run db:generate    # generate SQL migrations (prod workflow)
-npm run db:migrate     # run migrations
+npm run db:push        # sync a disposable development DB only
+npm run db:generate    # generate a versioned SQL migration
+npm run db:migrate     # verify the ledger and apply pending migrations
 npm run db:seed        # upsert the 2 users + starter exercise catalog
-npm run db:reset       # wipe dev.db, re-push schema, re-seed
+npm run db:reset       # wipe dev.db, migrate it, re-seed
 npm run db:studio      # browse the DB
 ```
 
 GitHub Actions run lint, typechecking, unit tests, a production build, a
 Playwright workout flow, CodeQL, dependency review, Gitleaks, and npm audit.
-Merges to `main` that change `src/db/schema.ts` also apply the schema to the
-production Turso DB (additive changes only — destructive ones fail the job and
-stay manual). See `docs/DEVSECOPS.md`.
+Production Vercel builds apply verified, versioned migrations in `postbuild`;
+the manual database workflow on `main` is the recovery path. See
+`docs/DEVSECOPS.md`.
 
 ## Architecture
 
@@ -138,17 +138,35 @@ logged or deleted. `/workouts` accepts `?month=YYYY-MM` and `?date=YYYY-MM-DD`
 (both strictly validated); a selected future day offers `PlanWorkoutForm`, and
 "Registar" links to `/workouts/new?date=…&template=…`, which prefills both.
 
+**Muscle groups & the weekly routine.** A plan says *what* it trains
+(`plannedWorkoutGroups`) independently of *which exercises* it starts from (the
+optional template). Groups are plain labels, not an entity — `MUSCLE_GROUP_SUGGESTIONS`
+in `src/lib/muscle-groups.ts` is only a shortcut, and any text the user types is
+equally valid, so never validate against the suggestion list.
+`normalizeGroupNames()` (trim, collapse spaces, drop case-insensitive
+duplicates, cap at 8) is the single funnel every write goes through.
+`routineGroups` stores the recurring weekly split — one row per group per ISO
+weekday (1 = Monday … 7 = Sunday), and a weekday with no rows is a rest day.
+`applyRoutineToMonth` materializes it into planned workouts via the pure
+`planRoutineApplication()` in `src/lib/routine.ts`: **only days from today
+onward that have no plan yet**, so re-running it never duplicates or destroys
+anything. Editing `/workouts/routine` saves per weekday as you toggle chips
+(last write wins); there is no save button.
+
+## Conventions & gotchas
+
 - Import alias: `@/*` → `src/*`.
 - Scripts that run **outside** Next (via `tsx`) — `scripts/seed.ts`,
-  `drizzle.config.ts` — must `process.loadEnvFile(".env.local")` **before** any
+  `scripts/migrate-database.ts`, `drizzle.config.ts` — must
+  `process.loadEnvFile(".env.local")` **before** any
   import that reads env, and therefore import the db module dynamically.
 - Env vars: `DATABASE_URL`, `DATABASE_AUTH_TOKEN` (prod), `SESSION_SECRET`,
   `SEED_USER1_*` / `SEED_USER2_*`. Local values live in `.env.local` (gitignored).
-- Adding a field/table: edit `src/db/schema.ts` → `npm run db:push`; add reads to
+- Adding a field/table: edit `src/db/schema.ts`, run `npm run db:generate`,
+  inspect the generated SQL, and test `npm run db:migrate`; add reads to
   `queries.ts` and writes as a new/updated server action.
-- `db:push` prompts interactively on data-loss changes (e.g. dropping a
-  column); non-interactively use `npx drizzle-kit push --force` (only after
-  confirming the loss is expected/acceptable).
+- Never use `db:push` to evolve a persistent database. It is reserved for
+  disposable prototyping; versioned migrations are the source of truth.
 - `<html>`/`<body>` in `src/app/layout.tsx` have `suppressHydrationWarning`
   because browser extensions (e.g. Dark Reader) inject attributes like
   `data-darkreader-proxy-injected` client-side, which otherwise trips a

@@ -5,13 +5,20 @@ import {
   bodyMetrics,
   exercises,
   plannedWorkouts,
+  routineGroups,
   sets,
   users,
   workoutTemplates,
   workouts,
 } from "@/db/schema";
+import type { RoutineDay } from "./routine";
 import { requireUser } from "./auth";
 import { epley1RM, round } from "./format";
+import {
+  calculateDashboardWeightMetrics,
+  calculateDashboardWeekMetrics,
+  currentLisbonWeekRange,
+} from "./dashboard-metrics";
 import { resolveViewedUserId } from "./viewer";
 import { chooseTopSet } from "./workout";
 import {
@@ -22,7 +29,7 @@ import {
 /** All users, for the "whose data am I viewing" switcher. */
 export async function getAllUsers() {
   return db
-    .select({ id: users.id, name: users.name, email: users.email })
+    .select({ id: users.id, name: users.name })
     .from(users)
     .orderBy(asc(users.id))
     .all();
@@ -48,7 +55,6 @@ export async function getPageContext(
   const viewed = allUsers.find((u) => u.id === viewedId) ?? {
     id: me.id,
     name: me.name,
-    email: me.email,
   };
   const isSelf = viewedId === me.id;
   /** Append to internal links to keep viewing the same person. */
@@ -292,6 +298,9 @@ export async function getExercisesWithStats(
 }
 
 export type ProgressionPoint = {
+  /** The session this point came from. Two workouts can share a date, so this
+   * — not `date` — is what uniquely identifies a point. */
+  workoutId: number;
   date: string; // ISO day
   maxWeight: number;
   best1RM: number;
@@ -360,9 +369,11 @@ export async function getExerciseProgression(
     }
   }
 
-  const points: ProgressionPoint[] = [...bySession.values()]
-    .sort((a, b) => a.date.getTime() - b.date.getTime())
+  const points: ProgressionPoint[] = [...bySession.entries()]
+    .map(([workoutId, session]) => ({ workoutId, ...session }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime() || a.workoutId - b.workoutId)
     .map((s) => ({
+      workoutId: s.workoutId,
       date: s.date.toISOString().slice(0, 10),
       maxWeight: round(s.maxWeight),
       best1RM: round(s.best1RM),
@@ -394,55 +405,48 @@ export type Dashboard = {
 };
 
 export async function getDashboard(userId: number): Promise<Dashboard> {
-  const [recent, workoutDates, bodyMetricRows] = await Promise.all([
-    getWorkouts(userId, 20),
+  const now = new Date();
+  const weekRange = currentLisbonWeekRange(now);
+  const [recent, workoutDates, weekRows, bodyMetricRows] = await Promise.all([
+    getWorkouts(userId, 5),
     db
       .select({ date: workouts.date })
       .from(workouts)
       .where(eq(workouts.userId, userId))
       .all(),
+    db
+      .select({
+        workoutId: workouts.id,
+        date: workouts.date,
+        reps: sets.reps,
+        weight: sets.weight,
+      })
+      .from(workouts)
+      .leftJoin(sets, eq(sets.workoutId, workouts.id))
+      .where(
+        and(
+          eq(workouts.userId, userId),
+          gte(workouts.date, weekRange.from),
+          lt(workouts.date, weekRange.to),
+        ),
+      )
+      .all(),
     getBodyMetrics(userId),
   ]);
-
-  const weekAgo = new Date();
-  weekAgo.setDate(weekAgo.getDate() - 7);
-
-  let workoutsThisWeek = 0;
-  let volumeThisWeek = 0;
-  for (const w of recent) {
-    if (w.date >= weekAgo) {
-      workoutsThisWeek += 1;
-      for (const g of w.groups)
-        for (const s of g.sets) volumeThisWeek += s.weight * s.reps;
-    }
-  }
+  const weekMetrics = calculateDashboardWeekMetrics(weekRows, now);
+  const weightMetrics = calculateDashboardWeightMetrics(bodyMetricRows, now);
 
   const totalWorkouts = workoutDates.length;
 
-  const weights = bodyMetricRows
-    .filter((m) => m.weightKg != null)
-    .map((m) => ({ date: m.date, weightKg: m.weightKg as number }))
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
-
-  const latestWeight = weights.at(-1)?.weightKg ?? null;
-  const prevWeight = weights.at(-2)?.weightKg ?? null;
-  const weightChange =
-    latestWeight != null && prevWeight != null
-      ? round(latestWeight - prevWeight)
-      : null;
-
   return {
-    workoutsThisWeek,
-    volumeThisWeek: round(volumeThisWeek),
+    workoutsThisWeek: weekMetrics.workouts,
+    volumeThisWeek: round(weekMetrics.volume),
     totalWorkouts,
-    latestWeight,
-    weightChange,
-    weightSeries: weights.map((w) => ({
-      date: w.date.toISOString().slice(0, 10),
-      weightKg: w.weightKg,
-    })),
+    latestWeight: weightMetrics.latestWeight,
+    weightChange: weightMetrics.weightChange,
+    weightSeries: weightMetrics.weightSeries,
     calendar: buildWorkoutCalendar(workoutDates.map((workout) => workout.date)),
-    recent: recent.slice(0, 5),
+    recent,
   };
 }
 
@@ -501,10 +505,33 @@ export type PlannedWorkoutWithTemplate = {
   id: number;
   date: Date;
   notes: string | null;
+  workoutId: number | null;
+  /** Muscle groups this session trains, in display order. */
+  groups: string[];
   template: { id: number; name: string } | null;
 };
 
-/** Planned workouts within [from, to), with the template they came from. */
+function toPlannedWorkoutWithTemplate(plan: {
+  id: number;
+  date: Date;
+  notes: string | null;
+  workoutId: number | null;
+  groups: { name: string }[];
+  template: { id: number; name: string } | null;
+}): PlannedWorkoutWithTemplate {
+  return {
+    id: plan.id,
+    date: plan.date,
+    notes: plan.notes,
+    workoutId: plan.workoutId,
+    groups: plan.groups.map((group) => group.name),
+    template: plan.template
+      ? { id: plan.template.id, name: plan.template.name }
+      : null,
+  };
+}
+
+/** Planned workouts within [from, to), with their groups and template. */
 export async function getPlannedWorkouts(
   userId: number,
   from: Date,
@@ -517,16 +544,53 @@ export async function getPlannedWorkouts(
       lt(plannedWorkouts.date, to),
     ),
     orderBy: [asc(plannedWorkouts.date), asc(plannedWorkouts.id)],
-    with: { template: true },
+    with: {
+      template: true,
+      groups: { orderBy: (g, { asc: ascending }) => [ascending(g.position)] },
+    },
   });
-  return rows.map((plan) => ({
-    id: plan.id,
-    date: plan.date,
-    notes: plan.notes,
-    template: plan.template
-      ? { id: plan.template.id, name: plan.template.name }
-      : null,
-  }));
+  return rows.map(toPlannedWorkoutWithTemplate);
+}
+
+/** One plan scoped to its owner, used when registering that exact session. */
+export async function getPlannedWorkout(
+  id: number,
+  userId: number,
+): Promise<PlannedWorkoutWithTemplate | null> {
+  const plan = await db.query.plannedWorkouts.findFirst({
+    where: and(
+      eq(plannedWorkouts.id, id),
+      eq(plannedWorkouts.userId, userId),
+    ),
+    with: {
+      template: true,
+      groups: { orderBy: (g, { asc: ascending }) => [ascending(g.position)] },
+    },
+  });
+  return plan ? toPlannedWorkoutWithTemplate(plan) : null;
+}
+
+/** The user's weekly split, one entry per weekday that has any groups. */
+export async function getRoutine(userId: number): Promise<RoutineDay[]> {
+  const rows = await db
+    .select({
+      weekday: routineGroups.weekday,
+      name: routineGroups.name,
+    })
+    .from(routineGroups)
+    .where(eq(routineGroups.userId, userId))
+    .orderBy(asc(routineGroups.weekday), asc(routineGroups.position))
+    .all();
+
+  const byWeekday = new Map<number, string[]>();
+  for (const row of rows) {
+    const groups = byWeekday.get(row.weekday);
+    if (groups) groups.push(row.name);
+    else byWeekday.set(row.weekday, [row.name]);
+  }
+  return [...byWeekday.entries()]
+    .map(([weekday, groups]) => ({ weekday, groups }))
+    .sort((a, b) => a.weekday - b.weekday);
 }
 
 /** A single template (scoped to the owner) for pre-filling a new workout. */

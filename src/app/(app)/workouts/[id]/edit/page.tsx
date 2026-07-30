@@ -39,6 +39,7 @@ export default async function EditWorkoutPage({
       />
 
       <WorkoutForm
+        userId={user.id}
         workoutId={workout.id}
         exercises={catalog.map((exercise) => ({
           id: exercise.id,
