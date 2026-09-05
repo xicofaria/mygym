@@ -5,6 +5,7 @@
  * Reads credentials from .env.local (SEED_USER1_*, SEED_USER2_*).
  */
 import bcrypt from "bcryptjs";
+import { enrichExercise } from "../src/lib/exercise-catalog";
 
 // Must load env BEFORE importing the db module (it reads DATABASE_URL at import
 // time). Static imports are hoisted, so the db module is imported dynamically.
@@ -64,7 +65,7 @@ async function main() {
 
   await db
     .insert(exercises)
-    .values(STARTER_EXERCISES)
+    .values(STARTER_EXERCISES.map(enrichExercise))
     .onConflictDoNothing({ target: exercises.name });
   console.log(`  exercises: ${STARTER_EXERCISES.length} in catalog`);
 

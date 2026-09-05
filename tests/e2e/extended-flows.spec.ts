@@ -31,7 +31,10 @@ async function createWorkout(page: Page, notes: string) {
   return page.locator(".card").filter({ hasText: notes });
 }
 
-async function confirmDeletion(page: Page, button: ReturnType<Page["locator"]>) {
+async function confirmDeletion(
+  page: Page,
+  button: ReturnType<Page["locator"]>,
+) {
   page.once("dialog", (dialog) => dialog.accept());
   await button.click();
 }
@@ -41,7 +44,9 @@ test("login inválido é recusado sem criar uma sessão", async ({ page }) => {
   await page.getByLabel("Email").fill("login-invalido@example.test");
   await page.getByLabel("Palavra-passe").fill("palavra-passe-errada");
   await page.getByRole("button", { name: "Iniciar sessão" }).click();
-  await expect(page.getByText("Email ou palavra-passe inválidos.")).toBeVisible();
+  await expect(
+    page.getByText("Email ou palavra-passe inválidos."),
+  ).toBeVisible();
   await expect(page).toHaveURL(/\/login$/);
 });
 
@@ -137,9 +142,7 @@ test("um modelo de treino pode ser criado, usado e eliminado", async ({
 
   await plan.getByRole("link", { name: "Registar", exact: true }).click();
   await expect(page).toHaveURL(
-    new RegExp(
-      `/workouts/new\\?date=${futureDate}&plan=\\d+&template=\\d+$`,
-    ),
+    new RegExp(`/workouts/new\\?date=${futureDate}&plan=\\d+&template=\\d+$`),
   );
   await page.getByRole("link", { name: "Do zero", exact: true }).click();
   await expect(page).toHaveURL(
@@ -148,9 +151,7 @@ test("um modelo de treino pode ser criado, usado e eliminado", async ({
   await expect(page.getByLabel("Data")).toHaveValue(futureDate);
   await page.getByRole("link", { name, exact: true }).click();
   await expect(page).toHaveURL(
-    new RegExp(
-      `/workouts/new\\?date=${futureDate}&plan=\\d+&template=\\d+$`,
-    ),
+    new RegExp(`/workouts/new\\?date=${futureDate}&plan=\\d+&template=\\d+$`),
   );
 
   await page.goto("/workouts/templates");
@@ -239,7 +240,9 @@ test("o rascunho de treino sobrevive a uma perda de ligação", async ({
     }
   });
   await page.reload();
-  await expect(page.getByRole("status")).toHaveCount(0);
+  await expect(
+    page.getByRole("status").filter({ hasText: "Sem ligação" }),
+  ).toHaveCount(0);
 
   await page.getByLabel("Repetições da série 1").fill("9");
   await page.getByLabel("Peso (kg) da série 1").fill("35");
@@ -256,7 +259,9 @@ test("o rascunho de treino sobrevive a uma perda de ligação", async ({
     .not.toBeNull();
 
   await context.setOffline(true);
-  await expect(page.getByRole("status")).toContainText("Sem ligação");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Sem ligação" }),
+  ).toContainText("Sem ligação");
   await page.getByLabel("Repetições da série 1").fill("11");
   await expect
     .poll(() =>
@@ -270,7 +275,9 @@ test("o rascunho de treino sobrevive a uma perda de ligação", async ({
     .toContain('"reps":"11"');
 
   await context.setOffline(false);
-  await expect(page.getByRole("status")).toHaveCount(0);
+  await expect(
+    page.getByRole("status").filter({ hasText: "Sem ligação" }),
+  ).toHaveCount(0);
   await page.goto("/workouts");
   await page.goto("/workouts/new");
   await expect(

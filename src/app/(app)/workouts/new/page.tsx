@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireUser } from "@/lib/auth";
 import {
   getExerciseCatalog,
+  getFavoriteExerciseIds,
   getLastPerformanceByExercise,
   getLatestWorkoutForRepeat,
   getPlannedWorkout,
@@ -33,6 +34,9 @@ export default async function NewWorkoutPage({
   }>;
 }) {
   const user = await requireUser();
+  const favoriteIds = await getFavoriteExerciseIds();
+  const aiProvider =
+    process.env.AI_PROVIDER?.trim() === "openrouter" ? "openrouter" : "openai";
   const {
     template: templateParam,
     repeat,
@@ -56,9 +60,7 @@ export default async function NewWorkoutPage({
       !shouldRepeat && templateId != null
         ? getWorkoutTemplate(templateId, user.id)
         : Promise.resolve(null),
-      shouldRepeat
-        ? getLatestWorkoutForRepeat(user.id)
-        : Promise.resolve(null),
+      shouldRepeat ? getLatestWorkoutForRepeat(user.id) : Promise.resolve(null),
       getLastPerformanceByExercise(user.id),
     ]);
 
@@ -95,7 +97,7 @@ export default async function NewWorkoutPage({
     return query ? `/workouts/new?${query}` : "/workouts/new";
   }
 
-  const exercises = catalog.map((e) => ({ id: e.id, name: e.name }));
+  const exercises = catalog;
   const initialRows =
     repeatedWorkout?.entries ??
     activeTemplate?.exercises.map((exercise) => ({
@@ -178,6 +180,8 @@ export default async function NewWorkoutPage({
             : `${linkedPlan?.id ?? "free"}-${activeTemplate?.id ?? "blank"}`
         }
         userId={user.id}
+        favoriteIds={favoriteIds}
+        aiProvider={aiProvider}
         exercises={exercises}
         initialRows={initialRows}
         initialDate={initialDate ?? undefined}

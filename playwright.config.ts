@@ -15,9 +15,7 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   workers: 1,
-  reporter: process.env.CI
-    ? [["github"], ["html", { open: "never" }]]
-    : "list",
+  reporter: process.env.CI ? [["github"], ["html", { open: "never" }]] : "list",
   use: {
     baseURL,
     trace: "retain-on-failure",
@@ -34,8 +32,7 @@ export default defineConfig({
     // bundle on demand, so hydration lags and a click can land on the
     // still-unhydrated form, which then submits natively instead of running
     // the server action.
-    command:
-      `npm run db:prepare:e2e && npm run db:migrate && npm run db:seed && npm run build && npm run start -- --port ${port}`,
+    command: `npm run db:prepare:e2e && npm run db:migrate && npm run db:seed && npm run build && npm run start -- --port ${port}`,
     url: `${baseURL}/login`,
     // Reusing an arbitrary server can test the wrong build and database.
     reuseExistingServer: false,
@@ -43,6 +40,10 @@ export default defineConfig({
     env: {
       DATABASE_URL: databaseUrl,
       DATABASE_AUTH_TOKEN: "",
+      // Browser tests mock the provider and must never inherit a billable key.
+      OPENAI_API_KEY: "",
+      OPENROUTER_API_KEY: "",
+      AI_PROVIDER: "openai",
       VERCEL: "",
       VERCEL_ENV: "",
       SESSION_SECRET:

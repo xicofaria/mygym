@@ -5,6 +5,7 @@ import { WorkoutForm } from "@/components/workout-form";
 import { requireUser } from "@/lib/auth";
 import {
   getExerciseCatalog,
+  getFavoriteExerciseIds,
   getLastPerformanceByExercise,
   getWorkoutForEdit,
 } from "@/lib/queries";
@@ -15,6 +16,9 @@ export default async function EditWorkoutPage({
   params: Promise<{ id: string }>;
 }) {
   const user = await requireUser();
+  const favoriteIds = await getFavoriteExerciseIds();
+  const aiProvider =
+    process.env.AI_PROVIDER?.trim() === "openrouter" ? "openrouter" : "openai";
   const { id } = await params;
   const workoutId = Number(id);
   if (!Number.isInteger(workoutId) || workoutId <= 0) notFound();
@@ -40,11 +44,10 @@ export default async function EditWorkoutPage({
 
       <WorkoutForm
         userId={user.id}
+        favoriteIds={favoriteIds}
+        aiProvider={aiProvider}
         workoutId={workout.id}
-        exercises={catalog.map((exercise) => ({
-          id: exercise.id,
-          name: exercise.name,
-        }))}
+        exercises={catalog}
         initialDate={workout.date}
         initialNotes={workout.notes}
         initialRows={workout.entries}

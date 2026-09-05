@@ -9,8 +9,14 @@ import { readMigrationFiles } from "drizzle-orm/migrator";
 import test from "node:test";
 import { migrateDatabase } from "../../scripts/migrate-database";
 
-const REPOSITORY_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
+const REPOSITORY_ROOT = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "../..",
+);
 const MIGRATIONS_FOLDER = join(REPOSITORY_ROOT, "drizzle");
+const MIGRATION_COUNT = readMigrationFiles({
+  migrationsFolder: MIGRATIONS_FOLDER,
+}).length;
 const PRE_PR10_SCHEMA_FIXTURE = join(
   REPOSITORY_ROOT,
   "tests/fixtures/pre-pr10-production-schema.sql",
@@ -43,89 +49,87 @@ async function insertLegacyData(
   includePlannedWorkoutGroup: boolean,
 ): Promise<void> {
   const statements: InStatement[] = [
-      {
-        sql: `
+    {
+      sql: `
           INSERT INTO users (id, email, name, password_hash, created_at)
           VALUES (?, ?, ?, ?, ?)
         `,
-        args: [1, "legacy@example.test", "Legacy", "hash", 1_700_000_000],
-      },
-      {
-        sql: `
+      args: [1, "legacy@example.test", "Legacy", "hash", 1_700_000_000],
+    },
+    {
+      sql: `
           INSERT INTO workout_templates (id, user_id, name, created_at)
           VALUES (?, ?, ?, ?)
         `,
-        args: [10, 1, "Treino legado", 1_700_000_001],
-      },
-      {
-        sql: `
+      args: [10, 1, "Treino legado", 1_700_000_001],
+    },
+    {
+      sql: `
           INSERT INTO workouts (id, user_id, date, notes, created_at)
           VALUES (?, ?, ?, ?, ?)
         `,
-        args: [100, 1, 1_700_100_000, "Sessão inequívoca", 1_700_100_100],
-      },
-      {
-        sql: `
+      args: [100, 1, 1_700_100_000, "Sessão inequívoca", 1_700_100_100],
+    },
+    {
+      sql: `
           INSERT INTO workouts (id, user_id, date, notes, created_at)
           VALUES (?, ?, ?, ?, ?)
         `,
-        args: [101, 1, 1_700_200_000, "Sessão ambígua A", 1_700_200_100],
-      },
-      {
-        sql: `
+      args: [101, 1, 1_700_200_000, "Sessão ambígua A", 1_700_200_100],
+    },
+    {
+      sql: `
           INSERT INTO workouts (id, user_id, date, notes, created_at)
           VALUES (?, ?, ?, ?, ?)
         `,
-        args: [102, 1, 1_700_200_000, "Sessão ambígua B", 1_700_200_200],
-      },
-      {
-        sql: `
+      args: [102, 1, 1_700_200_000, "Sessão ambígua B", 1_700_200_200],
+    },
+    {
+      sql: `
           INSERT INTO planned_workouts
             (id, user_id, date, template_id, notes, created_at)
           VALUES (?, ?, ?, ?, ?, ?)
         `,
-        args: [200, 1, 1_700_100_000, 10, "Plano inequívoco", 1_700_100_010],
-      },
-      {
-        sql: `
+      args: [200, 1, 1_700_100_000, 10, "Plano inequívoco", 1_700_100_010],
+    },
+    {
+      sql: `
           INSERT INTO planned_workouts
             (id, user_id, date, template_id, notes, created_at)
           VALUES (?, ?, ?, ?, ?, ?)
         `,
-        args: [201, 1, 1_700_200_000, 10, "Plano ambíguo A", 1_700_200_010],
-      },
-      {
-        sql: `
+      args: [201, 1, 1_700_200_000, 10, "Plano ambíguo A", 1_700_200_010],
+    },
+    {
+      sql: `
           INSERT INTO planned_workouts
             (id, user_id, date, template_id, notes, created_at)
           VALUES (?, ?, ?, ?, ?, ?)
         `,
-        args: [202, 1, 1_700_200_000, 10, "Plano ambíguo B", 1_700_200_020],
-      },
-      {
-        sql: `
+      args: [202, 1, 1_700_200_000, 10, "Plano ambíguo B", 1_700_200_020],
+    },
+    {
+      sql: `
           INSERT INTO planned_workouts
             (id, user_id, date, template_id, notes, created_at)
           VALUES (?, ?, ?, ?, ?, ?)
         `,
-        args: [999, 1, 1_700_900_000, 10, "Plano já apagado", 1_700_900_010],
-      },
-      {
-        sql: "DELETE FROM planned_workouts WHERE id = ?",
-        args: [999],
-      },
+      args: [999, 1, 1_700_900_000, 10, "Plano já apagado", 1_700_900_010],
+    },
+    {
+      sql: "DELETE FROM planned_workouts WHERE id = ?",
+      args: [999],
+    },
   ];
   if (includePlannedWorkoutGroup) {
-    statements.push(
-      {
-        sql: `
+    statements.push({
+      sql: `
           INSERT INTO planned_workout_groups
             (id, planned_workout_id, name, position)
           VALUES (?, ?, ?, ?)
         `,
-        args: [300, 200, "Peito", 0],
-      },
-    );
+      args: [300, 200, "Peito", 0],
+    });
   }
   await client.batch(statements, "write");
 }
@@ -135,7 +139,9 @@ async function createLegacyDatabase(client: Client): Promise<void> {
   await insertLegacyData(client, true);
 }
 
-async function createDeployedPreBaselineDatabase(client: Client): Promise<void> {
+async function createDeployedPreBaselineDatabase(
+  client: Client,
+): Promise<void> {
   const sql = await readFile(PRE_PR10_SCHEMA_FIXTURE, "utf8");
   await client.migrate(
     sql
@@ -146,7 +152,9 @@ async function createDeployedPreBaselineDatabase(client: Client): Promise<void> 
   await insertLegacyData(client, false);
 }
 
-async function createCurrentDatabaseWithoutLedger(client: Client): Promise<void> {
+async function createCurrentDatabaseWithoutLedger(
+  client: Client,
+): Promise<void> {
   const migrations = readMigrationFiles({
     migrationsFolder: MIGRATIONS_FOLDER,
   });
@@ -171,13 +179,15 @@ test("migra uma base vazia e valida o schema e o ledger atuais", async () => {
     });
     assert.deepEqual(result, {
       initialState: "empty",
-      migrationsApplied: 2,
+      migrationsApplied: MIGRATION_COUNT,
       ledgerImported: false,
     });
 
     const client = createClient({ url });
     try {
-      const columns = await client.execute("PRAGMA table_info(planned_workouts)");
+      const columns = await client.execute(
+        "PRAGMA table_info(planned_workouts)",
+      );
       assert.deepEqual(
         columns.rows.map((row) => row.name),
         [
@@ -202,15 +212,23 @@ test("migra uma base vazia e valida o schema e o ledger atuais", async () => {
             table: row.table,
             onDelete: row.on_delete,
           }))
-          .sort((left, right) => String(left.from).localeCompare(String(right.from))),
+          .sort((left, right) =>
+            String(left.from).localeCompare(String(right.from)),
+          ),
         [
-          { from: "template_id", table: "workout_templates", onDelete: "SET NULL" },
+          {
+            from: "template_id",
+            table: "workout_templates",
+            onDelete: "SET NULL",
+          },
           { from: "user_id", table: "users", onDelete: "CASCADE" },
           { from: "workout_id", table: "workouts", onDelete: "SET NULL" },
         ],
       );
 
-      const indexes = await client.execute("PRAGMA index_list(planned_workouts)");
+      const indexes = await client.execute(
+        "PRAGMA index_list(planned_workouts)",
+      );
       assert.deepEqual(
         indexes.rows
           .filter((row) => row.unique === 1)
@@ -236,7 +254,10 @@ test("migra uma base vazia e valida o schema e o ledger atuais", async () => {
           createdAt: migration.folderMillis,
         })),
       );
-      assert.equal((await client.execute("PRAGMA foreign_key_check")).rows.length, 0);
+      assert.equal(
+        (await client.execute("PRAGMA foreign_key_check")).rows.length,
+        0,
+      );
     } finally {
       client.close();
     }
@@ -257,7 +278,7 @@ test("migra o legado sem perder dados ou filhos e só faz backfill inequívoco",
       migrationsFolder: MIGRATIONS_FOLDER,
     });
     assert.equal(result.initialState, "legacy-without-ledger");
-    assert.equal(result.migrationsApplied, 2);
+    assert.equal(result.migrationsApplied, MIGRATION_COUNT);
 
     const client = createClient({ url });
     try {
@@ -350,7 +371,10 @@ test("migra o legado sem perder dados ou filhos e só faz backfill inequívoco",
         args: [1, 1_701_000_000, "Plano após migração"],
       });
       assert.equal(Number(nextPlan.lastInsertRowid), 1000);
-      assert.equal((await client.execute("PRAGMA foreign_key_check")).rows.length, 0);
+      assert.equal(
+        (await client.execute("PRAGMA foreign_key_check")).rows.length,
+        0,
+      );
     } finally {
       client.close();
     }
@@ -390,7 +414,7 @@ test("migra o schema real de produção anterior ao PR #10", async () => {
     });
     assert.deepEqual(result, {
       initialState: "pre-baseline-without-ledger",
-      migrationsApplied: 2,
+      migrationsApplied: MIGRATION_COUNT,
       ledgerImported: false,
     });
 
@@ -425,11 +449,8 @@ test("migra o schema real de produção anterior ao PR #10", async () => {
       );
       assert.equal(
         Number(
-          (
-            await client.execute(
-              "SELECT count(*) AS count FROM routine_groups",
-            )
-          ).rows[0]?.count,
+          (await client.execute("SELECT count(*) AS count FROM routine_groups"))
+            .rows[0]?.count,
         ),
         0,
       );
@@ -437,8 +458,11 @@ test("migra o schema real de produção anterior ao PR #10", async () => {
         "SELECT seq FROM sqlite_sequence WHERE name = 'planned_workouts'",
       );
       assert.equal(Number(sequence.rows[0]?.seq), 999);
-      assert.equal((await readLedger(client)).rows.length, 2);
-      assert.equal((await client.execute("PRAGMA foreign_key_check")).rows.length, 0);
+      assert.equal((await readLedger(client)).rows.length, MIGRATION_COUNT);
+      assert.equal(
+        (await client.execute("PRAGMA foreign_key_check")).rows.length,
+        0,
+      );
     } finally {
       client.close();
     }
@@ -555,10 +579,10 @@ test("uma segunda execução é idempotente", async () => {
     const client = createClient({ url });
     try {
       const ledger = await readLedger(client);
-      assert.equal(ledger.rows.length, 2);
+      assert.equal(ledger.rows.length, MIGRATION_COUNT);
       assert.equal(
         new Set(ledger.rows.map((row) => Number(row.created_at))).size,
-        2,
+        MIGRATION_COUNT,
       );
     } finally {
       client.close();
@@ -595,7 +619,7 @@ test("importa atomicamente o ledger de um schema atual conhecido", async () => {
 
     const client = createClient({ url });
     try {
-      assert.equal((await readLedger(client)).rows.length, 2);
+      assert.equal((await readLedger(client)).rows.length, MIGRATION_COUNT);
     } finally {
       client.close();
     }
@@ -623,7 +647,10 @@ test("recusa um schema parcial sem fazer qualquer escrita e o CLI sai com erro",
         WHERE type = 'table' AND name NOT LIKE 'sqlite_%'
         ORDER BY name
       `);
-      assert.deepEqual(objects.rows.map((row) => row.name), ["users"]);
+      assert.deepEqual(
+        objects.rows.map((row) => row.name),
+        ["users"],
+      );
     } finally {
       check.close();
     }
@@ -694,6 +721,66 @@ test("recusa hashes ou timestamps adulterados no ledger", async () => {
       /ledger diverge/,
     );
   });
+});
+
+test("upgrades the previous release with and without a ledger, preserving decimal history", async () => {
+  for (const tracked of [true, false]) {
+    await withTemporaryDatabase(async ({ url }) => {
+      const client = createClient({ url });
+      try {
+        await client.migrate(migrationStatements(0));
+        await client.migrate(migrationStatements(1));
+        await client.batch(
+          [
+            "INSERT INTO users (id, email, name, password_hash) VALUES (1, 'test@example.test', 'Test', 'hash')",
+            "INSERT INTO exercises (id, name) VALUES (7, 'Leg Press')",
+            "INSERT INTO workouts (id, user_id, date) VALUES (1, 1, 1700100000)",
+            "INSERT INTO sets (workout_id, exercise_id, set_number, reps, weight) VALUES (1, 7, 1, 10, 2.8)",
+          ],
+          "write",
+        );
+        if (tracked) {
+          await client.execute(
+            "CREATE TABLE __drizzle_migrations (id SERIAL PRIMARY KEY, hash text NOT NULL, created_at numeric)",
+          );
+          for (const migration of readMigrationFiles({
+            migrationsFolder: MIGRATIONS_FOLDER,
+          }).slice(0, 2)) {
+            await client.execute({
+              sql: "INSERT INTO __drizzle_migrations (hash, created_at) VALUES (?, ?)",
+              args: [migration.hash, migration.folderMillis],
+            });
+          }
+        }
+        const result = await migrateDatabase({
+          url,
+          migrationsFolder: MIGRATIONS_FOLDER,
+        });
+        assert.equal(result.migrationsApplied, MIGRATION_COUNT - 2);
+        assert.equal(result.ledgerImported, !tracked);
+        assert.equal(
+          (await client.execute("SELECT weight FROM sets")).rows[0].weight,
+          2.8,
+        );
+        assert.equal(
+          (await client.execute("SELECT aliases FROM exercises WHERE id = 7"))
+            .rows[0].aliases,
+          "Prensa de pernas, Prensa",
+        );
+        assert.equal(
+          (await client.execute("SELECT count(*) AS n FROM exercise_favorites"))
+            .rows[0].n,
+          0,
+        );
+        assert.equal(
+          (await client.execute("PRAGMA foreign_key_check")).rows.length,
+          0,
+        );
+      } finally {
+        client.close();
+      }
+    });
+  }
 });
 
 test("exige token antes de tentar contactar uma base libSQL remota", async () => {

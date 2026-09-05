@@ -132,9 +132,11 @@ midnight, so ISO `YYYY-MM-DD` keys and exact-equality date filters line up).
 query-param validation) and `src/lib/month-calendar.ts` (month grid for
 `/workouts` + `readMonthKey`) are pure, unit-tested modules. `plannedWorkouts`
 (schema) schedules a workout on a date, optionally tied to one of the user's
-templates; "done" is **derived** — a plan counts as concluded when the user has
-any real workout on that date — so nothing needs updating when a workout is
-logged or deleted. `/workouts` accepts `?month=YYYY-MM` and `?date=YYYY-MM-DD`
+templates; completion uses an **explicit `workoutId` link**, written atomically
+when its planned session is logged. Other sessions on the date do not complete
+it. Deleting that workout clears the link via the foreign key; moving it to
+another date clears the link in the update action. `/workouts` accepts
+`?month=YYYY-MM` and `?date=YYYY-MM-DD`
 (both strictly validated); a selected future day offers `PlanWorkoutForm`, and
 "Registar" links to `/workouts/new?date=…&template=…`, which prefills both.
 
@@ -154,6 +156,27 @@ anything. Editing `/workouts/routine` saves per weekday as you toggle chips
 (last write wins); there is no save button.
 
 ## Conventions & gotchas
+
+- **Decimal weights:** `WorkoutForm` preserves string input and parses dot or
+  comma with `src/lib/decimal.ts`. All rows must validate before saving; empty
+  is not zero and incomplete rows must never be silently dropped.
+- **Photo recognition:** `MachinePhotoPicker` prepares a local JPEG, previews
+  it and asks before sending to `/api/exercises/recognize`. The authenticated
+  route uses a server-fetched catalogue and OpenAI Responses or OpenRouter with
+  structured output. Confirmed suggestions populate a blank/new set. See
+  `docs/AI_RECOGNITION.md`; `AI_PROVIDER` selects the server-only key/model
+  variables. Qwen vision is the OpenRouter default. No images are persisted.
+  Migration 0002 adds metadata, private favorites and atomic per-account/day
+  AI quotas. Provider failures consume attempts; the daily boundary is Lisbon.
+- **Catalogue and workout UI:** search aliases/equipment/translated muscles;
+  edit shared metadata without changing exercise IDs. Favorites belong to the
+  signed-in user. Group consecutive sets only, preserving supersets and order.
+  The rest timer persists an absolute deadline under a per-user local key.
+- **Scope:** account/password management is explicitly deferred. Dependencies
+  updated to resolve audit findings; keep esbuild override compatible with
+  drizzle-kit and validate generation as well as the application build.
+- **Civil dates:** use `lisbonDateKey`/`lisbonMonthKey` for the current date;
+  reserve UTC-midnight conversion for date-only values read from the database.
 
 - Import alias: `@/*` → `src/*`.
 - Scripts that run **outside** Next (via `tsx`) — `scripts/seed.ts`,

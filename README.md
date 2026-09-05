@@ -11,6 +11,16 @@ UI is in **European Portuguese (pt-PT)**. Weights and measurements are
 ## Features
 
 - **Workout logging** — pick an exercise, log sets × reps × weight, add notes
+- **Decimal weights** — enter `2.8` or `2,8` kg, including smaller increments;
+  incomplete sets are flagged before saving instead of silently discarded
+- **Identify equipment from a photo** — take a photo or choose an image,
+  preview it, then let AI suggest existing catalogue exercises for confirmation.
+  Optional server-side OpenAI or OpenRouter configuration (including Qwen vision);
+  manual selection always works, with a persistent daily AI quota per account
+- **Searchable catalogue** — Portuguese aliases, equipment, editable metadata,
+  private favorites and recent exercises
+- **Compact workout entry** — consecutive sets grouped by exercise, with a
+  pauseable rest timer that survives navigation on the same device
 - **Fast repeat and editing** — repeat the previous session with its values,
   duplicate individual sets, see the last performance, and correct saved workouts
 - **Reusable workout templates** — save a routine (e.g. "Treino de Pernas")
@@ -68,6 +78,29 @@ Log in with the credentials you set in `.env.local` (`SEED_USER1_*` /
 `SEED_USER2_*`). Change them there and re-run `npm run db:seed` to update.
 
 ## Scripts
+
+### Optional AI setup
+
+Choose a provider in `.env.local` or your host's secret environment settings:
+
+- OpenAI: `AI_PROVIDER=openai`, `OPENAI_API_KEY`, optional
+  `OPENAI_VISION_MODEL` (default `gpt-4.1-mini`).
+- OpenRouter: `AI_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, optional
+  `OPENROUTER_VISION_MODEL` (default `qwen/qwen3-vl-30b-a3b-instruct`).
+  The model and serving endpoint must support images and strict JSON Schema.
+- `AI_DAILY_LIMIT=20`: attempts per account/Lisbon day, shared across instances.
+  Provider failures consume attempts too; set a credit limit with the provider.
+
+Run `npm run db:migrate` before starting this version: migration 0002 adds
+catalogue metadata, favorites and daily quota counters without replacing sets.
+Back up real databases first. Restart/redeploy after changing environment.
+Never use `NEXT_PUBLIC_` for keys. Without a key, manual entry still works.
+
+See [`docs/AI_RECOGNITION.md`](docs/AI_RECOGNITION.md) for supported photos,
+privacy, limits and the live validation checklist. Prioritised improvements
+are tracked in [`docs/IMPROVEMENTS.md`](docs/IMPROVEMENTS.md).
+
+### Commands
 
 | Command                              | What it does                                    |
 | ------------------------------------- | ------------------------------------------------ |

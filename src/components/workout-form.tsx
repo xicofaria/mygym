@@ -2,10 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import {
-  createWorkout,
-  updateWorkout,
-} from "@/app/(app)/workouts/actions";
+import { createWorkout, updateWorkout } from "@/app/(app)/workouts/actions";
 import { toDateInputValue } from "@/lib/format";
 import {
   readLocalDraft,
@@ -13,15 +10,19 @@ import {
   writeLocalDraft,
 } from "@/lib/local-draft";
 import type { LastPerformance } from "@/lib/queries";
+import { parseWeight } from "@/lib/decimal";
+import { MachinePhotoPicker } from "@/components/machine-photo-picker";
+import { ExercisePicker } from "@/components/exercise-picker";
+import { RestTimer } from "@/components/rest-timer";
+import type { SearchableExercise } from "@/lib/exercise-catalog";
 
-type Ex = { id: number; name: string };
+type Ex = SearchableExercise;
 type Row = { exerciseId: number; reps: string; weight: string };
 type InitialRow = { exerciseId: number; reps?: number; weight?: number };
 type WorkoutDraft = { date: string; notes: string; rows: Row[] };
 
 const WORKOUT_DRAFT_PREFIX = "gym-tracker:workout-draft:";
-const NAMESPACED_WORKOUT_DRAFT =
-  /^gym-tracker:workout-draft:user-\d+:/;
+const NAMESPACED_WORKOUT_DRAFT = /^gym-tracker:workout-draft:user-\d+:/;
 
 function removeLegacyWorkoutDrafts(storage: Storage, currentLegacyKey: string) {
   try {
@@ -72,6 +73,8 @@ export function WorkoutForm({
   lastPerformance = {},
   workoutId,
   plannedWorkoutId,
+  favoriteIds = [],
+  aiProvider = "openai",
 }: {
   userId: number;
   exercises: Ex[];
@@ -85,6 +88,8 @@ export function WorkoutForm({
   workoutId?: number;
   /** Exact plan this new session completes. Never accepted when editing. */
   plannedWorkoutId?: number;
+  favoriteIds?: number[];
+  aiProvider?: "openai" | "openrouter";
 }) {
   const router = useRouter();
   const firstId = exercises[0]?.id ?? 0;
@@ -148,7 +153,10 @@ export function WorkoutForm({
     setDirty(true);
     setRows((rs) => {
       const last = rs[rs.length - 1];
-      return [...rs, last ? { ...last } : { exerciseId: firstId, reps: "", weight: "" }];
+      return [
+        ...rs,
+        last ? { ...last } : { exerciseId: firstId, reps: "", weight: "" },
+      ];
     });
   }
   function duplicateRow(i: number) {
@@ -167,25 +175,35 @@ export function WorkoutForm({
   function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const entries = rows
-      .map((r) => ({
-        exerciseId: Number(r.exerciseId),
-        reps: r.reps.trim() === "" ? Number.NaN : Number(r.reps),
-        // `Number("")` is zero; keep an empty weight invalid while still
-        // allowing an explicitly entered 0 kg for bodyweight movements.
-        weight: r.weight.trim() === "" ? Number.NaN : Number(r.weight),
-      }))
-      .filter(
-        (r) =>
-          r.exerciseId > 0 &&
-          Number.isFinite(r.reps) &&
-          r.reps > 0 &&
-          Number.isFinite(r.weight) &&
-          r.weight >= 0,
-      );
+    const entries = rows.map((r) => ({
+      exerciseId: Number(r.exerciseId),
+      reps: r.reps.trim() === "" ? Number.NaN : Number(r.reps),
+      // `Number("")` is zero; keep an empty weight invalid while still
+      // allowing an explicitly entered 0 kg for bodyweight movements.
+      weight: parseWeight(r.weight),
+    }));
 
-    if (entries.length === 0) {
+    if (
+      entries.length === 0 ||
+      entries.every((r) => !Number.isFinite(r.weight))
+    ) {
       setError("Adiciona pelo menos uma série com repetições e peso.");
+      return;
+    }
+    const invalidIndex = entries.findIndex(
+      (r) =>
+        !exercises.some((ex) => ex.id === r.exerciseId) ||
+        !Number.isInteger(r.reps) ||
+        r.reps < 1 ||
+        r.reps > 1000 ||
+        !Number.isFinite(r.weight) ||
+        r.weight < 0 ||
+        r.weight > 2000,
+    );
+    if (invalidIndex !== -1) {
+      setError(
+        `Verifica a série ${invalidIndex + 1}: indica 1 a 1000 repetições e um peso entre 0 e 2000 kg.`,
+      );
       return;
     }
 
@@ -235,8 +253,8 @@ export function WorkoutForm({
   if (exercises.length === 0) {
     return (
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
-        Adiciona primeiro um exercício ao catálogo e depois regista aqui as
-        tuas séries.
+        Adiciona primeiro um exercício ao catálogo e depois regista aqui as tuas
+        séries.
       </p>
     );
   }
@@ -277,115 +295,175 @@ export function WorkoutForm({
         </div>
       </div>
 
-      <div className="flex flex-col gap-3">
-        {rows.map((row, i) => (
-          <div key={i} className="card flex flex-col gap-3">
-            <div className="flex items-center gap-2">
-              <div className="min-w-0 flex-1">
-                <select
-                  aria-label={`Exercício da série ${i + 1}`}
-                  className="input"
-                  value={row.exerciseId}
-                  onChange={(e) =>
-                    update(i, { exerciseId: Number(e.target.value) })
-                  }
-                >
-                  {exercises.map((ex) => (
-                    <option key={ex.id} value={ex.id}>
-                      {ex.name}
-                    </option>
-                  ))}
-                </select>
-                {lastPerformance[row.exerciseId] && (
-                  <p className="mt-1 truncate text-xs text-zinc-500 dark:text-zinc-400">
-                    Última: {lastPerformance[row.exerciseId].summary}
-                  </p>
-                )}
+      <MachinePhotoPicker
+        provider={aiProvider}
+        exercises={exercises}
+        disabled={pending}
+        onSelect={(exerciseId) => {
+          setDirty(true);
+          setRows((current) => {
+            const empty = current.findIndex(
+              (row) => !row.reps.trim() && !row.weight.trim(),
+            );
+            return empty === -1
+              ? [...current, { exerciseId, reps: "", weight: "" }]
+              : current.map((row, index) =>
+                  index === empty ? { ...row, exerciseId } : row,
+                );
+          });
+        }}
+      />
+
+      <div className="flex items-baseline justify-between">
+        <h2 className="font-semibold">Exercícios e séries</h2>
+        <span className="text-xs text-zinc-500">
+          {rows.length} {rows.length === 1 ? "série" : "séries"}
+        </span>
+      </div>
+      <div className="flex flex-col gap-5">
+        {rows
+          .reduce<{ exerciseId: number; indices: number[] }[]>(
+            (groups, row, index) => {
+              const last = groups.at(-1);
+              if (last?.exerciseId === row.exerciseId) last.indices.push(index);
+              else
+                groups.push({ exerciseId: row.exerciseId, indices: [index] });
+              return groups;
+            },
+            [],
+          )
+          .map((group) => (
+            <section
+              key={group.indices[0]}
+              aria-label={`Grupo de séries ${group.indices[0] + 1}`}
+              className="border-t border-black/10 pt-4 dark:border-white/10"
+            >
+              <ExercisePicker
+                exercises={exercises}
+                value={group.exerciseId}
+                label={`Exercício da série ${group.indices[0] + 1}`}
+                favoriteIds={favoriteIds}
+                recentIds={Object.entries(lastPerformance)
+                  .sort((a, b) => b[1].date.localeCompare(a[1].date))
+                  .map(([id]) => Number(id))}
+                onChange={(exerciseId) => {
+                  setDirty(true);
+                  setRows((current) =>
+                    current.map((row, index) =>
+                      group.indices.includes(index)
+                        ? { ...row, exerciseId }
+                        : row,
+                    ),
+                  );
+                }}
+              />
+              {lastPerformance[group.exerciseId] && (
+                <p className="my-2 text-xs text-zinc-500">
+                  Última: {lastPerformance[group.exerciseId].summary}
+                </p>
+              )}
+              <div
+                className="mt-3 grid grid-cols-[1.75rem_1fr_1fr_2.75rem_2.75rem] items-center gap-2 text-xs text-zinc-500"
+                aria-hidden="true"
+              >
+                <span>#</span>
+                <span>Repetições</span>
+                <span>Peso (kg)</span>
+                <span />
+                <span />
               </div>
+              {group.indices.map((i) => (
+                <div
+                  key={i}
+                  className="mt-2 grid grid-cols-[1.75rem_1fr_1fr_2.75rem_2.75rem] items-center gap-2"
+                >
+                  <span className="text-sm tabular-nums text-zinc-500">
+                    {i + 1}
+                  </span>
+                  <input
+                    id={`reps-${i}`}
+                    aria-label={`Repetições da série ${i + 1}`}
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    max={1000}
+                    className="input min-w-0"
+                    value={rows[i].reps}
+                    onChange={(e) => update(i, { reps: e.target.value })}
+                    placeholder="12"
+                  />
+                  <input
+                    id={`weight-${i}`}
+                    aria-label={`Peso (kg) da série ${i + 1}`}
+                    type="text"
+                    inputMode="decimal"
+                    maxLength={16}
+                    className="input min-w-0"
+                    value={rows[i].weight}
+                    onChange={(e) => update(i, { weight: e.target.value })}
+                    placeholder="2,8"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => duplicateRow(i)}
+                    aria-label="Duplicar série"
+                    title="Duplicar série"
+                    className="min-h-11 rounded-lg text-lg text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-white/5"
+                  >
+                    +
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeRow(i)}
+                    aria-label="Remover série"
+                    disabled={rows.length === 1}
+                    className="min-h-11 rounded-lg text-lg text-zinc-500 hover:text-red-600 disabled:opacity-30"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
               <button
                 type="button"
-                onClick={() => duplicateRow(i)}
-                aria-label="Duplicar série"
-                title="Duplicar série"
-                className="shrink-0 rounded-lg p-2 text-zinc-400 hover:bg-black/5 hover:text-indigo-600 dark:hover:bg-white/10 dark:hover:text-indigo-400"
+                className="btn-ghost mt-2"
+                onClick={() => duplicateRow(group.indices.at(-1)!)}
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <rect x="8" y="8" width="11" height="11" rx="2" />
-                  <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
-                </svg>
+                + Série neste exercício
               </button>
-              <button
-                type="button"
-                onClick={() => removeRow(i)}
-                aria-label="Remover série"
-                disabled={rows.length === 1}
-                className="shrink-0 rounded-lg p-2 text-zinc-400 hover:bg-black/5 hover:text-red-600 disabled:opacity-30 dark:hover:bg-white/10 dark:hover:text-red-400"
-              >
-                <svg
-                  viewBox="0 0 24 24"
-                  className="h-5 w-5"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  strokeLinecap="round"
-                >
-                  <path d="M6 6l12 12M18 6L6 18" />
-                </svg>
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label" htmlFor={`reps-${i}`}>
-                  Repetições
-                </label>
-                <input
-                  id={`reps-${i}`}
-                  aria-label={`Repetições da série ${i + 1}`}
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  className="input"
-                  value={row.reps}
-                  onChange={(e) => update(i, { reps: e.target.value })}
-                  placeholder="12"
-                />
-              </div>
-              <div>
-                <label className="label" htmlFor={`weight-${i}`}>
-                  Peso (kg)
-                </label>
-                <input
-                  id={`weight-${i}`}
-                  aria-label={`Peso (kg) da série ${i + 1}`}
-                  type="number"
-                  inputMode="decimal"
-                  min={0}
-                  step={0.5}
-                  className="input"
-                  value={row.weight}
-                  onChange={(e) => update(i, { weight: e.target.value })}
-                  placeholder="24"
-                />
-              </div>
-            </div>
-          </div>
-        ))}
+            </section>
+          ))}
       </div>
 
-      <button type="button" onClick={addSet} className="btn-ghost w-full">
-        + Adicionar série
-      </button>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={addSet} className="btn-ghost flex-1">
+          + Adicionar série
+        </button>
+        <button
+          type="button"
+          className="btn-ghost flex-1"
+          onClick={() => {
+            setDirty(true);
+            // Start a new block without altering any existing set.
+            const exerciseId =
+              exercises.find((ex) => ex.id !== rows.at(-1)?.exerciseId)?.id ??
+              firstId;
+            setRows((current) => [
+              ...current,
+              { exerciseId, reps: "", weight: "" },
+            ]);
+          }}
+        >
+          + Outro exercício
+        </button>
+      </div>
+
+      <RestTimer userId={userId} />
 
       {error && (
-        <p className="text-sm font-medium text-red-600 dark:text-red-400">
+        <p
+          role="alert"
+          className="text-sm font-medium text-red-600 dark:text-red-400"
+        >
           {error}
         </p>
       )}

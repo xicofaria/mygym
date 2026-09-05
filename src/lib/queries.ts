@@ -4,6 +4,7 @@ import { db } from "@/db";
 import {
   bodyMetrics,
   exercises,
+  exerciseFavorites,
   plannedWorkouts,
   routineGroups,
   sets,
@@ -21,6 +22,7 @@ import {
 } from "./dashboard-metrics";
 import { resolveViewedUserId } from "./viewer";
 import { chooseTopSet } from "./workout";
+import { enrichExercise } from "./exercise-catalog";
 import {
   buildWorkoutCalendar,
   type WorkoutCalendarData,
@@ -63,7 +65,23 @@ export async function getPageContext(
 }
 
 export async function getExerciseCatalog() {
-  return db.select().from(exercises).orderBy(asc(exercises.name)).all();
+  const catalog = await db
+    .select()
+    .from(exercises)
+    .orderBy(asc(exercises.name))
+    .all();
+  return catalog.map(enrichExercise);
+}
+
+/** Private preferences: callers cannot choose another account. */
+export async function getFavoriteExerciseIds() {
+  const user = await requireUser();
+  const favorites = await db
+    .select({ exerciseId: exerciseFavorites.exerciseId })
+    .from(exerciseFavorites)
+    .where(eq(exerciseFavorites.userId, user.id))
+    .all();
+  return favorites.map((favorite) => favorite.exerciseId);
 }
 
 export type WorkoutWithSets = {
@@ -238,6 +256,8 @@ export type ExerciseStat = {
   id: number;
   name: string;
   muscleGroup: string | null;
+  aliases: string;
+  equipment: string;
   totalSets: number;
   bestWeight: number | null;
   best1RM: number | null;
@@ -289,6 +309,8 @@ export async function getExercisesWithStats(
       id: e.id,
       name: e.name,
       muscleGroup: e.muscleGroup,
+      aliases: e.aliases,
+      equipment: e.equipment,
       totalSets: st?.total ?? 0,
       bestWeight: st ? round(st.bestWeight) : null,
       best1RM: st ? round(st.best1RM) : null,
@@ -371,7 +393,10 @@ export async function getExerciseProgression(
 
   const points: ProgressionPoint[] = [...bySession.entries()]
     .map(([workoutId, session]) => ({ workoutId, ...session }))
-    .sort((a, b) => a.date.getTime() - b.date.getTime() || a.workoutId - b.workoutId)
+    .sort(
+      (a, b) =>
+        a.date.getTime() - b.date.getTime() || a.workoutId - b.workoutId,
+    )
     .map((s) => ({
       workoutId: s.workoutId,
       date: s.date.toISOString().slice(0, 10),
@@ -558,10 +583,7 @@ export async function getPlannedWorkout(
   userId: number,
 ): Promise<PlannedWorkoutWithTemplate | null> {
   const plan = await db.query.plannedWorkouts.findFirst({
-    where: and(
-      eq(plannedWorkouts.id, id),
-      eq(plannedWorkouts.userId, userId),
-    ),
+    where: and(eq(plannedWorkouts.id, id), eq(plannedWorkouts.userId, userId)),
     with: {
       template: true,
       groups: { orderBy: (g, { asc: ascending }) => [ascending(g.position)] },
@@ -599,7 +621,10 @@ export async function getWorkoutTemplate(
   userId: number,
 ): Promise<TemplateWithExercises | null> {
   const t = await db.query.workoutTemplates.findFirst({
-    where: and(eq(workoutTemplates.id, id), eq(workoutTemplates.userId, userId)),
+    where: and(
+      eq(workoutTemplates.id, id),
+      eq(workoutTemplates.userId, userId),
+    ),
     with: {
       items: {
         orderBy: (i, { asc }) => [asc(i.position)],

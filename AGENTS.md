@@ -16,3 +16,91 @@ This version has breaking changes — APIs, conventions, and file structure may 
   authentication or workout flows.
 - Never commit `.env` files, SQLite databases, tokens, or real credentials.
 - Keep workflows least-privileged and pin third-party actions to commit SHAs.
+
+## Product and architecture context
+
+- Private, two-account, phone-first PWA; no public registration. Next.js 16
+  App Router / React 19 / Tailwind 4 / Drizzle / libSQL (local SQLite or Turso).
+- `src/app/(app)/layout.tsx` protects pages. Every action and API route must
+  independently authenticate; layouts do not protect Route Handlers.
+- Shared exercise catalogue (including editable aliases/equipment); favorites
+  and AI usage counters are private and derived from the signed-in user.
+  Workouts, plans, routines, templates and body
+  metrics belong to a user. Writes derive ownership from the signed session.
+- Read pages use `getPageContext` and preserve the selected `?user` context.
+  Write/configuration pages use the signed-in user and hide the switcher.
+- `src/lib/queries.ts` owns database reads, feature `actions.ts` owns writes.
+  Keep calculations and validation in small modules with unit tests.
+- Calendar keys are UTC-midnight dates; determine the current civil day using
+  `Europe/Lisbon` helpers in `format.ts`, not UTC `toISOString()` on the clock.
+- A plan is completed by its explicit `workoutId` link. A workout on the same
+  date alone does not complete it. Moving a linked workout unlinks the plan.
+- Migrations in `drizzle/` are authoritative. Do not use `db:push` on real data.
+
+## Workout input
+
+- Weights are decimal kg (`real` in SQLite). Accept both `2.8` and `2,8` using
+  `parseWeight` in `src/lib/decimal.ts`; do not round or restrict to 0.5 steps.
+- Keep decimal input as text with `inputMode="decimal"` so comma entry works
+  consistently. Empty weight is invalid; explicitly entered 0 is valid.
+- Validate every row; never filter away incomplete/invalid sets during save.
+  Keep server limits (1–1000 integer reps, 0–2000 kg, max 500 sets).
+- Local drafts are namespaced by authenticated user and form scope. Clear
+  only after confirmed persistence; images must never enter local drafts.
+- Group only consecutive sets of the same exercise; never reorder supersets.
+  A group selector updates that block; duplication preserves decimal strings.
+- Rest timer uses a user-scoped absolute deadline in localStorage and never
+  saves or mutates workout sets. Use elapsed wall time, not interval counts.
+- Catalogue search includes aliases, equipment and translated muscle groups.
+  Built-in metadata is seeded/migrated once; respect explicitly cleared fields.
+
+## Machine photo recognition
+
+- Entry UI: `src/components/machine-photo-picker.tsx`, used by `WorkoutForm`.
+  Camera/file selection → local JPEG preparation → preview → explicit send →
+  suggestions → user confirmation. Keep the manual catalogue usable.
+- `POST /api/exercises/recognize` authenticates, checks same Origin, limits
+  requests and actual streamed bytes, and fetches the catalogue server-side.
+- `src/lib/machine-recognition.ts` implements OpenAI Responses and OpenRouter
+  Chat Completions adapters; it
+  must only be called from the server. Shared client schemas belong in
+  `recognition-contract.ts`. Never import the adapter into client components.
+- `AI_PROVIDER` selects openai (default) or openrouter. Both API keys are
+  server-only; never add `NEXT_PUBLIC_`, log keys/images or return provider
+  error bodies. OpenRouter defaults to qwen/qwen3-vl-30b-a3b-instruct; its
+  configured model must support images and strict JSON Schema.
+- Use `store: false` for OpenAI; OpenRouter requests `require_parameters: true`
+  and `data_collection: "deny"`. Keep provider-specific privacy copy accurate.
+  The app persists neither images nor recognition results.
+  Browser canvas re-encoding removes original EXIF and reduces upload size.
+  This does not promise zero retention by the API provider.
+- Treat photo text and catalogue labels as untrusted data, not instructions.
+  Validate model output and IDs against the server catalogue. Accept no match.
+  Confidence labels are estimates. Never auto-create exercises or infer loads.
+- Limits: source photo 20 MB, JPEG upload 1 MiB, longest side 1280 px,
+  catalogue 500 exercises, 25-second provider timeout, 10 attempts/min/user
+  per instance. Additionally, reserve an atomic DB quota before provider calls:
+  `AI_DAILY_LIMIT` (default 20, 1–1000) per account/Lisbon calendar day.
+  Failures also consume attempts. This is not a monetary budget; configure
+  provider credit limits. Retain edge protection for request floods.
+- See `docs/AI_RECOGNITION.md` for configuration, privacy and validation.
+
+## Validation and handoff
+
+- Run `npm run check` and `npm run test:e2e` for these workout changes.
+  E2E uses disposable `e2e.db` and clears both provider keys; tests must never
+  call a billable provider or inherit production database credentials.
+- Unit tests cover decimal parsing, recognition payloads and output validation.
+  Keep unit test files directly in `tests/unit/`; the npm glob also works with
+  Node 20's shell expansion (which does not understand a recursive `**` glob).
+  E2E covers persistence/edit/repeat, photo confirmation/fallback, authentication
+  and the absence of a key. Mocked tests do not establish real photo accuracy.
+- Migration 0002 adds catalogue metadata, private favorites and persistent AI
+  quotas. Test upgrades from release 0001 with/without a ledger; preserve IDs,
+  decimal sets and explicit plan links. Never edit published 0000/0001 hashes.
+- Next/eslint-config-next 16.3.4, postcss 8.5.28 and esbuild >=0.28.2 resolve
+  the audited dependency findings. Verify drizzle-kit generation after changing
+  its transitive esbuild override; do not downgrade via audit fix --force.
+- Account/password management is deliberately out of scope for this PR.
+- Update README, architecture notes and feature docs when behaviour changes.
+  Prioritised follow-ups and review boundaries are in `docs/IMPROVEMENTS.md`.
