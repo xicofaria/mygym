@@ -36,6 +36,8 @@ export const exercises = sqliteTable("exercises", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   name: text("name").notNull().unique(),
   muscleGroup: text("muscle_group"),
+  aliases: text("aliases").notNull().default(""),
+  equipment: text("equipment").notNull().default(""),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),
@@ -52,6 +54,41 @@ export const workouts = sqliteTable("workouts", {
     .notNull()
     .default(sql`(unixepoch())`),
 });
+
+export const exerciseFavorites = sqliteTable(
+  "exercise_favorites",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    exerciseId: integer("exercise_id")
+      .notNull()
+      .references(() => exercises.id, { onDelete: "cascade" }),
+  },
+  (table) => [
+    uniqueIndex("exercise_favorites_user_exercise_unique").on(
+      table.userId,
+      table.exerciseId,
+    ),
+  ],
+);
+
+/** One atomic counter per account and Lisbon day, shared across server instances. */
+export const aiUsage = sqliteTable(
+  "ai_usage",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    day: text("day").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+  },
+  (table) => [
+    uniqueIndex("ai_usage_user_day_unique").on(table.userId, table.day),
+  ],
+);
 
 export const sets = sqliteTable("sets", {
   id: integer("id").primaryKey({ autoIncrement: true }),

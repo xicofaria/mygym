@@ -11,10 +11,7 @@ import {
 } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
 import { migrate } from "drizzle-orm/libsql/migrator";
-import {
-  readMigrationFiles,
-  type MigrationMeta,
-} from "drizzle-orm/migrator";
+import { readMigrationFiles, type MigrationMeta } from "drizzle-orm/migrator";
 
 const MIGRATIONS_TABLE = "__drizzle_migrations";
 // Production was managed with `drizzle-kit push` before migrations were
@@ -127,7 +124,8 @@ export type MigrateDatabaseResult = {
     | "pre-baseline-without-ledger"
     | "legacy-without-ledger"
     | "tracked"
-    | "current-without-ledger";
+    | "current-without-ledger"
+    | "known-without-ledger";
   migrationsApplied: number;
   ledgerImported: boolean;
 };
@@ -139,7 +137,9 @@ function quoteIdentifier(identifier: string): string {
 function getValue(row: Row, column: string): Value {
   const value = row[column];
   if (value === undefined) {
-    throw new Error(`A consulta de introspeção não devolveu a coluna ${column}.`);
+    throw new Error(
+      `A consulta de introspeção não devolveu a coluna ${column}.`,
+    );
   }
   return value;
 }
@@ -225,10 +225,7 @@ async function describeSchema(client: Client): Promise<SchemaDescription> {
           getValue(row, "ncol"),
           "Número de colunas da tabela",
         ),
-        withoutRowId: asBoolean(
-          getValue(row, "wr"),
-          "Indicador WITHOUT ROWID",
-        ),
+        withoutRowId: asBoolean(getValue(row, "wr"), "Indicador WITHOUT ROWID"),
         strict: asBoolean(getValue(row, "strict"), "Indicador STRICT"),
       },
     ]),
@@ -243,9 +240,7 @@ async function describeSchema(client: Client): Promise<SchemaDescription> {
     ];
   });
   const tableResults =
-    tablePragmas.length > 0
-      ? await client.batch(tablePragmas, "read")
-      : [];
+    tablePragmas.length > 0 ? await client.batch(tablePragmas, "read") : [];
 
   const rawTables = tableNames.map((name, tableIndex) => {
     const metadata = tableMetadata.get(name);
@@ -303,14 +298,10 @@ async function describeSchema(client: Client): Promise<SchemaDescription> {
           getValue(row, "on_delete"),
           "Ação ON DELETE",
         ).toUpperCase(),
-        match: asString(
-          getValue(row, "match"),
-          "Cláusula MATCH",
-        ).toUpperCase(),
+        match: asString(getValue(row, "match"), "Cláusula MATCH").toUpperCase(),
       }))
       .sort(
-        (left, right) =>
-          left.id - right.id || left.sequence - right.sequence,
+        (left, right) => left.id - right.id || left.sequence - right.sequence,
       );
 
     const rawIndexes = indexesResult.rows
@@ -318,7 +309,10 @@ async function describeSchema(client: Client): Promise<SchemaDescription> {
         name: asString(getValue(row, "name"), "Nome do índice"),
         unique: asBoolean(getValue(row, "unique"), "Indicador UNIQUE"),
         origin: asString(getValue(row, "origin"), "Origem do índice"),
-        partial: asBoolean(getValue(row, "partial"), "Indicador de índice parcial"),
+        partial: asBoolean(
+          getValue(row, "partial"),
+          "Indicador de índice parcial",
+        ),
       }))
       .sort((left, right) => left.name.localeCompare(right.name));
 
@@ -464,7 +458,10 @@ function deriveDeployedPreBaselineSchema(
   };
 }
 
-async function tableExists(client: Client, tableName: string): Promise<boolean> {
+async function tableExists(
+  client: Client,
+  tableName: string,
+): Promise<boolean> {
   const result = await client.execute({
     sql: "SELECT 1 AS found FROM sqlite_schema WHERE type = 'table' AND name = ?",
     args: [tableName],
@@ -475,7 +472,10 @@ async function tableExists(client: Client, tableName: string): Promise<boolean> 
 function assertLedgerTableShape(rows: Row[]): void {
   const actual = rows.map((row) => ({
     name: asString(getValue(row, "name"), "Nome da coluna do ledger"),
-    type: asString(getValue(row, "type"), "Tipo da coluna do ledger").toUpperCase(),
+    type: asString(
+      getValue(row, "type"),
+      "Tipo da coluna do ledger",
+    ).toUpperCase(),
     notNull: asBoolean(
       getValue(row, "notnull"),
       "Indicador NOT NULL do ledger",
@@ -592,10 +592,7 @@ async function readLegacyDataSnapshot(
   return {
     plans: plansResult.rows.map((row) => ({
       id: asNumber(getValue(row, "id"), "ID do plano legado"),
-      userId: asNumber(
-        getValue(row, "user_id"),
-        "Utilizador do plano legado",
-      ),
+      userId: asNumber(getValue(row, "user_id"), "Utilizador do plano legado"),
       date: asNumber(getValue(row, "date"), "Data do plano legado"),
       templateId: asNullableNumber(
         getValue(row, "template_id"),
@@ -652,7 +649,9 @@ async function assertLegacyDataPreserved(
   }
   for (const group of before.groups) {
     if (!isDeepStrictEqual(groupsById.get(group.id), group)) {
-      throw new Error(`O grupo de plano legado ${group.id} não foi preservado.`);
+      throw new Error(
+        `O grupo de plano legado ${group.id} não foi preservado.`,
+      );
     }
   }
 
@@ -721,7 +720,9 @@ function assertCurrentPlannedWorkoutsSchema(schema: SchemaDescription): void {
     !foreignKey("template_id", "workout_templates", "SET NULL") ||
     !foreignKey("workout_id", "workouts", "SET NULL")
   ) {
-    throw new Error("As chaves estrangeiras de planned_workouts não são as esperadas.");
+    throw new Error(
+      "As chaves estrangeiras de planned_workouts não são as esperadas.",
+    );
   }
 
   const uniqueIndex = (name: string, columns: string[]) => {
@@ -745,7 +746,9 @@ function assertCurrentPlannedWorkoutsSchema(schema: SchemaDescription): void {
       "routine_date",
     ])
   ) {
-    throw new Error("Os índices únicos de planned_workouts não são os esperados.");
+    throw new Error(
+      "Os índices únicos de planned_workouts não são os esperados.",
+    );
   }
 }
 
@@ -827,9 +830,7 @@ export async function migrateDatabase({
   const deployedPreBaselineSchema =
     deriveDeployedPreBaselineSchema(baselineSchema);
 
-  const client = createClient(
-    authToken?.trim() ? { url, authToken } : { url },
-  );
+  const client = createClient(authToken?.trim() ? { url, authToken } : { url });
   let initialState: MigrateDatabaseResult["initialState"] = "tracked";
   let ledgerImported = false;
   let migrationsApplied = 0;
@@ -860,11 +861,11 @@ export async function migrateDatabase({
       initialState = "pre-baseline-without-ledger";
     } else if (matchingPositions.includes(1)) {
       initialState = "legacy-without-ledger";
-    } else if (
-      matchingPositions.length === 1 &&
-      matchingPositions[0] === migrations.length
-    ) {
-      initialState = "current-without-ledger";
+    } else if (matchingPositions.length === 1 && matchingPositions[0] > 1) {
+      initialState =
+        matchingPositions[0] === migrations.length
+          ? "current-without-ledger"
+          : "known-without-ledger";
     } else {
       const tables = schemaBefore.tables.map((table) => table.name).join(", ");
       throw new Error(
@@ -875,17 +876,23 @@ export async function migrateDatabase({
     await assertNoForeignKeyViolations(client, "antes");
     const legacySnapshot =
       matchingPositions.includes(1) || matchesDeployedPreBaseline
-      ? await readLegacyDataSnapshot(client)
-      : null;
+        ? await readLegacyDataSnapshot(client)
+        : null;
 
-    if (initialState === "current-without-ledger") {
-      await importCurrentLedger(client, migrations);
+    if (
+      initialState === "current-without-ledger" ||
+      initialState === "known-without-ledger"
+    ) {
+      await importCurrentLedger(
+        client,
+        migrations.slice(0, matchingPositions[0]),
+      );
       ledgerImported = true;
       await readAndAuditLedger(client, migrations);
     }
 
     const appliedImmediatelyBeforeMigration = ledgerImported
-      ? migrations.length
+      ? matchingPositions[0]
       : appliedBefore;
     await migrate(drizzle(client), {
       migrationsFolder: resolvedMigrationsFolder,
@@ -900,7 +907,9 @@ export async function migrateDatabase({
     const schemaAfter = await describeSchema(client);
     const expectedCurrent = knownSchemas[migrations.length];
     if (!expectedCurrent || !isDeepStrictEqual(schemaAfter, expectedCurrent)) {
-      throw new Error("O schema final não corresponde às migrações versionadas.");
+      throw new Error(
+        "O schema final não corresponde às migrações versionadas.",
+      );
     }
     assertCurrentPlannedWorkoutsSchema(schemaAfter);
     if (legacySnapshot) {
@@ -910,7 +919,9 @@ export async function migrateDatabase({
 
     const ledgerAfter = await readAndAuditLedger(client, migrations);
     if (ledgerAfter.entries.length !== migrations.length) {
-      throw new Error("O ledger não contém todas as migrações após a execução.");
+      throw new Error(
+        "O ledger não contém todas as migrações após a execução.",
+      );
     }
 
     return { initialState, migrationsApplied, ledgerImported };
