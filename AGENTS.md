@@ -113,6 +113,15 @@ This version has breaking changes — APIs, conventions, and file structure may 
   unit size and estimation flags/keys. Legacy products/snapshots use empty defaults.
   These sizes never replace the per-100 nutrition base. Quantity conversions must
   be positive, finite and <=10000 g/ml. History keeps the original details too.
+- Product forms do not ask for package/unit weights. Resolve those in the diary;
+  unit/package modes are never disabled for missing metadata. Show conversion
+  details there; explicit AI unit estimation sends only server-owned product
+  name/brand/nutrition, not photos or diary, to the configured provider.
+- `/api/calories/products/[id]/unit` authenticates, checks origin/ownership, shares
+  the daily quota and preserves unknown sizes. Suggestions do not write to DB.
+  Saving consumption computes grams server-side from the validated count/factor,
+  snapshots that factor and remembers it for future new entries in one transaction.
+  Editing history never updates catalogue conversion metadata or nutrition.
 - Food photo input is one OS file picker (camera/gallery choices vary by device).
   Default analysis permits estimates; label-only mode rejects any estimated fields.
   Mark estimates per nutrient and for package/unit sizes. No package weight without

@@ -32,12 +32,6 @@ export function FoodProductForm({
   const [details, setDetails] = useState(
     initial?.details ?? emptyProductDetails,
   );
-  const [packageQuantity, setPackageQuantity] = useState(
-    initial?.details?.packageQuantity?.toString() ?? "",
-  );
-  const [pieceQuantity, setPieceQuantity] = useState(
-    initial?.details?.pieceQuantity?.toString() ?? "",
-  );
   const [values, setValues] = useState<Record<string, string>>(
     Object.fromEntries(
       nutrientKeys.map((k) => [
@@ -139,8 +133,6 @@ export function FoodProductForm({
       setBrand(data.brand);
       setUnit(data.unit);
       setDetails(data.details);
-      setPackageQuantity(data.details.packageQuantity?.toString() ?? "");
-      setPieceQuantity(data.details.pieceQuantity?.toString() ?? "");
       setSource(data.source);
       setPhotoExpanded(false);
       setValues(
@@ -188,13 +180,7 @@ export function FoodProductForm({
       brand,
       unit,
       nutrients,
-      details: {
-        ...details,
-        packageQuantity: packageQuantity.trim()
-          ? parseWeight(packageQuantity)
-          : null,
-        pieceQuantity: pieceQuantity.trim() ? parseWeight(pieceQuantity) : null,
-      },
+      details,
       source,
       sourceUrl: source === "openfoodfacts" ? (initial?.sourceUrl ?? "") : "",
       imageUrl: photo !== undefined ? "" : (initial?.imageUrl ?? ""),
@@ -407,52 +393,10 @@ export function FoodProductForm({
           </label>
         ))}
       </div>
-      <section
-        className="border-t border-black/10 pt-4 dark:border-white/10"
-        aria-label="Embalagem e unidades"
-      >
-        <h3 className="font-semibold">Embalagem e unidades</h3>
-        <p className="my-2 text-xs text-zinc-500">
-          Opcional. Permite registar meia embalagem ou contar unidades no
-          diário. O peso de um amendoim é diferente do peso do saco.
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="label">
-            Conteúdo da embalagem ({unit})
-            <input
-              className="input"
-              aria-label="Conteúdo da embalagem"
-              inputMode="decimal"
-              maxLength={12}
-              placeholder="Ex.: 200"
-              value={packageQuantity}
-              onChange={(e) => setPackageQuantity(e.target.value)}
-            />
-            {details.packageEstimated && (
-              <span className="text-xs text-amber-700 dark:text-amber-300">
-                Peso estimado — confirma na embalagem
-              </span>
-            )}
-          </label>
-          <label className="label">
-            Uma unidade ({unit})
-            <input
-              className="input"
-              aria-label="Peso de uma unidade"
-              inputMode="decimal"
-              maxLength={12}
-              placeholder="Ex.: 1"
-              value={pieceQuantity}
-              onChange={(e) => setPieceQuantity(e.target.value)}
-            />
-            {details.pieceEstimated && (
-              <span className="text-xs text-amber-700 dark:text-amber-300">
-                Peso médio estimado — pesar é mais preciso
-              </span>
-            )}
-          </label>
-        </div>
-      </section>
+      <p className="text-xs text-zinc-500">
+        Quanto comeste? Indica unidades, gramas ou embalagens no diário, depois
+        de guardar o produto.
+      </p>
       {source !== "manual" && (
         <label className="flex items-start gap-2 text-sm">
           <input
@@ -460,7 +404,7 @@ export function FoodProductForm({
             checked={confirmed}
             onChange={(e) => setConfirmed(e.target.checked)}
           />
-          Confirmei o produto, os pesos, a base por 100 g/ml e os valores{" "}
+          Confirmei o produto, a base por 100 g/ml e os valores{" "}
           {source === "estimate-ai" ? "estimados" : "sugeridos"}.
         </label>
       )}

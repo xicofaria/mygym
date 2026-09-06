@@ -6,6 +6,8 @@ import {
   emptyProductDetails,
   foodStores,
   portionQuantity,
+  applyDiaryPortion,
+  entryInputSchema,
   goalForDate,
   nutritionTotal,
   periodDates,
@@ -26,6 +28,45 @@ const snapshot = productSchema.parse({
   source: "manual",
   sourceUrl: "",
   imageUrl: "",
+});
+test("diary computes canonical grams from units and preserves nutritional history", () => {
+  const result = applyDiaryPortion(snapshot, 999, {
+    mode: "pieces",
+    amount: 20,
+    unitQuantity: 1.2,
+    estimated: true,
+  });
+  assert.equal(result.quantity, 24);
+  assert.deepEqual(result.snapshot.nutrients, snapshot.nutrients);
+  assert.equal(result.snapshot.details.pieceEstimated, true);
+  assert.equal(snapshot.details.pieceQuantity, null);
+  assert.equal(
+    applyDiaryPortion(snapshot, 1, {
+      mode: "package",
+      amount: 0.5,
+      unitQuantity: 200,
+      estimated: false,
+    }).quantity,
+    100,
+  );
+  assert.throws(() =>
+    applyDiaryPortion(snapshot, 1, {
+      mode: "pieces",
+      amount: 10000,
+      unitQuantity: 200,
+      estimated: true,
+    }),
+  );
+  assert.equal(
+    entryInputSchema.safeParse({
+      productId: 1,
+      date: "2026-09-06",
+      meal: "Lanches",
+      quantity: 10,
+      portion: { mode: "pieces", amount: 0, unitQuantity: 1, estimated: true },
+    }).success,
+    false,
+  );
 });
 test("portions convert counted units and fractional packs without changing the 100g base", () => {
   const details = {

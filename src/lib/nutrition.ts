@@ -56,6 +56,12 @@ export const foodStores = [
   ["aldi", "Aldi"],
 ] as const;
 const portionAmount = z.number().finite().positive().max(10000).nullable();
+export const unitSuggestionSchema = z.object({
+  quantity: portionAmount,
+  unit: z.enum(["g", "ml"]),
+  estimated: z.boolean(),
+  explanation: z.string().max(1000),
+});
 export const productDetailsSchema = z.object({
   packageQuantity: portionAmount,
   pieceQuantity: portionAmount,
@@ -120,12 +126,41 @@ export function portionQuantity(
     : NaN;
 }
 export const meals = ["Pequeno-almoço", "Almoço", "Jantar", "Lanches"] as const;
+export const diaryPortionSchema = z.object({
+  mode: z.enum(["pieces", "package"]),
+  amount: z.number().finite().positive().max(10000),
+  unitQuantity: z.number().finite().positive().max(10000),
+  estimated: z.boolean(),
+});
 export const entryInputSchema = z.object({
   productId: z.number().int().positive(),
   date: z.string().refine(isDateKey),
   meal: z.enum(meals),
   quantity: z.number().finite().positive().max(10000),
+  portion: diaryPortionSchema.optional(),
 });
+export function applyDiaryPortion(
+  snapshot: z.infer<typeof productSchema>,
+  quantity: number,
+  portion?: z.infer<typeof diaryPortionSchema>,
+) {
+  if (!portion) return { snapshot, quantity };
+  const details = {
+    ...snapshot.details,
+    ...(portion.mode === "pieces"
+      ? {
+          pieceQuantity: portion.unitQuantity,
+          pieceEstimated: portion.estimated,
+        }
+      : {
+          packageQuantity: portion.unitQuantity,
+          packageEstimated: portion.estimated,
+        }),
+  };
+  const converted = portionQuantity(portion.amount, portion.mode, details);
+  if (!Number.isFinite(converted)) throw new Error("Invalid portion");
+  return { snapshot: { ...snapshot, details }, quantity: converted };
+}
 export type FoodEntry = {
   id: number;
   productId: number | null;

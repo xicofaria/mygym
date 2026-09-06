@@ -94,6 +94,8 @@ Choose a provider in `.env.local` or your host's secret environment settings:
 - OpenRouter: `AI_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, optional
   `OPENROUTER_VISION_MODEL` (default `qwen/qwen3-vl-30b-a3b-instruct`).
   The model and serving endpoint must support images and strict JSON Schema.
+  Unit/package conversion is resolved in the calorie diary, without mandatory
+  weight fields when creating a product; missing unit weights can be estimated explicitly.
   `z-ai/glm-5.3-flash` is explicitly supported via JSON mode with server-side
   schema validation (for both food and machine photos).
 - `AI_DAILY_LIMIT=20`: attempts per account/Lisbon day, shared across instances.

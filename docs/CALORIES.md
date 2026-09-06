@@ -59,14 +59,26 @@ permanecem identificadas no diário. Nunca guardar automaticamente sugestões.
 - O prompt lê primeiro os dados visíveis, normaliza porções legíveis para 100,
   converte kJ e preenche os restantes nutrientes por estimativa quando há base para
   isso. Não inventa zeros nem resolve macros desconhecidos por subtração das kcal.
-- Conteúdo da embalagem e peso de uma unidade são campos opcionais separados.
+- Conteúdo da embalagem e peso de uma unidade são detalhes de conversão no diário,
+  não campos pedidos ao criar/editar um produto. Unidades e Embalagens estão
+  sempre disponíveis, mesmo nos produtos antigos sem esses pesos.
   A IA pode sugerir valores com indícios suficientes, sempre marcados se estimados;
   uma embalagem sem escala/peso/formato identificável fica com peso desconhecido.
 - No diário pode-se indicar g/ml, unidades (ex.: 20 amendoins) ou embalagens (ex.:
   0,5). A conversão usa os pesos revistos do produto e mostra kcal e nutrientes
   antes de guardar. Pesar é mais preciso do que usar um peso médio por unidade.
+- Quando falta peso de uma unidade, a ação explícita **Estimar peso por unidade
+  com IA** usa apenas nome, marca e tabela desse produto, obtidos no servidor
+  para a conta autenticada. Não envia fotografia nem refeições do diário.
+  Respeita fornecedor/modelo/quota existentes e pode devolver desconhecido.
+- É possível ajustar o peso diretamente no diário, distinguindo pesado de
+  aproximado. Só ao registar o consumo se guarda a conversão para reutilizar.
+  Cancelar/simular uma quantidade não altera produtos. O servidor recalcula a
+  quantidade efetiva; editar um consumo não reescreve outros nem o catálogo.
 - O histórico mantém os pesos e nutrientes originais. A indicação aproximada de
   unidades no histórico é calculada desse peso médio, não uma contagem por visão.
+  Ao editar explicitamente a conversão de um consumo, apenas esse registo muda;
+  os nutrientes por 100 g/ml continuam a ser os do snapshot original.
 - `OPENROUTER_VISION_MODEL=z-ai/glm-5.3-flash` tem um adaptador JSON explícito
   com validação Zod no servidor. A [ficha OpenRouter](https://openrouter.ai/z-ai/glm-5.3-flash)
   consultada em 2026-09-06 anuncia visão e JSON sem enforcement de JSON Schema.

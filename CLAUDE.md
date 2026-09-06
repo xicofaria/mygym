@@ -168,6 +168,9 @@ anything. Editing `/workouts/routine` saves per weekday as you toggle chips
   Migration 0004 adds product details (package/unit sizes and estimation flags).
   Single food photo picker; per-field estimates; diary accepts grams/ml, counted
   units or fractional packs. Never confuse package size with the 100g/ml base.
+  Package/unit weight inputs belong to the diary, not product creation. Missing
+  unit weight can be estimated explicitly from owned product text (no photo).
+  Server computes grams and remembers the reviewed factor only on new consumption.
   GLM 5.3 Flash uses explicit JSON mode plus server validation; other models keep
   strict JSON Schema. OFF supports five store samples, not complete inventories.
   See `docs/CALORIES.md` and the detailed invariants in AGENTS.md.

@@ -8,6 +8,7 @@ import { calorieGoals, foodDays, foodEntries, foodProducts } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import {
   emptyProductDetails,
+  applyDiaryPortion,
   entryInputSchema,
   photoSchema,
   productSchema,
@@ -78,7 +79,7 @@ export async function saveFoodEntry(input: unknown) {
     .safeParse(input);
   if (!parsed.success || !isCurrentOrPastDateKey(parsed.data.date))
     return invalid;
-  const { id, ...values } = parsed.data;
+  const { id, portion, ...values } = parsed.data;
   const result = await db.transaction(async (tx) => {
     const previous = id
       ? await tx
@@ -115,7 +116,49 @@ export async function saveFoodEntry(input: unknown) {
               },
             }),
           );
-    const row = { ...values, snapshot, userId: user.id };
+    let resolved;
+    try {
+      resolved = applyDiaryPortion(
+        productSchema.parse(JSON.parse(snapshot)),
+        values.quantity,
+        portion,
+      );
+    } catch {
+      return invalid;
+    }
+    const row = {
+      ...values,
+      quantity: resolved.quantity,
+      snapshot: JSON.stringify(resolved.snapshot),
+      userId: user.id,
+    };
+    // Remember a reviewed conversion only on a new consumption, never on cancel
+    // or when editing history. Preserve the catalogue's other/current metadata.
+    if (!id && portion && product) {
+      const currentDetails = {
+        ...emptyProductDetails,
+        ...JSON.parse(product.details),
+      };
+      const updated =
+        portion.mode === "pieces"
+          ? {
+              pieceQuantity: portion.unitQuantity,
+              pieceEstimated: portion.estimated,
+            }
+          : {
+              packageQuantity: portion.unitQuantity,
+              packageEstimated: portion.estimated,
+            };
+      await tx
+        .update(foodProducts)
+        .set({ details: JSON.stringify({ ...currentDetails, ...updated }) })
+        .where(
+          and(
+            eq(foodProducts.id, product.id),
+            eq(foodProducts.userId, user.id),
+          ),
+        );
+    }
     if (id)
       await tx
         .update(foodEntries)

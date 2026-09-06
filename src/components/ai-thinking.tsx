@@ -5,9 +5,11 @@ import { useEffect, useState } from "react";
 export function AIThinking({
   onCancel,
   food = false,
+  message,
 }: {
   onCancel: () => void;
   food?: boolean;
+  message?: string;
 }) {
   const [seconds, setSeconds] = useState(0);
   useEffect(() => {
@@ -36,9 +38,10 @@ export function AIThinking({
             />
           ))}
         </span>
-        {food
-          ? "A analisar a fotografia e a calcular…"
-          : "A analisar a fotografia…"}
+        {message ??
+          (food
+            ? "A analisar a fotografia e a calcular…"
+            : "A analisar a fotografia…")}
       </div>
       <p className="mt-2 text-xs text-zinc-500">
         <span aria-hidden="true">{seconds} s · </span>Pode demorar até 2
