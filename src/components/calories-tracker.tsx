@@ -27,6 +27,7 @@ import {
 } from "@/lib/nutrition";
 import { parseWeight } from "@/lib/decimal";
 import { FoodProductForm } from "./food-product-form";
+import { DiaryPortion } from "./diary-portion";
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 1 }).format(n);
@@ -60,6 +61,11 @@ export function CaloriesTracker({
   >("weight");
   const [meal, setMeal] = useState<string>(meals[0]);
   const [editing, setEditing] = useState<FoodEntry | null>(null);
+  const [portionOverride, setPortionOverride] = useState<{
+    key: string;
+    unitQuantity: number;
+    estimated: boolean;
+  } | null>(null);
   const [goalInput, setGoalInput] = useState("");
   const [tolerance, setTolerance] = useState("10");
   const entries = data.entries.filter((e) => e.date === date);
@@ -71,8 +77,25 @@ export function CaloriesTracker({
     editing?.productId === Number(productId)
       ? editing.snapshot
       : data.products.find((p) => p.id === Number(productId));
-  const amount = chosen
-    ? portionQuantity(parseWeight(quantity), quantityMode, chosen.details)
+  const portionKey = `${productId}:${editing?.id ?? "new"}:${quantityMode}`;
+  const details = chosen
+    ? {
+        ...chosen.details,
+        ...(portionOverride?.key === portionKey
+          ? quantityMode === "pieces"
+            ? {
+                pieceQuantity: portionOverride.unitQuantity,
+                pieceEstimated: portionOverride.estimated,
+              }
+            : {
+                packageQuantity: portionOverride.unitQuantity,
+                packageEstimated: portionOverride.estimated,
+              }
+          : {}),
+      }
+    : null;
+  const amount = details
+    ? portionQuantity(parseWeight(quantity), quantityMode, details)
     : NaN;
   const preview =
     chosen && Number.isFinite(amount) && amount > 0
@@ -150,6 +173,7 @@ export function CaloriesTracker({
     }
   }
   const resetEntry = () => {
+    setPortionOverride(null);
     setQuantityMode("weight");
     setEditing(null);
     setQuantity("");
@@ -272,6 +296,21 @@ export function CaloriesTracker({
                     id: editing?.id,
                     productId: Number(productId),
                     quantity: amount,
+                    portion:
+                      quantityMode === "weight"
+                        ? undefined
+                        : {
+                            mode: quantityMode,
+                            amount: parseWeight(quantity),
+                            unitQuantity:
+                              quantityMode === "pieces"
+                                ? details?.pieceQuantity
+                                : details?.packageQuantity,
+                            estimated:
+                              quantityMode === "pieces"
+                                ? details?.pieceEstimated
+                                : details?.packageEstimated,
+                          },
                     meal,
                     date,
                   }),
@@ -291,6 +330,7 @@ export function CaloriesTracker({
                 value={productId}
                 onChange={(e) => {
                   setProductId(e.target.value);
+                  setPortionOverride(null);
                   setQuantityMode("weight");
                   setQuantity("");
                 }}
@@ -319,28 +359,13 @@ export function CaloriesTracker({
                   value={quantityMode}
                   onChange={(e) => {
                     setQuantityMode(e.target.value as typeof quantityMode);
+                    setPortionOverride(null);
                     setQuantity("");
                   }}
                 >
                   <option value="weight">Peso / volume ({chosen.unit})</option>
-                  <option
-                    value="package"
-                    disabled={!chosen.details.packageQuantity}
-                  >
-                    Embalagens{" "}
-                    {!chosen.details.packageQuantity
-                      ? "(define o peso no produto)"
-                      : ""}
-                  </option>
-                  <option
-                    value="pieces"
-                    disabled={!chosen.details.pieceQuantity}
-                  >
-                    Unidades{" "}
-                    {!chosen.details.pieceQuantity
-                      ? "(define o peso de uma unidade)"
-                      : ""}
-                  </option>
+                  <option value="package">Embalagens</option>
+                  <option value="pieces">Unidades</option>
                 </select>
               </label>
             )}
@@ -400,19 +425,26 @@ export function CaloriesTracker({
               </div>
             )}
             {chosen && quantityMode !== "weight" && (
-              <p className="text-xs text-zinc-500">
-                {quantityMode === "package"
-                  ? `1 embalagem = ${fmt(chosen.details.packageQuantity!)} ${chosen.unit}`
-                  : `1 unidade = ${fmt(chosen.details.pieceQuantity!)} ${chosen.unit}`}
-                .
-                {((quantityMode === "package" &&
-                  chosen.details.packageEstimated) ||
-                  (quantityMode === "pieces" &&
-                    chosen.details.pieceEstimated)) &&
-                  " Conversão estimada; pesar a quantidade é mais preciso."}{" "}
-                Indica quanto comeste; a fotografia do produto não permite
-                sabê-lo.
-              </p>
+              <DiaryPortion
+                key={portionKey}
+                productId={Number(productId)}
+                mode={quantityMode}
+                unit={chosen.unit}
+                initialQuantity={
+                  quantityMode === "pieces"
+                    ? chosen.details.pieceQuantity
+                    : chosen.details.packageQuantity
+                }
+                initialEstimated={
+                  quantityMode === "pieces"
+                    ? chosen.details.pieceEstimated
+                    : chosen.details.packageEstimated
+                }
+                provider={provider}
+                onChange={(value) =>
+                  setPortionOverride({ key: portionKey, ...value })
+                }
+              />
             )}
             {preview && (
               <p
@@ -552,6 +584,7 @@ export function CaloriesTracker({
                           className="btn-ghost"
                           onClick={() => {
                             setEditing(entry);
+                            setPortionOverride(null);
                             setQuantityMode("weight");
                             setProductId(String(entry.productId));
                             setQuantity(String(entry.quantity));
@@ -651,6 +684,7 @@ export function CaloriesTracker({
             onSaved={(id) => {
               setEditor(null);
               setProductId(String(id));
+              setPortionOverride(null);
               setQuantityMode("weight");
               setQuantity("");
               setEditing(null);
@@ -723,6 +757,7 @@ export function CaloriesTracker({
                           className="btn-ghost"
                           onClick={() => {
                             setProductId(String(p.id));
+                            setPortionOverride(null);
                             setQuantityMode("weight");
                             setEditing(null);
                             setQuantity("");

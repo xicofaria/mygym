@@ -15,6 +15,75 @@ const value = {
   },
   explanation: "Confirma o rótulo.",
 };
+test("diary unit suggestion sends text context without photo or diary and retains validation", async () => {
+  for (const provider of ["openai", "openrouter"] as const) {
+    const result = await recognizeFood({
+      productContext: {
+        name: value.product.name,
+        brand: value.product.brand,
+        unit: "g",
+        nutrients: value.product.nutrients,
+      },
+      apiKey: "test",
+      model: "test",
+      provider,
+      mode: "estimate",
+      fetcher: async (_url, options) => {
+        const body = JSON.parse(String(options?.body));
+        const input =
+          provider === "openrouter"
+            ? body.messages[1].content
+            : body.input[0].content;
+        assert.equal(input.length, 1);
+        assert.equal(
+          input[0].type,
+          provider === "openrouter" ? "text" : "input_text",
+        );
+        assert.equal(JSON.parse(input[0].text).name, value.product.name);
+        assert.match(
+          provider === "openrouter"
+            ? body.messages[0].content
+            : body.instructions,
+          /sem fotografia/,
+        );
+        return Response.json(
+          provider === "openrouter"
+            ? {
+                choices: [
+                  {
+                    finish_reason: "stop",
+                    message: { content: JSON.stringify(value) },
+                  },
+                ],
+              }
+            : {
+                status: "completed",
+                output: [
+                  {
+                    type: "message",
+                    content: [
+                      { type: "output_text", text: JSON.stringify(value) },
+                    ],
+                  },
+                ],
+              },
+        );
+      },
+    });
+    assert.equal(result.product?.details.pieceQuantity, null);
+  }
+  await assert.rejects(
+    recognizeFood({
+      apiKey: "test",
+      model: "test",
+      provider: "openrouter",
+      mode: "estimate",
+      fetcher: async () => {
+        throw new Error("must not call provider");
+      },
+    }),
+  );
+});
 test("GLM max effort has a two-minute budget; unknown brand is normalized, not nutrients", async () => {
   const format = openRouterFormat("z-ai/glm-5.3-flash", "test", {});
   assert.equal(format.timeoutMs, 120000);

@@ -29,6 +29,127 @@ async function upload(page: Page) {
   });
   await expect(page.getByAltText("Fotografia do produto")).toBeVisible();
 }
+test("missing unit weights are resolved inside diary and remembered only on consumption", async ({
+  page,
+  browser,
+  request,
+}, testInfo) => {
+  expect((await request.post("/api/calories/products/1/unit")).status()).toBe(
+    401,
+  );
+  await login(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page
+    .getByRole("button", { name: "+ Criar produto / fotografia" })
+    .click();
+  await expect(
+    page.getByText("Embalagem e unidades", { exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByLabel("Nome do alimento", { exact: true })
+    .fill("Produto de diário E2E");
+  await page.getByLabel("Energia (kcal) por 100").fill("600");
+  await page
+    .getByRole("button", { name: "Guardar produto", exact: true })
+    .click();
+  const id = await page.getByLabel("Alimento", { exact: true }).inputValue();
+  const cookie = (await page.context().cookies())
+    .map((c) => `${c.name}=${c.value}`)
+    .join("; ");
+  const headers = { Cookie: cookie, Origin: new URL(page.url()).origin };
+  expect(
+    (
+      await page.request.post(`/api/calories/products/${id}/unit`, {
+        headers: { ...headers, Origin: "https://evil.test" },
+      })
+    ).status(),
+  ).toBe(403);
+  expect(
+    (
+      await page.request.post(`/api/calories/products/${id}/unit`, { headers })
+    ).status(),
+  ).toBe(503);
+  const other = await browser.newContext();
+  const otherPage = await other.newPage();
+  await login(otherPage, true);
+  const partnerCookie = (await other.cookies())
+    .map((c) => `${c.name}=${c.value}`)
+    .join("; ");
+  expect(
+    (
+      await otherPage.request.post(`/api/calories/products/${id}/unit`, {
+        headers: { ...headers, Cookie: partnerCookie },
+      })
+    ).status(),
+  ).toBe(404);
+  await other.close();
+  await page.getByLabel("Modo de quantidade").selectOption("pieces");
+  await page.getByLabel("Quantidade consumida").fill("20");
+  await expect(
+    page.getByRole("button", { name: "Registar consumo", exact: true }),
+  ).toBeDisabled();
+  let calls = 0;
+  await page.route("**/api/calories/products/*/unit", (route) => {
+    calls++;
+    return route.fulfill({
+      json: {
+        quantity: 1.2,
+        unit: "g",
+        estimated: true,
+        explanation: "Peso médio estimado.",
+      },
+    });
+  });
+  await page
+    .getByRole("button", { name: "Estimar peso por unidade com IA" })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "144 kcal para 24 g" }),
+  ).toBeVisible();
+  await page.getByLabel("Peso de uma unidade", { exact: true }).fill("2");
+  await expect(
+    page.getByRole("status").filter({ hasText: "240 kcal para 40 g" }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("diary-unit-conversion.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page
+    .getByRole("button", { name: "Registar consumo", exact: true })
+    .click();
+  const entry = page.getByRole("article", {
+    name: "Produto de diário E2E",
+    exact: true,
+  });
+  await expect(entry).toContainText("240 kcal");
+  await expect(entry).toContainText("20 unidades");
+  await page.unroute("**/api/calories/products/*/unit");
+  const cached = await page.request.post(`/api/calories/products/${id}/unit`, {
+    headers,
+  });
+  expect(cached.status()).toBe(200);
+  expect((await cached.json()).quantity).toBe(2);
+  await page.reload();
+  await page.getByLabel("Alimento", { exact: true }).selectOption(id);
+  await page.getByLabel("Modo de quantidade").selectOption("pieces");
+  await page.getByLabel("Quantidade consumida").fill("10");
+  await expect(
+    page.getByRole("status").filter({ hasText: "120 kcal para 20 g" }),
+  ).toBeVisible();
+  expect(calls).toBe(1);
+  await page.getByLabel("Modo de quantidade").selectOption("package");
+  await page.getByRole("button", { name: "½ embalagem", exact: true }).click();
+  await page.getByLabel("Conteúdo da embalagem", { exact: true }).fill("200");
+  await expect(
+    page.getByRole("status").filter({ hasText: "600 kcal para 100 g" }),
+  ).toBeVisible();
+  page.once("dialog", (d) => d.accept());
+  await entry
+    .getByRole("button", { name: "Eliminar consumo", exact: true })
+    .click();
+  await expect(entry).toHaveCount(0);
+});
 test("thinking indicator shows elapsed time, supports reduced motion and cancels without clearing fields", async ({
   page,
 }, testInfo) => {
@@ -128,8 +249,8 @@ test("one photo picker fills nutrition and estimated portions; units and half pa
   await expect(page.getByAltText("Fotografia do produto")).toBeHidden();
   await expect(
     page.getByLabel("Conteúdo da embalagem", { exact: true }),
-  ).toHaveValue("200");
-  await expect(page.getByLabel("Peso de uma unidade")).toHaveValue("1.2");
+  ).toHaveCount(0);
+  await expect(page.getByLabel("Peso de uma unidade")).toHaveCount(0);
   await expect(
     page.getByText("Estimativa — confirmar", { exact: true }),
   ).toHaveCount(3);

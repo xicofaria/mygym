@@ -96,3 +96,15 @@ em várias tentativas de diagnóstico. Não foi enviada a captura privada do uti
   nem estabilidade de latência entre fornecedores. Chamada abortada pode ser cobrada.
 - Foi pedido ao utilizador que revogasse a chave após os testes; não se afirma
   que a revogação tenha sido executada pela aplicação.
+
+## Unidades no diário — 2026-09-06
+
+Branch `codex/diary-unit-flow`, base `c364e4c` após merge do PR #29.
+
+- 101 testes unitários: conversão calculada no servidor sem alterar nutrientes
+  históricos, rejeição de quantidades inválidas e envio de contexto textual sem foto.
+- 23 E2E: produto sem pesos, unidades sempre disponíveis, sugestão simulada,
+  ajuste no diário, reutilização só após registar e autenticação/Origin/privacidade.
+- Lint, tipos e build na cópia Linux isolada; revisão mobile dos dois formulários.
+- Sem migração adicional. Mantém snapshots e dados anteriores.
+- Não houve novas chamadas pagas. Não foi reutilizada a chave temporária anterior.
