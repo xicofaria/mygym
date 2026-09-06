@@ -12,12 +12,15 @@ import {
 } from "@/app/(app)/calories/actions";
 import {
   dayResult,
+  foodStores,
   goalForDate,
   meals,
   nutrientLabels,
+  nutrientKeys,
   nutritionTotal,
   periodDates,
   productSchema,
+  portionQuantity,
   scaleNutrition,
   type FoodEntry,
   type FoodProduct,
@@ -52,6 +55,9 @@ export function CaloriesTracker({
   const [externalNotice, setExternalNotice] = useState("");
   const [productId, setProductId] = useState("");
   const [quantity, setQuantity] = useState("");
+  const [quantityMode, setQuantityMode] = useState<
+    "weight" | "package" | "pieces"
+  >("weight");
   const [meal, setMeal] = useState<string>(meals[0]);
   const [editing, setEditing] = useState<FoodEntry | null>(null);
   const [goalInput, setGoalInput] = useState("");
@@ -65,7 +71,9 @@ export function CaloriesTracker({
     editing?.productId === Number(productId)
       ? editing.snapshot
       : data.products.find((p) => p.id === Number(productId));
-  const amount = parseWeight(quantity);
+  const amount = chosen
+    ? portionQuantity(parseWeight(quantity), quantityMode, chosen.details)
+    : NaN;
   const preview =
     chosen && Number.isFinite(amount) && amount > 0
       ? scaleNutrition(chosen.nutrients, amount)
@@ -142,6 +150,7 @@ export function CaloriesTracker({
     }
   }
   const resetEntry = () => {
+    setQuantityMode("weight");
     setEditing(null);
     setQuantity("");
     setProductId("");
@@ -280,7 +289,11 @@ export function CaloriesTracker({
                 className="input"
                 required
                 value={productId}
-                onChange={(e) => setProductId(e.target.value)}
+                onChange={(e) => {
+                  setProductId(e.target.value);
+                  setQuantityMode("weight");
+                  setQuantity("");
+                }}
               >
                 <option value="">Escolher produto</option>
                 {editing?.productId &&
@@ -297,9 +310,47 @@ export function CaloriesTracker({
                 ))}
               </select>
             </label>
+            {chosen && (
+              <label className="label">
+                Como queres registar?
+                <select
+                  className="input"
+                  aria-label="Modo de quantidade"
+                  value={quantityMode}
+                  onChange={(e) => {
+                    setQuantityMode(e.target.value as typeof quantityMode);
+                    setQuantity("");
+                  }}
+                >
+                  <option value="weight">Peso / volume ({chosen.unit})</option>
+                  <option
+                    value="package"
+                    disabled={!chosen.details.packageQuantity}
+                  >
+                    Embalagens{" "}
+                    {!chosen.details.packageQuantity
+                      ? "(define o peso no produto)"
+                      : ""}
+                  </option>
+                  <option
+                    value="pieces"
+                    disabled={!chosen.details.pieceQuantity}
+                  >
+                    Unidades{" "}
+                    {!chosen.details.pieceQuantity
+                      ? "(define o peso de uma unidade)"
+                      : ""}
+                  </option>
+                </select>
+              </label>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <label className="label">
-                Quantidade ({chosen?.unit ?? "g/ml"})
+                {quantityMode === "weight"
+                  ? `Quantidade (${chosen?.unit ?? "g/ml"})`
+                  : quantityMode === "package"
+                    ? "N.º de embalagens"
+                    : "N.º de unidades"}
                 <input
                   className="input"
                   aria-label="Quantidade consumida"
@@ -308,7 +359,13 @@ export function CaloriesTracker({
                   required
                   value={quantity}
                   onChange={(e) => setQuantity(e.target.value)}
-                  placeholder="Ex.: 150"
+                  placeholder={
+                    quantityMode === "package"
+                      ? "Ex.: 0,5 = metade"
+                      : quantityMode === "pieces"
+                        ? "Ex.: 20 amendoins"
+                        : "Ex.: 150"
+                  }
                 />
               </label>
               <label className="label">
@@ -324,16 +381,77 @@ export function CaloriesTracker({
                 </select>
               </label>
             </div>
+            {quantityMode === "package" && (
+              <div className="flex flex-wrap gap-2">
+                {[
+                  ["0,25", "¼ embalagem"],
+                  ["0,5", "½ embalagem"],
+                  ["1", "1 embalagem"],
+                ].map(([value, label]) => (
+                  <button
+                    type="button"
+                    className="btn-ghost"
+                    key={value}
+                    onClick={() => setQuantity(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {chosen && quantityMode !== "weight" && (
+              <p className="text-xs text-zinc-500">
+                {quantityMode === "package"
+                  ? `1 embalagem = ${fmt(chosen.details.packageQuantity!)} ${chosen.unit}`
+                  : `1 unidade = ${fmt(chosen.details.pieceQuantity!)} ${chosen.unit}`}
+                .
+                {((quantityMode === "package" &&
+                  chosen.details.packageEstimated) ||
+                  (quantityMode === "pieces" &&
+                    chosen.details.pieceEstimated)) &&
+                  " Conversão estimada; pesar a quantidade é mais preciso."}{" "}
+                Indica quanto comeste; a fotografia do produto não permite
+                sabê-lo.
+              </p>
+            )}
             {preview && (
               <p
                 role="status"
                 className="text-sm text-indigo-700 dark:text-indigo-300"
               >
-                {fmt(preview.kcal)} kcal para {quantity} {chosen!.unit}
+                {fmt(preview.kcal)} kcal para{" "}
+                {quantityMode === "weight" ? quantity : fmt(amount)}{" "}
+                {chosen!.unit}
                 {chosen!.source === "estimate-ai" ? " · estimativa" : ""}
               </p>
             )}
-            <button className="btn-primary" disabled={pending || !productId}>
+            {preview && (
+              <details className="text-sm">
+                <summary className="cursor-pointer text-zinc-500">
+                  Nutrientes desta quantidade
+                </summary>
+                <dl className="mt-2 grid grid-cols-2 gap-2">
+                  {nutrientKeys
+                    .filter((k) => k !== "kcal")
+                    .map((key) => (
+                      <div key={key}>
+                        <dt className="text-xs text-zinc-500">
+                          {nutrientLabels[key]}
+                        </dt>
+                        <dd>
+                          {preview[key] === null
+                            ? "Desconhecido"
+                            : `${fmt(preview[key])} g`}
+                        </dd>
+                      </div>
+                    ))}
+                </dl>
+              </details>
+            )}
+            <button
+              className="btn-primary"
+              disabled={pending || !productId || !Number.isFinite(amount)}
+            >
               {editing ? "Guardar consumo" : "Registar consumo"}
             </button>
             {editing && (
@@ -386,6 +504,19 @@ export function CaloriesTracker({
                               ? "· Estimativa IA"
                               : ""}
                           </p>
+                          {entry.snapshot.details.pieceQuantity && (
+                            <p className="text-xs text-zinc-500">
+                              ≈{" "}
+                              {fmt(
+                                entry.quantity /
+                                  entry.snapshot.details.pieceQuantity,
+                              )}{" "}
+                              unidades
+                              {entry.snapshot.details.pieceEstimated
+                                ? " (peso médio estimado)"
+                                : ""}
+                            </p>
+                          )}
                         </div>
                         <span className="shrink-0 font-medium">
                           {fmt(
@@ -421,6 +552,7 @@ export function CaloriesTracker({
                           className="btn-ghost"
                           onClick={() => {
                             setEditing(entry);
+                            setQuantityMode("weight");
                             setProductId(String(entry.productId));
                             setQuantity(String(entry.quantity));
                             setMeal(entry.meal);
@@ -519,6 +651,9 @@ export function CaloriesTracker({
             onSaved={(id) => {
               setEditor(null);
               setProductId(String(id));
+              setQuantityMode("weight");
+              setQuantity("");
+              setEditing(null);
               setTab("diary");
               router.refresh();
             }}
@@ -588,6 +723,8 @@ export function CaloriesTracker({
                           className="btn-ghost"
                           onClick={() => {
                             setProductId(String(p.id));
+                            setQuantityMode("weight");
+                            setEditing(null);
                             setQuantity("");
                             setTab("diary");
                           }}
@@ -654,13 +791,13 @@ export function CaloriesTracker({
                   Consultar código
                 </button>
               </form>
-              <div className="my-2 flex gap-2">
-                {["Continente", "Lidl"].map((store) => (
+              <div className="my-2 flex flex-wrap gap-2">
+                {foodStores.map(([id, store]) => (
                   <button
                     className="btn-ghost"
                     disabled={searching}
                     key={store}
-                    onClick={() => void lookup(store.toLowerCase())}
+                    onClick={() => void lookup(id)}
                   >
                     {store}
                   </button>

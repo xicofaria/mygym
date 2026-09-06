@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { saveFoodProduct } from "@/app/(app)/calories/actions";
 import {
   emptyNutrients,
+  emptyProductDetails,
+  foodStores,
   nutrientKeys,
   nutrientLabels,
   productSchema,
@@ -11,6 +13,7 @@ import {
 } from "@/lib/nutrition";
 import { parseWeight } from "@/lib/decimal";
 import { preparePhoto } from "@/lib/prepare-photo";
+import { AIThinking } from "./ai-thinking";
 
 export function FoodProductForm({
   initial,
@@ -26,6 +29,15 @@ export function FoodProductForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [brand, setBrand] = useState(initial?.brand ?? "");
   const [unit, setUnit] = useState<"g" | "ml">(initial?.unit ?? "g");
+  const [details, setDetails] = useState(
+    initial?.details ?? emptyProductDetails,
+  );
+  const [packageQuantity, setPackageQuantity] = useState(
+    initial?.details?.packageQuantity?.toString() ?? "",
+  );
+  const [pieceQuantity, setPieceQuantity] = useState(
+    initial?.details?.pieceQuantity?.toString() ?? "",
+  );
   const [values, setValues] = useState<Record<string, string>>(
     Object.fromEntries(
       nutrientKeys.map((k) => [
@@ -37,11 +49,13 @@ export function FoodProductForm({
   const [source, setSource] = useState(initial?.source ?? "manual");
   const [photo, setPhoto] = useState<string | null | undefined>(undefined);
   const [blob, setBlob] = useState<Blob | null>(null);
-  const [mode, setMode] = useState("label");
+  const [mode, setMode] = useState("estimate");
   const [notice, setNotice] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [photoExpanded, setPhotoExpanded] = useState(true);
   const [pending, start] = useTransition();
   const generation = useRef(0);
   const request = useRef<AbortController | null>(null);
@@ -89,6 +103,7 @@ export function FoodProductForm({
     const controller = new AbortController();
     request.current = controller;
     setBusy(true);
+    setAnalyzing(true);
     setError("");
     setConfirmed(false);
     try {
@@ -98,7 +113,7 @@ export function FoodProductForm({
         headers: { "Content-Type": "image/jpeg", "x-food-mode": mode },
         signal: AbortSignal.any([
           controller.signal,
-          AbortSignal.timeout(30000),
+          AbortSignal.timeout(130000),
         ]),
       });
       const body = await response.json();
@@ -119,7 +134,11 @@ export function FoodProductForm({
       setName(data.name);
       setBrand(data.brand);
       setUnit(data.unit);
+      setDetails(data.details);
+      setPackageQuantity(data.details.packageQuantity?.toString() ?? "");
+      setPieceQuantity(data.details.pieceQuantity?.toString() ?? "");
       setSource(data.source);
+      setPhotoExpanded(false);
       setValues(
         Object.fromEntries(
           nutrientKeys.map((k) => [
@@ -132,8 +151,20 @@ export function FoodProductForm({
       if (current === generation.current)
         setError(e instanceof Error ? e.message : "Não foi possível analisar.");
     } finally {
-      if (current === generation.current) setBusy(false);
+      if (current === generation.current) {
+        setBusy(false);
+        setAnalyzing(false);
+      }
     }
+  }
+  function cancelAnalysis() {
+    generation.current++;
+    request.current?.abort();
+    setBusy(false);
+    setAnalyzing(false);
+    setNotice(
+      "Análise cancelada. A fotografia e os campos foram mantidos; uma chamada já enviada pode ser cobrada.",
+    );
   }
   function save(e: React.FormEvent) {
     e.preventDefault();
@@ -150,6 +181,13 @@ export function FoodProductForm({
       brand,
       unit,
       nutrients,
+      details: {
+        ...details,
+        packageQuantity: packageQuantity.trim()
+          ? parseWeight(packageQuantity)
+          : null,
+        pieceQuantity: pieceQuantity.trim() ? parseWeight(pieceQuantity) : null,
+      },
       source,
       sourceUrl: source === "openfoodfacts" ? (initial?.sourceUrl ?? "") : "",
       imageUrl: photo !== undefined ? "" : (initial?.imageUrl ?? ""),
@@ -199,33 +237,34 @@ export function FoodProductForm({
       <h2 className="text-lg font-semibold">
         {initial?.id ? "Editar produto" : "Adicionar produto"}
       </h2>
-      <div className="rounded-xl border border-indigo-200 p-3 dark:border-indigo-900">
-        <p className="mb-2 text-sm font-medium">
-          Fotografia do produto ou rótulo
-        </p>
-        <label className="label">
-          Tirar fotografia
-          <input
-            aria-label="Tirar fotografia do alimento"
-            className="input"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            capture="environment"
-            disabled={busy || pending}
-            onChange={(e) => void choose(e.target.files?.[0])}
-          />
-        </label>
-        <label className="label mt-2">
-          Escolher imagem
+      <details
+        className="border-b border-black/10 pb-4 dark:border-white/10"
+        open={photoExpanded}
+        onToggle={(e) => setPhotoExpanded(e.currentTarget.open)}
+      >
+        <summary className="mb-3 min-h-8 cursor-pointer text-sm font-medium">
+          {photoExpanded
+            ? "Fotografia do produto ou rótulo"
+            : "Fotografia e análise · ver ou alterar"}
+        </summary>
+        <label className="btn-ghost relative flex min-h-12 cursor-pointer items-center justify-center focus-within:ring-2 focus-within:ring-indigo-500">
+          {preview ? "Substituir fotografia" : "Adicionar fotografia"}
           <input
             aria-label="Escolher fotografia do alimento"
-            className="input"
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
             type="file"
             accept="image/jpeg,image/png,image/webp"
             disabled={busy || pending}
-            onChange={(e) => void choose(e.target.files?.[0])}
+            onChange={(e) => {
+              void choose(e.target.files?.[0]);
+              e.target.value = "";
+            }}
           />
         </label>
+        <p className="mt-2 text-xs text-zinc-500">
+          Usa a câmara ou a galeria nas opções do telemóvel. Fotografa o rótulo
+          para maior precisão.
+        </p>
         {preview && (
           <img
             src={preview}
@@ -245,6 +284,7 @@ export function FoodProductForm({
               setPhoto(null);
               setBlob(null);
               setBusy(false);
+              setAnalyzing(false);
             }}
           >
             Remover fotografia
@@ -260,10 +300,10 @@ export function FoodProductForm({
                 onChange={(e) => setMode(e.target.value)}
                 disabled={busy}
               >
-                <option value="label">Ler rótulo nutricional</option>
                 <option value="estimate">
-                  Estimar alimento (menos preciso)
+                  Preencher com IA (permite estimativas)
                 </option>
+                <option value="label">Só valores legíveis do rótulo</option>
               </select>
             </label>
             <p className="my-2 text-xs text-zinc-500">
@@ -284,7 +324,8 @@ export function FoodProductForm({
             </button>
           </>
         )}
-      </div>
+      </details>
+      {analyzing && <AIThinking food onCancel={cancelAnalysis} />}
       {notice && (
         <p
           role="status"
@@ -310,9 +351,16 @@ export function FoodProductForm({
           maxLength={80}
           value={brand}
           onChange={(e) => setBrand(e.target.value)}
-          placeholder="Ex.: Continente, Lidl"
+          placeholder="Ex.: Continente, Pingo Doce, Mercadona"
+          list="food-store-suggestions"
         />
       </label>
+      <datalist id="food-store-suggestions">
+        {foodStores.map(([id, label]) => (
+          <option key={id} value={label} />
+        ))}
+      </datalist>
+      <h3 className="font-semibold">Tabela nutricional</h3>
       <label className="label">
         Valores por
         <select
@@ -326,25 +374,78 @@ export function FoodProductForm({
         </select>
       </label>
       <p className="text-xs text-zinc-500">
-        Transcreve o rótulo por 100 g/ml. Nutrientes em gramas; deixa vazio
-        quando desconhecido. A quantidade consumida é indicada no diário.
+        Esta base é sempre 100 g/ml, não o tamanho da embalagem. A IA preenche o
+        que conseguir; revê os valores estimados e completa os desconhecidos.
       </p>
       <div className="grid grid-cols-2 gap-3">
         {nutrientKeys.map((key) => (
           <label key={key} className="label">
             {nutrientLabels[key]}
+            {key !== "kcal" && " (g)"}
             <input
               aria-label={`${nutrientLabels[key]} por 100`}
               className="input"
               inputMode="decimal"
               maxLength={12}
               required={key === "kcal"}
+              placeholder="Desconhecido"
               value={values[key]}
               onChange={(e) => setValues({ ...values, [key]: e.target.value })}
             />
+            {details.nutrientEstimates.includes(key) && (
+              <span className="text-xs text-amber-700 dark:text-amber-300">
+                Estimativa — confirmar
+              </span>
+            )}
           </label>
         ))}
       </div>
+      <section
+        className="border-t border-black/10 pt-4 dark:border-white/10"
+        aria-label="Embalagem e unidades"
+      >
+        <h3 className="font-semibold">Embalagem e unidades</h3>
+        <p className="my-2 text-xs text-zinc-500">
+          Opcional. Permite registar meia embalagem ou contar unidades no
+          diário. O peso de um amendoim é diferente do peso do saco.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="label">
+            Conteúdo da embalagem ({unit})
+            <input
+              className="input"
+              aria-label="Conteúdo da embalagem"
+              inputMode="decimal"
+              maxLength={12}
+              placeholder="Ex.: 200"
+              value={packageQuantity}
+              onChange={(e) => setPackageQuantity(e.target.value)}
+            />
+            {details.packageEstimated && (
+              <span className="text-xs text-amber-700 dark:text-amber-300">
+                Peso estimado — confirma na embalagem
+              </span>
+            )}
+          </label>
+          <label className="label">
+            Uma unidade ({unit})
+            <input
+              className="input"
+              aria-label="Peso de uma unidade"
+              inputMode="decimal"
+              maxLength={12}
+              placeholder="Ex.: 1"
+              value={pieceQuantity}
+              onChange={(e) => setPieceQuantity(e.target.value)}
+            />
+            {details.pieceEstimated && (
+              <span className="text-xs text-amber-700 dark:text-amber-300">
+                Peso médio estimado — pesar é mais preciso
+              </span>
+            )}
+          </label>
+        </div>
+      </section>
       {source !== "manual" && (
         <label className="flex items-start gap-2 text-sm">
           <input
@@ -352,7 +453,7 @@ export function FoodProductForm({
             checked={confirmed}
             onChange={(e) => setConfirmed(e.target.checked)}
           />
-          Confirmei o produto, a base por 100 g/ml e os valores{" "}
+          Confirmei o produto, os pesos, a base por 100 g/ml e os valores{" "}
           {source === "estimate-ai" ? "estimados" : "sugeridos"}.
         </label>
       )}

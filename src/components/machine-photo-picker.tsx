@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { preparePhoto } from "@/lib/prepare-photo";
+import { AIThinking } from "./ai-thinking";
 import {
   recognitionSchema,
   type Recognition,
@@ -91,7 +92,7 @@ export function MachinePhotoPicker({
     const current = ++generation.current;
     const controller = new AbortController();
     request.current = controller;
-    const timeout = setTimeout(() => controller.abort(), 30_000);
+    const timeout = setTimeout(() => controller.abort(), 130_000);
     try {
       const response = await fetch("/api/exercises/recognize", {
         method: "POST",
@@ -202,6 +203,7 @@ export function MachinePhotoPicker({
       </div>
       {photo && preview && (
         <div className="mt-4 flex flex-col gap-3">
+          {busy && <AIThinking onCancel={clear} />}
           {/* Local object URL; never send a private image through an optimizer. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img

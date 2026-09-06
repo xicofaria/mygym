@@ -313,6 +313,7 @@ export const foodProducts = sqliteTable("food_products", {
   brand: text("brand").notNull().default(""),
   unit: text("unit").notNull().default("g"),
   nutrients: text("nutrients").notNull(),
+  details: text("details").notNull().default("{}"),
   photo: text("photo"),
   imageUrl: text("image_url").notNull().default(""),
   source: text("source").notNull().default("manual"),

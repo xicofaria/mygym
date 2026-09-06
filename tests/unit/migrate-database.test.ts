@@ -171,6 +171,43 @@ async function readLedger(client: Client) {
   );
 }
 
+test("nutrition portions migration preserves pre-0004 products and snapshots", async () => {
+  await withTemporaryDatabase(async ({ url }) => {
+    const client = createClient({ url });
+    try {
+      for (let index = 0; index <= 3; index++)
+        await client.migrate(migrationStatements(index));
+      await client.execute(
+        "INSERT INTO users (id, email, name, password_hash) VALUES (1, 'nutrition@example.test', 'Test', 'hash')",
+      );
+      await client.execute(
+        "INSERT INTO food_products (id, user_id, name, nutrients) VALUES (1, 1, 'Legacy food', '{\"kcal\":600}')",
+      );
+      await client.execute(
+        "INSERT INTO food_entries (id, user_id, product_id, date, meal, quantity, snapshot) VALUES (1, 1, 1, '2026-09-05', 'Lanches', 24.5, '{\"legacy\":true}')",
+      );
+      await migrateDatabase({ url, migrationsFolder: MIGRATIONS_FOLDER });
+      const product = (
+        await client.execute(
+          "SELECT name, nutrients, details FROM food_products WHERE id = 1",
+        )
+      ).rows[0];
+      assert.equal(product.name, "Legacy food");
+      assert.equal(product.nutrients, '{"kcal":600}');
+      assert.equal(product.details, "{}");
+      const entry = (
+        await client.execute(
+          "SELECT quantity, snapshot FROM food_entries WHERE id = 1",
+        )
+      ).rows[0];
+      assert.equal(entry.quantity, 24.5);
+      assert.equal(entry.snapshot, '{"legacy":true}');
+    } finally {
+      client.close();
+    }
+  });
+});
+
 test("migra uma base vazia e valida o schema e o ledger atuais", async () => {
   await withTemporaryDatabase(async ({ url }) => {
     const result = await migrateDatabase({

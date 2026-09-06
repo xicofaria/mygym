@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { openRouterFormat } from "./openrouter-format";
 
 import {
   MAX_PHOTO_BYTES,
@@ -145,6 +146,11 @@ export async function recognizeMachine({
       },
     },
   };
+  const format = openRouterFormat(
+    model,
+    payload.text.format.name,
+    payload.text.format.schema,
+  );
   const response = await fetcher(
     provider === "openrouter"
       ? "https://openrouter.ai/api/v1/chat/completions"
@@ -153,7 +159,9 @@ export async function recognizeMachine({
       method: "POST",
       cache: "no-store",
       signal: AbortSignal.any([
-        AbortSignal.timeout(25_000),
+        AbortSignal.timeout(
+          provider === "openrouter" ? format.timeoutMs : 25_000,
+        ),
         ...(signal ? [signal] : []),
       ]),
       headers: {
@@ -164,10 +172,14 @@ export async function recognizeMachine({
         provider === "openrouter"
           ? {
               model,
-              max_tokens: 700,
+              max_tokens: format.machineTokens,
+              reasoning: format.reasoning,
               provider: { require_parameters: true, data_collection: "deny" },
               messages: [
-                { role: "system", content: payload.instructions },
+                {
+                  role: "system",
+                  content: payload.instructions + format.instruction,
+                },
                 {
                   role: "user",
                   content: [
@@ -181,14 +193,7 @@ export async function recognizeMachine({
                   ],
                 },
               ],
-              response_format: {
-                type: "json_schema",
-                json_schema: {
-                  name: payload.text.format.name,
-                  strict: true,
-                  schema: payload.text.format.schema,
-                },
-              },
+              response_format: format.response_format,
             }
           : payload,
       ),

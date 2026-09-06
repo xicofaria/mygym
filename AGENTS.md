@@ -68,7 +68,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - `AI_PROVIDER` selects openai (default) or openrouter. Both API keys are
   server-only; never add `NEXT_PUBLIC_`, log keys/images or return provider
   error bodies. OpenRouter defaults to qwen/qwen3-vl-30b-a3b-instruct; its
-  configured model must support images and strict JSON Schema.
+  configured model must support images and strict JSON Schema, except the explicit
+  `z-ai/glm-5.3-flash` adapter which uses JSON mode plus server schema validation.
 - Use `store: false` for OpenAI; OpenRouter requests `require_parameters: true`
   and `data_collection: "deny"`. Keep provider-specific privacy copy accurate.
   The app persists neither images nor recognition results.
@@ -78,7 +79,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
   Validate model output and IDs against the server catalogue. Accept no match.
   Confidence labels are estimates. Never auto-create exercises or infer loads.
 - Limits: source photo 20 MB, JPEG upload 1 MiB, longest side 1280 px,
-  catalogue 500 exercises, 25-second provider timeout, 10 attempts/min/user
+  catalogue 500 exercises, 25-second provider timeout (GLM 5.3 Flash: 120 seconds
+  with max effort; browser 130 seconds, route maxDuration 150), 10 attempts/min/user
   per instance. Additionally, reserve an atomic DB quota before provider calls:
   `AI_DAILY_LIMIT` (default 20, 1–1000) per account/Lisbon calendar day.
   Failures also consume attempts. This is not a monetary budget; configure
@@ -107,6 +109,21 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Food AI uses the existing server-only provider configuration and shared daily
   quota. Separate strict label reading from explicitly labelled estimates.
   Require review before saving and manual quantity confirmation in the diary.
+- Migration 0004 adds private product `details` JSON: package size, single edible
+  unit size and estimation flags/keys. Legacy products/snapshots use empty defaults.
+  These sizes never replace the per-100 nutrition base. Quantity conversions must
+  be positive, finite and <=10000 g/ml. History keeps the original details too.
+- Food photo input is one OS file picker (camera/gallery choices vary by device).
+  Default analysis permits estimates; label-only mode rejects any estimated fields.
+  Mark estimates per nutrient and for package/unit sizes. No package weight without
+  sufficient cues, no inferred consumed count, no solving unknown macros from kcal.
+- OFF store filters cover Continente, Lidl, Pingo Doce, Mercadona and Aldi. These
+  are collaborative samples, not complete retailer catalogues.
+- AI waiting UI shows elapsed time, reduced-motion-safe animation and cancellation,
+  never invented percentage progress or hidden reasoning. Food cancellation preserves
+  the photo/fields and ignores late responses; already-dispatched calls may be billed.
+- GLM may return unknown brand as null: normalize only that optional metadata to
+  empty string. Nutrition validation stays strict. Explanations are bounded at 1000.
 - Open Food Facts is a collaborative, non-official retailer source. Keep ODbL
   data / CC BY-SA photo attribution and source URLs. Only its fixed API host and
   images.openfoodfacts.org image host are allowed. No retailer scraping, no

@@ -14,7 +14,7 @@ import { lisbonDateKey } from "@/lib/format";
 import { enrichExercise } from "@/lib/exercise-catalog";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 150;
 // Best effort per instance, like login. Configure a shared edge limit in production.
 const limiter = new LoginRateLimiter({ maxAttempts: 10, windowMs: 60_000 });
 const json = (

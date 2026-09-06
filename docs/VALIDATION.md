@@ -53,3 +53,46 @@ devolveu HTTP 503; a integração dispõe de fallback manual, mas a consulta rea
 com sucesso continua por validar. Não foram utilizados valores fictícios como
 se fossem produtos reais de lojas. Ver [Calorias](CALORIES.md) para fontes,
 licenças, configuração e limitações. Nenhum deploy ou migração de produção foi executado.
+
+## Nutrição, porções e GLM — 2026-09-06
+
+Branch `codex/nutrition-portions`, base `fcb0a09` (main).
+
+- 99/99 testes unitários: acrescentados contratos GLM nos dois adaptadores,
+  rejeição de estimativas no modo rótulo, conversões unidades/embalagens, filtros
+  das cinco lojas e preservação de produtos/consumos na migração 0004.
+- 22/22 E2E em Chromium/Windows: seletor único, análise simulada preenche a tabela,
+  avisos por campo, recolha da área da foto, confirmação, 20 unidades e meia
+  embalagem persistidos, espera/cancelamento e movimento reduzido; regressões de
+  treino e isolamento também passam.
+- Lint, tipos e build validados na cópia Linux isolada, sem chaves reais.
+- `db:generate` confirma ausência de diferenças após gerar a migração 0004.
+- Revisão visual mobile em modo escuro, 390 px, sem overflow horizontal.
+
+Os produtos e valores das capturas são fixtures de teste, não análise real de um
+produto Continente. Os testes automáticos não fazem inferência paga.
+As limitações do peso inferido e da cobertura Open Food Facts estão na UI e na
+documentação. Nenhum merge ou deploy executado nesta tarefa.
+
+### Teste real autorizado de GLM 5.3 Flash
+
+Foi usada uma chave temporária, recebida por stdin sem eco, nunca escrita em
+ficheiros, no repositório ou em variáveis Vercel. Foram enviadas apenas duas
+imagens sintéticas (rótulo com valores conhecidos e frente genérica sem peso),
+em várias tentativas de diagnóstico. Não foi enviada a captura privada do utilizador.
+
+- O limite inicial de 25 s provocou timeouts. O modo low foi testado durante o
+  diagnóstico e abandonado a pedido do utilizador. A versão final usa max e 120 s.
+- O modelo devolveu marca null e uma explicação acima de 400 caracteres. Corrigida
+  normalização da marca desconhecida e limite textual de 1000; nutrientes continuam
+  validados sem coerção de valores desconhecidos para zero.
+- **Rótulo final:** HTTP 200, 4,078 s, JSON válido. Valores da porção de 30 g
+  convertidos corretamente para 100 g: 600 kcal, proteína 25 g, hidratos 12 g,
+  gorduras 50 g, saturados 7 g, açúcares 4 g, fibra 8 g, sal 0,2 g. Embalagem 200 g.
+- **Estimativa com max:** HTTP 200, 35,539 s, JSON válido. Todos os nutrientes
+  sugeridos marcados como estimados; embalagem sem peso permaneceu null e peso
+  médio por unidade sugerido foi marcado como estimado.
+- Estes ensaios validam integração e o rótulo de referência, não exatidão geral
+  nem estabilidade de latência entre fornecedores. Chamada abortada pode ser cobrada.
+- Foi pedido ao utilizador que revogasse a chave após os testes; não se afirma
+  que a revogação tenha sido executada pela aplicação.
