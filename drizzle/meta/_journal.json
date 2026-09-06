@@ -22,6 +22,13 @@
       "when": 1788612805888,
       "tag": "0002_brave_bloodstrike",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788633788833,
+      "tag": "0003_dark_beyonder",
+      "breakpoints": true
     }
   ]
 }

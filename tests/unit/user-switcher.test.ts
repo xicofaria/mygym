@@ -21,6 +21,7 @@ test("hides the user switcher on write and configuration pages", () => {
     "/workouts/routine",
     "/workouts/templates",
     "/exercises/new",
+    "/calories",
   ]) {
     assert.equal(supportsViewedUser(pathname), false, pathname);
   }

@@ -36,3 +36,20 @@ iPhone/Android/PWA requer ainda teste nos dispositivos usados no ginásio.
 
 Nenhum merge, deploy ou alteração à base de produção faz parte desta entrega.
 Gestão de conta/palavra-passe foi explicitamente excluída.
+
+## Calorias — 2026-09-06
+
+Base: `66b3ded` (main, após merge do PR #27). Branch: `codex/calorie-tracker`.
+
+- `npm run check`: passou em Linux, incluindo lint, tipos, 93 testes unitários e build de produção.
+- `npm run test:e2e`: 20/20 em Chromium/Windows, com base descartável e chaves de IA vazias.
+- Revisão visual das capturas mobile de Diário e Evolução, incluindo barras de progresso e navegação.
+- Migração aditiva `0003_dark_beyonder.sql`, sem alterar as tabelas de treino existentes.
+- Cobertura: porções decimais, nutrientes desconhecidos, histórico imutável, metas por data, conclusão/reabertura, períodos, isolamento entre contas e fotografias privadas.
+- Importação e IA: preparação real da fotografia no browser, envio explícito, revisão obrigatória, falhas, contratos OpenAI/OpenRouter e dados Open Food Facts simulados.
+
+Os testes simulados não medem a precisão da IA. A consulta real ao Open Food Facts
+devolveu HTTP 503; a integração dispõe de fallback manual, mas a consulta real
+com sucesso continua por validar. Não foram utilizados valores fictícios como
+se fossem produtos reais de lojas. Ver [Calorias](CALORIES.md) para fontes,
+licenças, configuração e limitações. Nenhum deploy ou migração de produção foi executado.
