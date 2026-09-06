@@ -104,6 +104,7 @@ export function FoodProductForm({
     request.current = controller;
     setBusy(true);
     setAnalyzing(true);
+    setPhotoExpanded(false);
     setError("");
     setConfirmed(false);
     try {
@@ -124,7 +125,10 @@ export function FoodProductForm({
           ? body.explanation
           : "Confirma os valores.",
       );
-      if (!body.product) return;
+      if (!body.product) {
+        setPhotoExpanded(true);
+        return;
+      }
       const data = productSchema.parse({
         ...body.product,
         source: mode === "label" ? "label-ai" : "estimate-ai",
@@ -148,8 +152,10 @@ export function FoodProductForm({
         ),
       );
     } catch (e) {
-      if (current === generation.current)
+      if (current === generation.current) {
+        setPhotoExpanded(true);
         setError(e instanceof Error ? e.message : "Não foi possível analisar.");
+      }
     } finally {
       if (current === generation.current) {
         setBusy(false);
@@ -162,6 +168,7 @@ export function FoodProductForm({
     request.current?.abort();
     setBusy(false);
     setAnalyzing(false);
+    setPhotoExpanded(true);
     setNotice(
       "Análise cancelada. A fotografia e os campos foram mantidos; uma chamada já enviada pode ser cobrada.",
     );
