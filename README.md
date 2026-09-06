@@ -10,6 +10,12 @@ UI is in **European Portuguese (pt-PT)**. Weights and measurements are
 
 ## Features
 
+- **Calorie tracker** — a private food diary with user-defined calorie goals,
+  meal portions, full nutrition, product photos and day/week/month overviews.
+  Manual entry, reviewed label/food AI and Open Food Facts barcode/store lookup.
+  Historical nutrition snapshots and goals stay stable when products change.
+  See [calorie tracker setup and limitations](docs/CALORIES.md).
+
 - **Workout logging** — pick an exercise, log sets × reps × weight, add notes
 - **Decimal weights** — enter `2.8` or `2,8` kg, including smaller increments;
   incomplete sets are flagged before saving instead of silently discarded

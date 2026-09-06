@@ -157,6 +157,16 @@ anything. Editing `/workouts/routine` saves per weekday as you toggle chips
 
 ## Conventions & gotchas
 
+- **Calorie tracker:** `/calories` is private to the signed-in user (no partner
+  switcher). `food_products` holds validated per-100-g/ml nutrition and private
+  JPEG thumbnails; `food_entries` holds immutable snapshots and quantities.
+  `calorie_goals` is effective-dated; `food_days` tracks explicit completion.
+  Editing entries reopens the day. Missing/under-target days are not successes.
+  Migration 0003 is additive. Food AI shares existing provider config/quota,
+  requires review and separates label transcription from estimates.
+  Open Food Facts imports retain attribution; its service may be unavailable.
+  See `docs/CALORIES.md` and the detailed invariants in AGENTS.md.
+
 - **Decimal weights:** `WorkoutForm` preserves string input and parses dot or
   comma with `src/lib/decimal.ts`. All rows must validate before saving; empty
   is not zero and incomplete rows must never be silently dropped.

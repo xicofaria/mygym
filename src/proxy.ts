@@ -25,7 +25,7 @@ export function proxy(request: NextRequest) {
     // surgical fix but Safari support is patchy, and this is a phone-first PWA.
     // Scripts are where the XSS protection has to hold; styles are the tradeoff.
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' blob: data:",
+    "img-src 'self' blob: data: https://images.openfoodfacts.org",
     "font-src 'self'",
     `connect-src 'self'${isDev ? " ws:" : ""}`,
     "worker-src 'self'",

@@ -302,3 +302,71 @@ export type WorkoutTemplate = typeof workoutTemplates.$inferSelect;
 export type PlannedWorkout = typeof plannedWorkouts.$inferSelect;
 export type PlannedWorkoutGroup = typeof plannedWorkoutGroups.$inferSelect;
 export type RoutineGroup = typeof routineGroups.$inferSelect;
+
+/** Nutrition is private to the signed-in account, including catalogue photos. */
+export const foodProducts = sqliteTable("food_products", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  brand: text("brand").notNull().default(""),
+  unit: text("unit").notNull().default("g"),
+  nutrients: text("nutrients").notNull(),
+  photo: text("photo"),
+  imageUrl: text("image_url").notNull().default(""),
+  source: text("source").notNull().default("manual"),
+  sourceUrl: text("source_url").notNull().default(""),
+  archived: integer("archived", { mode: "boolean" }).notNull().default(false),
+});
+
+export const foodEntries = sqliteTable("food_entries", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  productId: integer("product_id").references(() => foodProducts.id, {
+    onDelete: "set null",
+  }),
+  date: text("date").notNull(),
+  meal: text("meal").notNull(),
+  quantity: real("quantity").notNull(),
+  // Immutable product/nutrition snapshot: editing a product never rewrites history.
+  snapshot: text("snapshot").notNull(),
+});
+
+export const calorieGoals = sqliteTable(
+  "calorie_goals",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    effectiveFrom: text("effective_from").notNull(),
+    kcal: real("kcal").notNull(),
+    tolerance: real("tolerance").notNull().default(10),
+  },
+  (table) => [
+    uniqueIndex("calorie_goals_user_date_unique").on(
+      table.userId,
+      table.effectiveFrom,
+    ),
+  ],
+);
+
+export const foodDays = sqliteTable(
+  "food_days",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    userId: integer("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    date: text("date").notNull(),
+    completed: integer("completed", { mode: "boolean" })
+      .notNull()
+      .default(false),
+  },
+  (table) => [
+    uniqueIndex("food_days_user_date_unique").on(table.userId, table.date),
+  ],
+);

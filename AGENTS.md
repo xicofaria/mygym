@@ -85,6 +85,34 @@ This version has breaking changes — APIs, conventions, and file structure may 
   provider credit limits. Retain edge protection for request floods.
 - See `docs/AI_RECOGNITION.md` for configuration, privacy and validation.
 
+## Calorie tracker
+
+- `/calories` is a private diary/catalogue/settings surface; do not enable the
+  viewed-user switcher or accept a caller-supplied owner ID.
+- Nutrition is per 100 g OR per 100 ml; the consumed quantity uses that exact
+  unit. Never treat one ml as one gram, kJ as kcal, or missing nutrients as zero.
+- Store immutable validated product snapshots on consumption entries. Editing a
+  quantity with the same product retains its snapshot; product metadata edits
+  must not rewrite history. Archive removes the product photo but keeps history.
+- Goals are user-defined, effective from the current Lisbon day. Past days retain
+  their goal. A day counts towards milestones only when explicitly completed
+  and inside the user-configured range; missing days are not successes. Edits and
+  deletions reopen the affected day. No calorie recommendations or deficit rewards.
+- New tables: food_products, food_entries, calorie_goals, food_days (migration
+  0003). Keep published 0000–0002 immutable.
+- Product photos are an explicit exception to transient workout photos: private
+  JPEG thumbnails, up to 160 KB decoded, served via authenticated no-store
+  `/api/calories/photos/[id]`. Never send all photo blobs in page props, cache
+  them in the service worker, or expose them to the partner account.
+- Food AI uses the existing server-only provider configuration and shared daily
+  quota. Separate strict label reading from explicitly labelled estimates.
+  Require review before saving and manual quantity confirmation in the diary.
+- Open Food Facts is a collaborative, non-official retailer source. Keep ODbL
+  data / CC BY-SA photo attribution and source URLs. Only its fixed API host and
+  images.openfoodfacts.org image host are allowed. No retailer scraping, no
+  automatic public uploads of private photos. Handle unavailable/incomplete data.
+- See `docs/CALORIES.md` for research, privacy, assumptions and validation.
+
 ## Validation and handoff
 
 - Run `npm run check` and `npm run test:e2e` for these workout changes.

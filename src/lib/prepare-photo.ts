@@ -1,7 +1,10 @@
 import { MAX_PHOTO_BYTES } from "./recognition-contract";
 
 /** Re-encode locally: discard EXIF (including GPS) and bound upload size. */
-export async function preparePhoto(file: File): Promise<Blob> {
+export async function preparePhoto(
+  file: File,
+  options: { maxSide?: number; maxBytes?: number } = {},
+): Promise<Blob> {
   if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
     throw new Error(
       "Escolhe uma imagem JPEG, PNG ou WebP. Se estiver em HEIC, exporta-a como JPEG.",
@@ -18,7 +21,8 @@ export async function preparePhoto(file: File): Promise<Blob> {
       throw new Error("Fotografia inválida.");
     const scale = Math.min(
       1,
-      1280 / Math.max(image.naturalWidth, image.naturalHeight),
+      (options.maxSide ?? 1280) /
+        Math.max(image.naturalWidth, image.naturalHeight),
     );
     const canvas = document.createElement("canvas");
     canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
@@ -35,7 +39,8 @@ export async function preparePhoto(file: File): Promise<Blob> {
       const blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob(resolve, "image/jpeg", quality),
       );
-      if (blob && blob.size <= MAX_PHOTO_BYTES) return blob;
+      if (blob && blob.size <= (options.maxBytes ?? MAX_PHOTO_BYTES))
+        return blob;
     }
     throw new Error("A fotografia é demasiado grande. Experimenta outra.");
   } finally {

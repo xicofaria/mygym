@@ -69,6 +69,19 @@ const items = [
       />
     ),
   },
+  {
+    href: "/calories",
+    label: "Calorias",
+    icon: (
+      <Icon
+        path={
+          <>
+            <path d="M7 3v6m-3-6v6m6-6v6M4 9h6M7 9v12M17 3v18M17 3c4 3 4 8 0 8" />
+          </>
+        }
+      />
+    ),
+  },
 ];
 
 export function BottomNav() {
