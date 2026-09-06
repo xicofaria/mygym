@@ -15,7 +15,7 @@ export const nutrientLabels: Record<(typeof nutrientKeys)[number], string> = {
   kcal: "Energia (kcal)",
   protein: "Proteína",
   carbs: "Hidratos",
-  fat: "Lípidos",
+  fat: "Gorduras",
   saturated: "Saturados",
   sugars: "Açúcares",
   fiber: "Fibra",
@@ -48,11 +48,34 @@ export const photoSchema = z
   .max(220000)
   .regex(/^data:image\/jpeg;base64,[A-Za-z0-9+/]+={0,2}$/)
   .nullable();
+export const foodStores = [
+  ["continente", "Continente"],
+  ["lidl", "Lidl"],
+  ["pingo-doce", "Pingo Doce"],
+  ["mercadona", "Mercadona"],
+  ["aldi", "Aldi"],
+] as const;
+const portionAmount = z.number().finite().positive().max(10000).nullable();
+export const productDetailsSchema = z.object({
+  packageQuantity: portionAmount,
+  pieceQuantity: portionAmount,
+  packageEstimated: z.boolean(),
+  pieceEstimated: z.boolean(),
+  nutrientEstimates: z.array(z.enum(nutrientKeys)).max(8),
+});
+export const emptyProductDetails: z.infer<typeof productDetailsSchema> = {
+  packageQuantity: null,
+  pieceQuantity: null,
+  packageEstimated: false,
+  pieceEstimated: false,
+  nutrientEstimates: [],
+};
 export const productSchema = z.object({
   name: z.string().trim().min(1).max(120),
   brand: z.string().trim().max(80),
   unit: z.enum(["g", "ml"]),
   nutrients: nutrientsSchema,
+  details: productDetailsSchema.default(emptyProductDetails),
   source: z.enum(["manual", "label-ai", "estimate-ai", "openfoodfacts"]),
   sourceUrl: z.union([
     z.literal(""),
@@ -77,6 +100,25 @@ export type FoodProduct = z.infer<typeof productSchema> & {
   id: number;
   hasPhoto: boolean;
 };
+export function portionQuantity(
+  amount: number,
+  mode: "weight" | "package" | "pieces",
+  details: z.infer<typeof productDetailsSchema>,
+) {
+  const factor =
+    mode === "weight"
+      ? 1
+      : mode === "package"
+        ? details.packageQuantity
+        : details.pieceQuantity;
+  const quantity = factor === null ? NaN : amount * factor;
+  return Number.isFinite(quantity) &&
+    amount > 0 &&
+    quantity > 0 &&
+    quantity <= 10000
+    ? quantity
+    : NaN;
+}
 export const meals = ["Pequeno-almoço", "Almoço", "Jantar", "Lanches"] as const;
 export const entryInputSchema = z.object({
   productId: z.number().int().positive(),

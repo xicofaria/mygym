@@ -29,6 +29,13 @@
       "when": 1788633788833,
       "tag": "0003_dark_beyonder",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1788700002396,
+      "tag": "0004_furry_shocker",
+      "breakpoints": true
     }
   ]
 }

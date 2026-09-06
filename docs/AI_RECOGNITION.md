@@ -18,7 +18,17 @@ AI_DAILY_LIMIT="20"
 O modelo predefinido tem entrada de imagem e endpoints com respostas estruturadas
 no catálogo OpenRouter verificado em 2026-09-05. A disponibilidade depende do
 fornecedor/conta. Outros modelos são configuráveis, mas têm de aceitar imagens
-e JSON Schema; um modelo exclusivamente textual não serve.
+e JSON Schema; um modelo exclusivamente textual não serve. Exceção explícita:
+`z-ai/glm-5.3-flash` usa `json_object`, com schema incluído nas instruções e
+validação dos resultados no servidor, tanto para máquinas como para alimentos.
+Esta compatibilidade foi implementada segundo a ficha OpenRouter consultada em
+2026-09-06; testes simulados não garantem latência ou precisão com fotografias reais.
+O GLM usa esforço `max` solicitado pelo utilizador: timeout servidor 120 s,
+browser 130 s, `maxDuration=150`, saída até 4000 tokens para máquinas / 8000 para
+alimentos. Outros modelos mantêm 25 s no fornecedor. O estado de espera mostra
+tempo real decorrido, sem percentagens fictícias; cancelar não garante estorno.
+Confirmar [duração suportada pela Vercel](https://vercel.com/docs/functions/configuring-functions/duration)
+no projeto (Fluid Compute ou plano compatível).
 
 A integração usa [imagens em Chat Completions](https://openrouter.ai/docs/guides/overview/multimodal/image-understanding)
 e [Structured Outputs](https://openrouter.ai/docs/guides/features/structured-outputs).

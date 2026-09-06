@@ -165,6 +165,11 @@ anything. Editing `/workouts/routine` saves per weekday as you toggle chips
   Migration 0003 is additive. Food AI shares existing provider config/quota,
   requires review and separates label transcription from estimates.
   Open Food Facts imports retain attribution; its service may be unavailable.
+  Migration 0004 adds product details (package/unit sizes and estimation flags).
+  Single food photo picker; per-field estimates; diary accepts grams/ml, counted
+  units or fractional packs. Never confuse package size with the 100g/ml base.
+  GLM 5.3 Flash uses explicit JSON mode plus server validation; other models keep
+  strict JSON Schema. OFF supports five store samples, not complete inventories.
   See `docs/CALORIES.md` and the detailed invariants in AGENTS.md.
 
 - **Decimal weights:** `WorkoutForm` preserves string input and parses dot or

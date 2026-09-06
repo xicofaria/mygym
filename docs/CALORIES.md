@@ -8,7 +8,7 @@ A nova tab **Calorias** tem três áreas:
   quantidade em g ou ml, editar/eliminar consumos e concluir/reabrir o dia.
 - **Produtos:** catálogo privado, nome/marca, valores nutricionais, fotografia,
   criação/edição/arquivo, pesquisa local e consulta externa por código de barras
-  ou amostras de produtos associados ao Continente/Lidl em Portugal.
+  ou amostras de produtos associados ao Continente, Lidl, Pingo Doce, Mercadona e Aldi em Portugal.
 - **Evolução:** dia, semana (segunda–domingo) e mês civil; kcal registadas,
   média dos dias com registos, dias concluídos, dias dentro da meta e dias em falta.
 
@@ -39,7 +39,7 @@ Reutiliza `AI_PROVIDER`, as chaves/modelos OpenAI ou OpenRouter e a quota diári
 partilhada com identificação de máquinas. Não requer outra chave.
 
 1. Criar produto e tirar/escolher fotografia.
-2. Escolher **Ler rótulo nutricional** (predefinido) ou **Estimar alimento**.
+2. Usar **Preencher com IA (permite estimativas)** (predefinido) ou **Só valores legíveis do rótulo**.
 3. Rever o aviso do fornecedor e carregar em Analisar alimento.
 4. Rever os campos sugeridos, corrigir se necessário e confirmar a caixa de revisão.
 5. Guardar o produto e indicar no diário a quantidade efetivamente consumida.
@@ -49,6 +49,35 @@ Se a foto só mostrar a frente da embalagem, pode pedir uma foto da tabela.
 O modo estimativa é explicitamente aproximado: a imagem não revela, de forma
 fiável, quantidade, receita, óleos adicionados ou preparação. As estimativas
 permanecem identificadas no diário. Nunca guardar automaticamente sugestões.
+
+### Tabela, embalagem e quantidade consumida
+
+- Um único seletor de fotografia abre as opções disponibilizadas pelo sistema;
+  câmara/galeria dependem do browser e dispositivo. Não se promete captura nativa no desktop.
+- A tabela tem gorduras (lípidos), saturados, proteína, hidratos, açúcares, fibra e
+  sal em gramas, e energia em kcal. Cada campo estimado tem um aviso próprio.
+- O prompt lê primeiro os dados visíveis, normaliza porções legíveis para 100,
+  converte kJ e preenche os restantes nutrientes por estimativa quando há base para
+  isso. Não inventa zeros nem resolve macros desconhecidos por subtração das kcal.
+- Conteúdo da embalagem e peso de uma unidade são campos opcionais separados.
+  A IA pode sugerir valores com indícios suficientes, sempre marcados se estimados;
+  uma embalagem sem escala/peso/formato identificável fica com peso desconhecido.
+- No diário pode-se indicar g/ml, unidades (ex.: 20 amendoins) ou embalagens (ex.:
+  0,5). A conversão usa os pesos revistos do produto e mostra kcal e nutrientes
+  antes de guardar. Pesar é mais preciso do que usar um peso médio por unidade.
+- O histórico mantém os pesos e nutrientes originais. A indicação aproximada de
+  unidades no histórico é calculada desse peso médio, não uma contagem por visão.
+- `OPENROUTER_VISION_MODEL=z-ai/glm-5.3-flash` tem um adaptador JSON explícito
+  com validação Zod no servidor. A [ficha OpenRouter](https://openrouter.ai/z-ai/glm-5.3-flash)
+  consultada em 2026-09-06 anuncia visão e JSON sem enforcement de JSON Schema.
+  Os outros modelos mantêm o contrato estrito anterior. Os testes automáticos não
+  usam chaves; houve um teste real separado, autorizado, descrito em VALIDATION.md.
+- O GLM usa `reasoning.effort=max`, orçamento de saída de 8000 tokens para alimentos
+  e timeout de 120 s. O browser aguarda até 130 s e a rota permite 150 s.
+  O estado de espera tem tempo decorrido, animação respeitando movimento reduzido
+  e cancelamento; não representa percentagens nem expõe o raciocínio do modelo.
+  Cancelar conserva foto/campos, mas uma chamada já enviada pode ser cobrada.
+  Vercel deve permitir esta duração (Fluid Compute ou plano compatível).
 
 ## Fotografias privadas
 
@@ -82,7 +111,7 @@ Foram consultadas fontes primárias em 2026-09-05:
 
 A integração escolhe Open Food Facts para produtos reais com origem identificável,
 em vez de copiar indiscriminadamente fotografias das lojas. Não é um catálogo
-oficial/completo/atualizado do Continente ou Lidl. Os nomes, unidades, receitas e
+oficial/completo/atualizado destas cinco lojas. Os nomes, unidades, receitas e
 rótulos devem ser confirmados na embalagem. As amostras de loja não são pesquisa
 integral: o código de barras é a identificação mais específica implementada.
 
@@ -104,12 +133,17 @@ Aplicar `npm run db:migrate` antes de iniciar a versão. A migração 0003 acres
 de treino ou apagar dados. Fazer backup antes de migrar produção; não correr seed
 para obter a funcionalidade.
 
+A migração aditiva 0004 acrescenta `food_products.details` com default vazio;
+produtos e snapshots antigos continuam válidos. O hook de produção já existente
+no projeto aplica migrações no deploy Vercel de produção; esta tarefa não faz deploy.
+
 - Unitários: porções decimais, valores desconhecidos, metas históricas, margens,
   semanas/meses, fontes/URLs e ambos os adaptadores de IA.
 - E2E: diário e metas, snapshots imutáveis, fotos privadas, separação entre contas,
   edição/eliminação, períodos, confirmação de IA/importação e chave ausente.
 - Testes de IA e catálogo externo usam mocks e não têm custos de inferência.
-- Falta validar com fotografias representativas e chave real, captura nativa
+- O teste real com chave temporária confirmou um rótulo sintético e uma estimativa,
+  não precisão geral. Falta validar fotografias representativas, captura nativa
   iPhone/Android/PWA e disponibilidade do Open Food Facts no alojamento.
 
 O formulário mantém os campos se uma gravação falhar enquanto estiver aberto.

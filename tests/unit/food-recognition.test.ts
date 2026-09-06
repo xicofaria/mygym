@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { recognizeFood } from "../../src/lib/food-recognition";
-import { emptyNutrients } from "../../src/lib/nutrition";
+import { recognizeMachine } from "../../src/lib/machine-recognition";
+import { openRouterFormat } from "../../src/lib/openrouter-format";
+import { emptyNutrients, emptyProductDetails } from "../../src/lib/nutrition";
 const photo = Buffer.from([255, 216, 255, 224]);
 const value = {
   product: {
@@ -9,9 +11,40 @@ const value = {
     brand: "Teste",
     unit: "g",
     nutrients: { ...emptyNutrients, kcal: 80 },
+    details: emptyProductDetails,
   },
   explanation: "Confirma o rótulo.",
 };
+test("GLM max effort has a two-minute budget; unknown brand is normalized, not nutrients", async () => {
+  const format = openRouterFormat("z-ai/glm-5.3-flash", "test", {});
+  assert.equal(format.timeoutMs, 120000);
+  assert.equal(format.foodTokens, 8000);
+  assert.equal(format.reasoning?.effort, "max");
+  assert.equal(openRouterFormat("other", "test", {}).timeoutMs, 25000);
+  const result = await recognizeFood({
+    photo,
+    apiKey: "test",
+    model: "z-ai/glm-5.3-flash",
+    provider: "openrouter",
+    mode: "label",
+    fetcher: async () =>
+      Response.json({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content: JSON.stringify({
+                ...value,
+                product: { ...value.product, brand: null },
+              }),
+            },
+          },
+        ],
+      }),
+  });
+  assert.equal(result.product?.brand, "");
+  assert.equal(result.product?.nutrients.protein, null);
+});
 test("both food vision providers request strict per-100 output and do not infer portions", async () => {
   for (const provider of ["openai", "openrouter"] as const) {
     const result = await recognizeFood({
@@ -50,6 +83,97 @@ test("both food vision providers request strict per-100 output and do not infer 
     });
     assert.deepEqual(result, value);
   }
+});
+test("GLM uses JSON mode with schema instructions and validates both vision flows", async () => {
+  const fetcher: typeof fetch = async (_url, options) => {
+    const body = JSON.parse(String(options?.body));
+    assert.equal(body.response_format.type, "json_object");
+    assert.deepEqual(body.reasoning, { effort: "max", exclude: true });
+    assert.equal(body.provider.require_parameters, true);
+    assert.equal(body.provider.data_collection, "deny");
+    assert.match(body.messages[0].content, /schema:/);
+    const food = body.messages[0].content.includes("nutrientEstimates");
+    if (food) {
+      assert.match(body.messages[0].content, /100\/peso da porção/);
+      assert.match(body.messages[0].content, /Sem escala/);
+    }
+    return Response.json({
+      choices: [
+        {
+          finish_reason: "stop",
+          message: {
+            content: JSON.stringify(
+              food
+                ? value
+                : { candidates: [], explanation: "Sem correspondência." },
+            ),
+          },
+        },
+      ],
+    });
+  };
+  const config = {
+    photo,
+    apiKey: "test",
+    model: "z-ai/glm-5.3-flash",
+    provider: "openrouter" as const,
+    fetcher,
+  };
+  assert.deepEqual(
+    (await recognizeFood({ ...config, mode: "estimate" })).product,
+    value.product,
+  );
+  assert.deepEqual(
+    (await recognizeMachine({ ...config, catalog: [{ id: 1, name: "Teste" }] }))
+      .candidates,
+    [],
+  );
+  await assert.rejects(
+    recognizeFood({
+      ...config,
+      mode: "estimate",
+      fetcher: async () =>
+        Response.json({
+          choices: [
+            {
+              finish_reason: "stop",
+              message: { content: '{"product":{"name":"invented"}}' },
+            },
+          ],
+        }),
+    }),
+  );
+});
+test("strict label mode rejects estimated fields, estimate mode preserves provenance", async () => {
+  const product = {
+    ...value.product,
+    details: {
+      ...emptyProductDetails,
+      packageQuantity: 200,
+      packageEstimated: true,
+      nutrientEstimates: ["protein"],
+    },
+  };
+  const config = {
+    photo,
+    apiKey: "test",
+    model: "test",
+    provider: "openrouter" as const,
+    fetcher: async () =>
+      Response.json({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: { content: JSON.stringify({ ...value, product }) },
+          },
+        ],
+      }),
+  };
+  assert.deepEqual(
+    (await recognizeFood({ ...config, mode: "estimate" })).product?.details,
+    product.details,
+  );
+  await assert.rejects(recognizeFood({ ...config, mode: "label" }));
 });
 test("food analysis allows no match and rejects incomplete or invalid nutrition", async () => {
   const run = (body: unknown) =>

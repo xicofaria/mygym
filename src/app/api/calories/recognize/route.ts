@@ -9,7 +9,7 @@ import { recognizeFood } from "@/lib/food-recognition";
 import { LoginRateLimiter } from "@/lib/login-rate-limit-core";
 const limiter = new LoginRateLimiter({ maxAttempts: 10, windowMs: 60000 });
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 150;
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 export async function POST(request: Request) {

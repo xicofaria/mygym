@@ -3,6 +3,9 @@ import test from "node:test";
 import {
   dayResult,
   emptyNutrients,
+  emptyProductDetails,
+  foodStores,
+  portionQuantity,
   goalForDate,
   nutritionTotal,
   periodDates,
@@ -23,6 +26,47 @@ const snapshot = productSchema.parse({
   source: "manual",
   sourceUrl: "",
   imageUrl: "",
+});
+test("portions convert counted units and fractional packs without changing the 100g base", () => {
+  const details = {
+    ...emptyProductDetails,
+    packageQuantity: 200,
+    pieceQuantity: 1.2,
+    pieceEstimated: true,
+  };
+  assert.equal(portionQuantity(20, "pieces", details), 24);
+  assert.equal(portionQuantity(0.5, "package", details), 100);
+  assert.equal(portionQuantity(125.5, "weight", details), 125.5);
+  assert.ok(Number.isNaN(portionQuantity(1, "pieces", emptyProductDetails)));
+  for (const amount of [0, -1, Infinity, NaN, 10001])
+    assert.ok(Number.isNaN(portionQuantity(amount, "weight", details)));
+  assert.equal(
+    productSchema.parse({ ...snapshot, details: undefined }).details
+      .packageQuantity,
+    null,
+  );
+  assert.equal(
+    productSchema.safeParse({
+      ...snapshot,
+      details: { ...details, pieceQuantity: 0 },
+    }).success,
+    false,
+  );
+});
+test("all five stores use fixed OFF store filters", async () => {
+  for (const [store] of foodStores) {
+    await lookupFood({
+      store,
+      fetcher: async (input) => {
+        const url = new URL(String(input));
+        assert.equal(url.hostname, "world.openfoodfacts.org");
+        assert.equal(url.searchParams.get("stores_tags"), store);
+        assert.equal(url.searchParams.get("countries_tags"), "portugal");
+        return Response.json({ products: [] });
+      },
+    });
+  }
+  await assert.rejects(lookupFood({ store: "https://evil.test" }));
 });
 test("scales decimal portions without premature rounding; missing nutrients stay unknown", () => {
   assert.equal(scaleNutrition(snapshot.nutrients, 125.5).kcal, 100.4);

@@ -29,6 +29,171 @@ async function upload(page: Page) {
   });
   await expect(page.getByAltText("Fotografia do produto")).toBeVisible();
 }
+test("thinking indicator shows elapsed time, supports reduced motion and cancels without clearing fields", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce", colorScheme: "dark" });
+  await page
+    .getByRole("button", { name: "+ Criar produto / fotografia" })
+    .click();
+  await upload(page);
+  await page
+    .getByLabel("Nome do alimento", { exact: true })
+    .fill("Manter estes dados");
+  let finish!: () => void;
+  const waiting = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  await page.route("**/api/calories/recognize", async (route) => {
+    await waiting;
+    await route
+      .fulfill({
+        json: { product: null, explanation: "Resposta tardia a ignorar" },
+      })
+      .catch(() => {});
+  });
+  await page.getByRole("button", { name: "Analisar alimento" }).click();
+  const thinking = page.getByLabel("Análise IA em curso");
+  await expect(thinking).toContainText("A analisar a fotografia e a calcular");
+  await expect(thinking).toContainText("1 s", { timeout: 5000 });
+  await expect(thinking.locator('[aria-hidden="true"] span').first()).toHaveCSS(
+    "animation-name",
+    "none",
+  );
+  await page.screenshot({
+    path: testInfo.outputPath("nutrition-thinking-mobile.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page
+    .getByRole("button", { name: "Cancelar análise", exact: true })
+    .click();
+  finish();
+  await expect(thinking).toHaveCount(0);
+  await expect(
+    page.getByLabel("Nome do alimento", { exact: true }),
+  ).toHaveValue("Manter estes dados");
+  await expect(page.getByAltText("Fotografia do produto")).toBeVisible();
+  await expect(page.getByRole("status")).toContainText("Análise cancelada");
+});
+
+test("one photo picker fills nutrition and estimated portions; units and half packs persist", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await login(page);
+  await page
+    .getByRole("button", { name: "+ Criar produto / fotografia" })
+    .click();
+  await expect(page.locator('input[type="file"]')).toHaveCount(1);
+  const nutrients = {
+    kcal: 600,
+    protein: 25,
+    carbs: 12,
+    fat: 50,
+    saturated: 7,
+    sugars: 4,
+    fiber: 8,
+    salt: 0.2,
+  };
+  await page.route("**/api/calories/recognize", (route) =>
+    route.fulfill({
+      json: {
+        product: {
+          name: "Amendoins de teste",
+          brand: "Teste",
+          unit: "g",
+          nutrients,
+          details: {
+            packageQuantity: 200,
+            pieceQuantity: 1.2,
+            packageEstimated: true,
+            pieceEstimated: true,
+            nutrientEstimates: ["protein", "carbs", "fiber"],
+          },
+        },
+        explanation:
+          "Composição típica estimada; confirma o peso da embalagem e de uma unidade.",
+      },
+    }),
+  );
+  await upload(page);
+  await page.getByRole("button", { name: "Analisar alimento" }).click();
+  await expect(page.getByLabel("Gorduras por 100")).toHaveValue("50");
+  await expect(page.getByLabel("Proteína por 100")).toHaveValue("25");
+  await expect(page.getByLabel("Fibra por 100")).toHaveValue("8");
+  await expect(page.getByAltText("Fotografia do produto")).toBeHidden();
+  await expect(
+    page.getByLabel("Conteúdo da embalagem", { exact: true }),
+  ).toHaveValue("200");
+  await expect(page.getByLabel("Peso de uma unidade")).toHaveValue("1.2");
+  await expect(
+    page.getByText("Estimativa — confirmar", { exact: true }),
+  ).toHaveCount(3);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  ).toBe(true);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({
+    path: testInfo.outputPath("nutrition-product-mobile.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page.getByRole("checkbox").check();
+  await page
+    .getByRole("button", { name: "Guardar produto", exact: true })
+    .click();
+  await page.getByLabel("Modo de quantidade").selectOption("pieces");
+  await page.getByLabel("Quantidade consumida").fill("20");
+  await expect(
+    page.getByRole("status").filter({ hasText: "144 kcal para 24 g" }),
+  ).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({
+    path: testInfo.outputPath("nutrition-portions-mobile.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page
+    .getByRole("button", { name: "Registar consumo", exact: true })
+    .click();
+  const entries = page.getByRole("article", {
+    name: "Amendoins de teste",
+    exact: true,
+  });
+  await expect(entries).toContainText("20 unidades");
+  await page.reload();
+  await expect(entries).toContainText("144 kcal");
+  await page
+    .getByLabel("Alimento", { exact: true })
+    .selectOption({ label: "Amendoins de teste · Teste" });
+  await page.getByLabel("Modo de quantidade").selectOption("package");
+  await page.getByRole("button", { name: "½ embalagem", exact: true }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "600 kcal para 100 g" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Registar consumo", exact: true })
+    .click();
+  await expect(entries).toHaveCount(2);
+  page.once("dialog", (d) => d.accept());
+  await entries
+    .first()
+    .getByRole("button", { name: "Eliminar consumo", exact: true })
+    .click();
+  await expect(entries).toHaveCount(1);
+  page.once("dialog", (d) => d.accept());
+  await entries
+    .first()
+    .getByRole("button", { name: "Eliminar consumo", exact: true })
+    .click();
+  await expect(entries).toHaveCount(0);
+});
 test("calorie diary persists decimal quantities, private photos, immutable nutrition and period goals", async ({
   page,
   browser,
@@ -52,7 +217,7 @@ test("calorie diary persists decimal quantities, private photos, immutable nutri
   await page.getByLabel("Energia (kcal) por 100").fill("200");
   await page.getByLabel("Proteína por 100").fill("10");
   await page.getByLabel("Hidratos por 100").fill("20");
-  await page.getByLabel("Lípidos por 100").fill("5");
+  await page.getByLabel("Gorduras por 100").fill("5");
   await page
     .getByRole("button", { name: "Guardar produto", exact: true })
     .click();

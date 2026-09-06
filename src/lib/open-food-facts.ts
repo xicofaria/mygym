@@ -1,8 +1,13 @@
 import { z } from "zod";
-import { productSchema, type FoodProduct } from "./nutrition";
+import {
+  emptyProductDetails,
+  foodStores,
+  productSchema,
+  type FoodProduct,
+} from "./nutrition";
 
 const fields =
-  "code,product_name,product_name_pt,brands,nutriments,image_front_small_url,product_quantity_unit,nutrition_data_per";
+  "code,product_name,product_name_pt,brands,nutriments,image_front_small_url,product_quantity,product_quantity_unit,nutrition_data_per";
 export function parseOpenFoodProduct(
   value: unknown,
 ): Omit<FoodProduct, "id" | "hasPhoto"> | null {
@@ -15,6 +20,7 @@ export function parseOpenFoodProduct(
       nutriments: z.record(z.string(), z.unknown()),
       image_front_small_url: z.string().optional(),
       product_quantity_unit: z.string().optional(),
+      product_quantity: z.number().optional(),
       nutrition_data_per: z.string().optional(),
     })
     .safeParse(value);
@@ -30,13 +36,14 @@ export function parseOpenFoodProduct(
       ? number("energy-kj_100g")! / 4.184
       : null);
   if (kcal === null) return null;
+  const unit =
+    p.product_quantity_unit === "ml" || p.nutrition_data_per === "100ml"
+      ? "ml"
+      : "g";
   const result = productSchema.safeParse({
     name: (p.product_name_pt || p.product_name || "").slice(0, 120),
     brand: (p.brands ?? "").slice(0, 80),
-    unit:
-      p.product_quantity_unit === "ml" || p.nutrition_data_per === "100ml"
-        ? "ml"
-        : "g",
+    unit,
     nutrients: {
       kcal,
       protein: number("proteins_100g"),
@@ -48,6 +55,16 @@ export function parseOpenFoodProduct(
       salt: number("salt_100g"),
     },
     source: "openfoodfacts",
+    details: {
+      ...emptyProductDetails,
+      packageQuantity:
+        p.product_quantity_unit === unit &&
+        p.product_quantity &&
+        p.product_quantity > 0 &&
+        p.product_quantity <= 10000
+          ? p.product_quantity
+          : null,
+    },
     sourceUrl: `https://world.openfoodfacts.org/product/${p.code}`,
     imageUrl: p.image_front_small_url?.startsWith(
       "https://images.openfoodfacts.org/",
@@ -71,9 +88,9 @@ export async function lookupFood({
     url = new URL(
       `https://world.openfoodfacts.org/api/v2/product/${barcode}.json`,
     );
-  else if (store === "continente" || store === "lidl") {
+  else if (foodStores.some(([id]) => id === store)) {
     url = new URL("https://world.openfoodfacts.org/api/v2/search");
-    url.searchParams.set("stores_tags", store);
+    url.searchParams.set("stores_tags", store!);
     url.searchParams.set("countries_tags", "portugal");
     url.searchParams.set("page_size", "12");
   } else

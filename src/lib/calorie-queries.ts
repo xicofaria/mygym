@@ -2,7 +2,12 @@ import "server-only";
 import { and, asc, desc, eq, gte, lte, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { calorieGoals, foodDays, foodEntries, foodProducts } from "@/db/schema";
-import { productSchema, type FoodEntry, type FoodProduct } from "./nutrition";
+import {
+  emptyProductDetails,
+  productSchema,
+  type FoodEntry,
+  type FoodProduct,
+} from "./nutrition";
 
 export async function getCalorieData(
   userId: number,
@@ -17,6 +22,7 @@ export async function getCalorieData(
         brand: foodProducts.brand,
         unit: foodProducts.unit,
         nutrients: foodProducts.nutrients,
+        details: foodProducts.details,
         source: foodProducts.source,
         sourceUrl: foodProducts.sourceUrl,
         imageUrl: foodProducts.imageUrl,
@@ -62,7 +68,11 @@ export async function getCalorieData(
   ]);
   return {
     products: products.map((p) => ({
-      ...productSchema.parse({ ...p, nutrients: JSON.parse(p.nutrients) }),
+      ...productSchema.parse({
+        ...p,
+        nutrients: JSON.parse(p.nutrients),
+        details: { ...emptyProductDetails, ...JSON.parse(p.details) },
+      }),
       id: p.id,
       hasPhoto: p.hasPhoto,
     })) as FoodProduct[],

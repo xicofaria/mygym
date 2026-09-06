@@ -6,7 +6,12 @@ import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { calorieGoals, foodDays, foodEntries, foodProducts } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
-import { entryInputSchema, photoSchema, productSchema } from "@/lib/nutrition";
+import {
+  emptyProductDetails,
+  entryInputSchema,
+  photoSchema,
+  productSchema,
+} from "@/lib/nutrition";
 import { isCurrentOrPastDateKey } from "@/lib/workout-calendar";
 import { lisbonDateKey } from "@/lib/format";
 
@@ -22,7 +27,7 @@ export async function saveFoodProduct(input: unknown) {
     .extend({ id: idSchema.optional(), photo: photoSchema.optional() })
     .safeParse(input);
   if (!parsed.success) return invalid;
-  const { id, photo, nutrients, ...fields } = parsed.data;
+  const { id, photo, nutrients, details, ...fields } = parsed.data;
   if (photo) {
     const bytes = Buffer.from(photo.split(",")[1], "base64");
     if (
@@ -36,6 +41,7 @@ export async function saveFoodProduct(input: unknown) {
   const values = {
     ...fields,
     nutrients: JSON.stringify(nutrients),
+    details: JSON.stringify(details),
     ...(photo !== undefined ? { photo } : {}),
   };
   const rows = id
@@ -103,6 +109,10 @@ export async function saveFoodEntry(input: unknown) {
             productSchema.parse({
               ...product,
               nutrients: JSON.parse(product!.nutrients),
+              details: {
+                ...emptyProductDetails,
+                ...JSON.parse(product!.details),
+              },
             }),
           );
     const row = { ...values, snapshot, userId: user.id };
