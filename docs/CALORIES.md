@@ -48,14 +48,42 @@ partilhada com identificação de máquinas. Não requer outra chave.
 1. Criar produto e tirar/escolher fotografia.
 2. Usar **Preencher com IA (permite estimativas)** (predefinido) ou **Só valores legíveis do rótulo**.
 3. Rever o aviso do fornecedor e carregar em Analisar alimento.
-4. Rever os campos sugeridos, corrigir se necessário e confirmar a caixa de revisão.
-5. Guardar o produto e indicar no diário a quantidade efetivamente consumida.
+4. Se surgirem correspondências do Open Food Facts, escolher **Usar** numa da
+   lista ou **Nenhum destes — manter a análise IA**.
+5. Rever os campos sugeridos, corrigir se necessário e confirmar a caixa de revisão.
+6. Guardar o produto e indicar no diário a quantidade efetivamente consumida.
 
 O modo rótulo pede apenas dados legíveis e admite ausência de correspondência.
 Se a foto só mostrar a frente da embalagem, pode pedir uma foto da tabela.
 O modo estimativa é explicitamente aproximado: a imagem não revela, de forma
 fiável, quantidade, receita, óleos adicionados ou preparação. As estimativas
 permanecem identificadas no diário. Nunca guardar automaticamente sugestões.
+
+### Correspondência com produtos reais
+
+Cada análise devolve também uma identificação opcional: código de barras apenas
+se os dígitos estiverem impressos e legíveis (fotos frontais normalmente não
+têm; o prompt proíbe inventar dígitos e dígitos inválidos ficam `null` no
+servidor), além do nome e da marca identificados. O servidor tenta resolver no
+Open Food Facts: primeiro por código de barras exato, depois por pesquisa
+textual com ordenação difusa tolerante a typos e a nomes noutras línguas.
+Devolve até três correspondências validadas, sempre para ação explícita
+(**Usar**); descartar a lista mantém os valores da análise IA. Escolher uma
+correspondência aplica a fonte `openfoodfacts` com a atribuição ODbL/CC BY-SA
+já usada na consulta manual. A resolução no catálogo não consome quota de IA e
+uma indisponibilidade devolve `candidates: []` sem falhar a análise.
+
+Experiências reais autorizadas (setembro de 2026, descritas em VALIDATION.md):
+a chamada combinada (identificação + rótulo) não degradou a identificação —
+nenhum código de barras inventado, marca correta em todas as fotos de teste,
+estimativas sempre marcadas. As estimativas a partir de fotos frontais variaram
+0–7% entre chamadas, o que confirma que só a revisão humana e o catálogo dão
+valores oficiais. O backend de pesquisa do Open Food Facts devolveu HTTP 503 em
+cerca de metade das consultas, com ordenações instáveis e entradas duplicadas;
+por isso a pesquisa tem tentativas curtas, deduplicação e falha em silêncio. Um
+produto repetido no catálogo (mesmo nome e kcal) aparece uma só vez. A lista é
+sempre decidida pela pessoa: uma correspondência errada no topo não se torna
+produto guardado sem revisão.
 
 ### Tabela, embalagem e quantidade consumida
 
@@ -125,6 +153,9 @@ Foram consultadas fontes primárias em 2026-09-05:
 - [Open Food Facts: API, limites e uso](https://openfoodfacts.github.io/openfoodfacts-server/api/).
 - [Consulta de produto por código](https://openfoodfacts.github.io/documentation/docs/Product-Opener/v2/products/get-product-by-code/).
 - [Pesquisa por tags de loja/país](https://openfoodfacts.github.io/documentation/docs/Product-Opener/v2/search/get-search/).
+- Pesquisa textual de produtos pelo endpoint histórico `cgi/search.pl` no mesmo
+  anfitrião fixo, usada porque `/api/v2/search` esteve repetidamente
+  indisponível durante a validação real.
 - [Licenças dos dados e fotografias](https://openfoodfacts.github.io/documentation/docs/Product-Opener/api/tutorials/license-be-on-the-legal-side/).
 - [Visão na API OpenAI](https://developers.openai.com/api/docs/guides/images-vision).
 
@@ -141,9 +172,12 @@ desatualizados. Consulta apenas hosts fixos, com User-Agent identificável e tim
 Limite local: 4 consultas por minuto/conta. Não há chamadas externas a cada tecla.
 
 **Verificação real:** a consulta pública de teste devolveu HTTP 503 / página
-temporariamente indisponível do Open Food Facts. O fallback manual foi mantido.
-Não se afirma que os testes simulados validam disponibilidade real, imagens atuais
-das lojas ou a precisão visual da IA.
+temporariamente indisponível do Open Food Facts, tanto em `/api/v2/search` como
+em parte das pesquisas textuais; a busca por texto no endpoint histórico
+funcionou com falhas intermitentes. O fallback manual e o fallback de análise
+IA foram mantidos, e a pesquisa textual falha em silêncio. Não se afirma que os
+testes simulados validam disponibilidade real, imagens atuais das lojas ou a
+precisão visual da IA.
 
 ## Migração e validação
 
@@ -157,9 +191,12 @@ produtos e snapshots antigos continuam válidos. O hook de produção já existe
 no projeto aplica migrações no deploy Vercel de produção; esta tarefa não faz deploy.
 
 - Unitários: porções decimais, valores desconhecidos, metas históricas, margens,
-  semanas/meses, fontes/URLs e ambos os adaptadores de IA.
+  semanas/meses, fontes/URLs, ambos os adaptadores de IA, barcode opcional com
+  repetição única de JSON malformado e pesquisa/ordenação/deduplicação de
+  correspondências do catálogo.
 - E2E: diário e metas, snapshots imutáveis, fotos privadas, separação entre contas,
-  edição/eliminação, períodos, confirmação de IA/importação e chave ausente.
+  edição/eliminação, períodos, confirmação de IA/importação, escolha ou descarte
+  explícito de correspondências após análise e chave ausente.
 - Testes de IA e catálogo externo usam mocks e não têm custos de inferência.
 - O teste real com chave temporária confirmou um rótulo sintético e uma estimativa,
   não precisão geral. Falta validar fotografias representativas, captura nativa

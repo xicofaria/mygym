@@ -6,6 +6,12 @@ import { lisbonDateKey } from "@/lib/format";
 import { hasSameOrigin } from "@/lib/request-origin";
 import { readPhoto, RecognitionError } from "@/lib/machine-recognition";
 import { recognizeFood } from "@/lib/food-recognition";
+import {
+  lookupFood,
+  rankFoodCandidates,
+  searchFoodByText,
+  type FoodCandidate,
+} from "@/lib/open-food-facts";
 import { LoginRateLimiter } from "@/lib/login-rate-limit-core";
 const limiter = new LoginRateLimiter({ maxAttempts: 10, windowMs: 60000 });
 export const runtime = "nodejs";
@@ -40,9 +46,39 @@ export async function POST(request: Request) {
         { error: "Limite diário de IA atingido. Continua manualmente." },
         429,
       );
-    return json(
-      await recognizeFood({ photo, ...config, mode, signal: request.signal }),
-    );
+    const result = await recognizeFood({
+      photo,
+      ...config,
+      mode,
+      signal: request.signal,
+    });
+    const identification = {
+      barcode: result.barcode,
+      name: result.product?.name ?? "",
+      brand: result.product?.brand ?? "",
+    };
+    let candidates: FoodCandidate[] = [];
+    if (identification.barcode) {
+      try {
+        candidates = await lookupFood({ barcode: identification.barcode });
+      } catch {
+        candidates = [];
+      }
+    }
+    if (!candidates.length && identification.name) {
+      const term = [identification.name, identification.brand]
+        .filter(Boolean)
+        .join(" ");
+      try {
+        candidates = rankFoodCandidates(
+          identification,
+          await searchFoodByText({ term }),
+        );
+      } catch {
+        candidates = [];
+      }
+    }
+    return json({ ...result, candidates: candidates.slice(0, 3) });
   } catch (e) {
     return json(
       {

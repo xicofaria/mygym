@@ -198,7 +198,7 @@ test("both food vision providers request strict per-100 output and do not infer 
         });
       },
     });
-    assert.deepEqual(result, value);
+    assert.deepEqual(result, { ...value, barcode: null });
   }
 });
 test("GLM uses JSON mode with schema instructions and validates both vision flows", async () => {
@@ -326,4 +326,110 @@ test("food analysis allows no match and rejects incomplete or invalid nutrition"
       }),
     ),
   );
+});
+test("barcode is optional metadata: absent or malformed digits become null, valid digits are kept", async () => {
+  const run = (barcode: unknown) =>
+    recognizeFood({
+      photo,
+      apiKey: "test",
+      model: "test",
+      provider: "openrouter",
+      mode: "estimate",
+      fetcher: async (_url, options) => {
+        const body = JSON.parse(String(options?.body));
+        assert.match(body.messages[0].content, /Nunca inventes nem adivinhes/);
+        return Response.json({
+          choices: [
+            {
+              finish_reason: "stop",
+              message: {
+                content: JSON.stringify({ ...value, barcode }),
+              },
+            },
+          ],
+        });
+      },
+    });
+  assert.equal((await run("5601234567890")).barcode, "5601234567890");
+  assert.equal((await run("12345")).barcode, null);
+  assert.equal((await run("https://evil.test")).barcode, null);
+  assert.equal((await run(null)).barcode, null);
+  assert.equal((await run(undefined)).barcode, null);
+});
+test("malformed provider JSON is retried once; validation failures are not retried", async () => {
+  let calls = 0;
+  const recovered = await recognizeFood({
+    photo,
+    apiKey: "test",
+    model: "test",
+    provider: "openrouter",
+    mode: "estimate",
+    fetcher: async () => {
+      calls++;
+      return Response.json({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content:
+                calls === 1
+                  ? '{"barcode":null,"product":null,"expl'
+                  : JSON.stringify({ ...value, barcode: null }),
+            },
+          },
+        ],
+      });
+    },
+  });
+  assert.equal(calls, 2);
+  assert.equal(recovered.product?.name, "Iogurte");
+  let repeated = 0;
+  await assert.rejects(
+    recognizeFood({
+      photo,
+      apiKey: "test",
+      model: "test",
+      provider: "openrouter",
+      mode: "estimate",
+      fetcher: async () => {
+        repeated++;
+        return Response.json({
+          choices: [
+            {
+              finish_reason: "stop",
+              message: { content: "{burro" },
+            },
+          ],
+        });
+      },
+    }),
+  );
+  assert.equal(repeated, 2);
+  let once = 0;
+  await assert.rejects(
+    recognizeFood({
+      photo,
+      apiKey: "test",
+      model: "test",
+      provider: "openrouter",
+      mode: "estimate",
+      fetcher: async () => {
+        once++;
+        return Response.json({
+          choices: [
+            {
+              finish_reason: "stop",
+              message: {
+                content: JSON.stringify({
+                  ...value,
+                  product: { ...value.product, nutrients: { ...emptyNutrients, kcal: -1 } },
+                }),
+              },
+            },
+          ],
+        });
+      },
+    }),
+  );
+  assert.equal(once, 1);
 });

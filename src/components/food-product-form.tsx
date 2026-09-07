@@ -15,6 +15,8 @@ import { parseWeight } from "@/lib/decimal";
 import { preparePhoto } from "@/lib/prepare-photo";
 import { AIThinking } from "./ai-thinking";
 
+type ProductCandidate = Omit<FoodProduct, "id" | "hasPhoto">;
+
 export function FoodProductForm({
   initial,
   provider,
@@ -41,6 +43,8 @@ export function FoodProductForm({
     ),
   );
   const [source, setSource] = useState(initial?.source ?? "manual");
+  const [candidates, setCandidates] = useState<ProductCandidate[]>([]);
+  const [chosen, setChosen] = useState<ProductCandidate | null>(null);
   const [photo, setPhoto] = useState<string | null | undefined>(undefined);
   const [blob, setBlob] = useState<Blob | null>(null);
   const [mode, setMode] = useState("estimate");
@@ -101,6 +105,8 @@ export function FoodProductForm({
     setPhotoExpanded(false);
     setError("");
     setConfirmed(false);
+    setCandidates([]);
+    setChosen(null);
     try {
       const response = await fetch("/api/calories/recognize", {
         method: "POST",
@@ -118,6 +124,9 @@ export function FoodProductForm({
         typeof body.explanation === "string"
           ? body.explanation
           : "Confirma os valores.",
+      );
+      setCandidates(
+        Array.isArray(body.candidates) ? body.candidates.slice(0, 3) : [],
       );
       if (!body.product) {
         setPhotoExpanded(true);
@@ -165,6 +174,50 @@ export function FoodProductForm({
       "Análise cancelada. A fotografia e os campos foram mantidos; uma chamada já enviada pode ser cobrada.",
     );
   }
+  function applyCandidate(candidate: ProductCandidate) {
+    const parsed = productSchema.safeParse({
+      name: candidate.name,
+      brand: candidate.brand ?? "",
+      unit: candidate.unit,
+      nutrients: candidate.nutrients,
+      details: candidate.details ?? emptyProductDetails,
+      source: "openfoodfacts",
+      sourceUrl: candidate.sourceUrl ?? "",
+      imageUrl: candidate.imageUrl ?? "",
+    });
+    if (!parsed.success) {
+      setError("Correspondência inválida; preenche ou confirma manualmente.");
+      return;
+    }
+    setChosen(parsed.data);
+    setSource("openfoodfacts");
+    setName(parsed.data.name);
+    setBrand(parsed.data.brand);
+    setUnit(parsed.data.unit);
+    setDetails(parsed.data.details);
+    setValues(
+      Object.fromEntries(
+        nutrientKeys.map((key) => [
+          key,
+          parsed.data.nutrients[key] === null
+            ? ""
+            : String(parsed.data.nutrients[key]),
+        ]),
+      ),
+    );
+    setConfirmed(false);
+    setCandidates([]);
+    setPhotoExpanded(false);
+    setNotice(
+      "Correspondência Open Food Facts aplicada. Confirma o produto e os valores antes de guardar.",
+    );
+  }
+  function dismissCandidates() {
+    setCandidates([]);
+    setNotice(
+      "Nenhuma correspondência usada. Confirma os valores da análise antes de guardar.",
+    );
+  }
   function save(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -182,8 +235,14 @@ export function FoodProductForm({
       nutrients,
       details,
       source,
-      sourceUrl: source === "openfoodfacts" ? (initial?.sourceUrl ?? "") : "",
-      imageUrl: photo !== undefined ? "" : (initial?.imageUrl ?? ""),
+      sourceUrl:
+        source === "openfoodfacts"
+          ? (chosen?.sourceUrl ?? initial?.sourceUrl ?? "")
+          : "",
+      imageUrl:
+        photo !== undefined
+          ? ""
+          : (chosen?.imageUrl ?? initial?.imageUrl ?? ""),
     });
     if (!parsed.success) {
       setError(
@@ -278,6 +337,8 @@ export function FoodProductForm({
               setBlob(null);
               setBusy(false);
               setAnalyzing(false);
+              setCandidates([]);
+              setChosen(null);
             }}
           >
             Remover fotografia
@@ -326,6 +387,63 @@ export function FoodProductForm({
         >
           {notice}
         </p>
+      )}
+      {candidates.length > 0 && (
+        <section
+          aria-label="Correspondências no Open Food Facts"
+          className="flex flex-col gap-2 rounded-lg border border-black/10 p-3 dark:border-white/10"
+        >
+          <h3 className="text-sm font-semibold">
+            Encontrado no Open Food Facts?
+          </h3>
+          {candidates.map((candidate, index) => (
+            <div
+              key={index}
+              className="flex items-center justify-between gap-2"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{candidate.name}</p>
+                <p className="text-xs text-zinc-500">
+                  {[
+                    candidate.brand,
+                    `${candidate.nutrients.kcal} kcal/100 ${candidate.unit}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-3">
+                {candidate.sourceUrl && (
+                  <a
+                    className="text-xs underline"
+                    href={candidate.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Fonte
+                  </a>
+                )}
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => applyCandidate(candidate)}
+                >
+                  Usar
+                </button>
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={dismissCandidates}
+          >
+            Nenhum destes — manter a análise IA
+          </button>
+          <p className="text-xs text-zinc-500">
+            Dados ODbL do Open Food Facts; confirma sempre a embalagem atual.
+          </p>
+        </section>
       )}
       <label className="label">
         Nome do alimento

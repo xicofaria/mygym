@@ -122,3 +122,43 @@ Branch `codex/package-weight-visibility`, base `e50f447` após PR #30.
 - Build de produção usado pelos E2E; revisão visual mobile dos dois formulários.
 - IA simulada, sem chamadas pagas; não comprova leitura real da fotografia.
 - Sem migração ou alterações aos consumos históricos.
+
+## Correspondência Open Food Facts na análise — 2026-09-07
+
+Branch `feat/food-photo-off-match`, base `ae1a3b2` (main). Chave temporária
+fornecida pelo utilizador para experiências fora do repositório, em `/tmp`, só
+via variável de ambiente, nunca escrita em ficheiros; a revogação ficou a cargo
+do utilizador. Modelos: `qwen/qwen3-vl-30b-a3b-instruct` (ronda 1) e
+`z-ai/glm-5.3-flash` (restantes), com o payload do adaptador do repositório
+(`require_parameters`, `data_collection: deny`, JSON mode para GLM).
+
+Cinco fotografias reais de produtos Lidl/Alesto obtidas do próprio Open Food
+Facts (ground truth conhecido: código, nome, kcal por 100 g). Os scripts e
+relatórios ficaram fora do repositório.
+
+- **Barcode:** com prompt fraco, a identificação inventou EAN em 4/5 fotos
+  frontais; com o prompt final (dígitos só se impressos e legíveis, `null` por
+  defeito) e normalização no servidor (formato 8–14), zero alucinações em 12
+  chamadas concluídas. Fotos frontais não mostram o código: `null` é o correto.
+- **Chamada combinada (identificação + rótulo), modo estimativa:** 8/8 limpas,
+  marca correta em todas, kcal estimada com desvio 0–7% entre chamadas e todos
+  os nutrientes marcados como estimativas. Modo rótulo: 2/5 JSON malformado
+  (recuperou em repetição — transitório) e 1/5 timeout de 120 s.
+- **Open Food Facts real:** `/api/v2/search` (filtro por loja) devolveu 503 em
+  quase todas as tentativas; a pesquisa textual `cgi/search.pl` funcionou com
+  falhas intermitentes (~metade das consultas), com ordenações instáveis entre
+  chamadas iguais e entradas duplicadas do mesmo produto com kcal ligeiramente
+  distinta. A busca por código (`/api/v2/product/{code}.json`) esteve sempre
+  disponível.
+- **Re-rank por IA testado e rejeitado:** com os mesmos candidatos, GLM
+  `effort: medium` empatou na qualidade com `max`, custou ~20% menos, mas
+  acrescentou um modo de falha próprio (escolha errada confiante). A ordenação
+  difusa no servidor + lista de 3 confirmada pela pessoa é a solução escolhida.
+
+Implementação: barra opcional no schema das duas análises, repetição única de
+JSON malformado do fornecedor, pesquisa textual com tentativas curtas que falha
+em silêncio, ordenação/deduplicação determinística e secção «Encontrado no Open
+Food Facts?» com ação explícita Usar/Nenhum destes. Custos das experiências:
+abaixo de 0,01 USD no total. Os testes automáticos continuam sem chaves e sem
+inferência paga; a cobertura PT do catálogo e a latência em produção continuam
+por validar em uso contínuo.
