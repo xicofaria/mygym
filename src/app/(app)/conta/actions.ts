@@ -1,6 +1,6 @@
 "use server";
 
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
@@ -12,7 +12,7 @@ import {
   requireUser,
   verifyPassword,
 } from "@/lib/auth";
-import { createEmailToken } from "@/lib/email-tokens";
+import { createEmailToken, revokeEmailTokens } from "@/lib/email-tokens";
 import {
   accountDeletedEmail,
   isEmailConfigured,
@@ -21,6 +21,9 @@ import {
 } from "@/lib/email";
 
 export type AccountState = { error: string | null; ok?: string };
+
+const STALE =
+  "A conta foi alterada entretanto. Recarrega a página e tenta novamente.";
 
 export async function updateName(
   _prev: AccountState,
@@ -64,13 +67,22 @@ export async function changePassword(
     return { error: "A palavra-passe atual está incorreta." };
   }
   const passwordHash = await hashPassword(parsed.data.newPassword);
-  const nextVersion = user.tokenVersion + 1;
-  await db
+  // Incremento atómico + optimistic lock: se a conta mudou entretanto, a
+  // alteração é rejeitada em vez de deixar sessões por revogar.
+  const updated = await db
     .update(users)
-    .set({ passwordHash, tokenVersion: nextVersion })
-    .where(eq(users.id, user.id));
+    .set({
+      passwordHash,
+      tokenVersion: sql`${users.tokenVersion} + 1`,
+    })
+    .where(
+      and(eq(users.id, user.id), eq(users.tokenVersion, user.tokenVersion)),
+    )
+    .returning({ tokenVersion: users.tokenVersion });
+  if (!updated.length) return { error: STALE };
+  await revokeEmailTokens(db, user.id);
   // Keep this device signed in with the bumped version; every other session dies.
-  await createSession(user.id, nextVersion);
+  await createSession(user.id, updated[0].tokenVersion);
   return {
     error: null,
     ok: "Palavra-passe alterada. As outras sessões foram terminadas.",
@@ -105,20 +117,28 @@ export async function changeEmail(
   if (taken) {
     return { error: "Já existe uma conta com esse email." };
   }
-  const nextVersion = user.tokenVersion + 1;
   const updated = await db
     .update(users)
     .set({
       email: parsed.data.newEmail,
       emailVerifiedAt: null,
-      tokenVersion: nextVersion,
+      tokenVersion: sql`${users.tokenVersion} + 1`,
     })
-    .where(eq(users.id, user.id))
+    .where(
+      and(eq(users.id, user.id), eq(users.tokenVersion, user.tokenVersion)),
+    )
     .returning({ tokenVersion: users.tokenVersion });
-  await createSession(user.id, updated[0]?.tokenVersion ?? nextVersion);
+  if (!updated.length) return { error: STALE };
+  await revokeEmailTokens(db, user.id);
+  await createSession(user.id, updated[0].tokenVersion);
   if (isEmailConfigured()) {
-    const token = await createEmailToken(db, user.id, "verify_email");
-    const message = verificationEmail(token);
+    const token = await createEmailToken(
+      db,
+      user.id,
+      "verify_email",
+      parsed.data.newEmail,
+    );
+    const message = verificationEmail(token, parsed.data.newEmail);
     await sendEmail({ to: parsed.data.newEmail, ...message });
   }
   return {

@@ -44,6 +44,8 @@ export const emailTokens = sqliteTable("email_tokens", {
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   purpose: text("purpose").notNull(),
+  /** Binds the link to the concrete address it was sent to. */
+  email: text("email").notNull().default(""),
   tokenHash: text("token_hash").notNull().unique(),
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
   usedAt: integer("used_at", { mode: "timestamp" }),

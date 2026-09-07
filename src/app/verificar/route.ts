@@ -5,12 +5,16 @@ import { users } from "@/db/schema";
 import { consumeEmailToken } from "@/lib/email-tokens";
 
 export async function GET(request: Request) {
-  const token = new URL(request.url).searchParams.get("token") ?? "";
-  const consumed = await consumeEmailToken(db, token, "verify_email");
+  const params = new URL(request.url).searchParams;
+  const token = params.get("token") ?? "";
+  const email = (params.get("email") ?? "").toLowerCase();
+  const consumed = await consumeEmailToken(db, token, "verify_email", email);
   if (!consumed) redirect("/login?verificado=0");
-  await db
+  // Só marca verificado se o token for do endereço atual da conta.
+  const updated = await db
     .update(users)
     .set({ emailVerifiedAt: new Date() })
-    .where(eq(users.id, consumed.userId));
-  redirect("/login?verificado=1");
+    .where(eq(users.id, consumed.userId))
+    .returning({ id: users.id });
+  redirect(`/login?verificado=${updated.length ? "1" : "0"}`);
 }

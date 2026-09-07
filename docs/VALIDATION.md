@@ -213,3 +213,25 @@ total). Seletor `?user=` removido: cada conta vê apenas os seus dados
 submissão direta — descoberta crítica em E2E: a repetição de submissão era
 engolida (utilizador não conseguia repetir credenciais erradas). 116
 unitários + 31 E2E verdes; `npm run check` OK.
+
+### Revisão das contas públicas (5 correções) — 2026-09-07
+
+1. Tokens ficam vinculados ao endereço concreto (coluna `email`) e são
+   revogados em alterações de email/palavra-passe; links antigos deixam de
+   autorizar após a mudança.
+2. Com email ativo, o registo já não cria sessão: exige confirmação do
+   endereço (e `getCurrentUser` devolve nulo para contas não verificadas).
+3. `consumeLoginAttempt(...).allowed` na recuperação (o objeto era sempre
+   verdadeiro e o limite nunca bloqueava).
+4. Contas existentes migram no primeiro login com email ativo: o login envia
+   o link de verificação; a reposição por link marca o email como verificado.
+5. `tokenVersion` incrementa atomicamente (SQL) com optimistic lock; corridas
+   são rejeitadas em vez de deixarem sessões por revogar.
+
+### HEIC — decisão
+
+heic2any exige `unsafe-eval` (incompatível com a CSP da app) e o sharp
+prebuilt não decodifica HEVC-HEIC. Solução: HEIC é aceite onde o browser o
+descodifica nativamente (Safari/iOS 17+, a origem real de ficheiros HEIC);
+noutros browsers, mensagem acionável (Safari ou mudar o formato da câmara).
+E2E cobre a orientação; decoder WASM compatível com CSP fica como follow-up.

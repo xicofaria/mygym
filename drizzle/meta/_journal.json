@@ -43,6 +43,13 @@
       "when": 1788802563564,
       "tag": "0005_many_lilandra",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1788807175772,
+      "tag": "0006_bored_killmonger",
+      "breakpoints": true
     }
   ]
 }

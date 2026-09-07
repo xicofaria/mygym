@@ -7,6 +7,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { users, type User } from "@/db/schema";
 import { getSessionSecret } from "./env";
+import { isEmailConfigured } from "./email";
 
 /**
  * Lightweight cookie-session auth.
@@ -79,6 +80,9 @@ export async function getCurrentUser(): Promise<User | null> {
     .where(eq(users.id, session.userId))
     .get();
   if (!row || row.tokenVersion !== session.tv) return null;
+  // With a transactional email provider configured, unverified accounts never
+  // hold a usable session (defense in depth on top of the login/register gates).
+  if (isEmailConfigured() && !row.emailVerifiedAt) return null;
   return row;
 }
 

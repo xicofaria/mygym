@@ -11,7 +11,9 @@ import {
   clearLoginAttempts,
   consumeLoginAttempt,
 } from "@/lib/login-rate-limit";
-import { isEmailConfigured } from "@/lib/email";
+import { isEmailConfigured, sendEmail, verificationEmail } from "@/lib/email";
+import { createEmailToken } from "@/lib/email-tokens";
+
 
 /** `email` is echoed back so a wrong password does not clear it too.
  * The password is never returned. */
@@ -70,10 +72,14 @@ export async function login(
     return { error: "Email ou palavra-passe inválidos.", email };
   }
   // Dormant until a transactional email provider is configured on the server.
+  // Existing accounts migrate on first login: we send the verification link.
   if (isEmailConfigured() && !user.emailVerifiedAt) {
+    const token = await createEmailToken(db, user.id, "verify_email", email);
+    const message = verificationEmail(token, email);
+    await sendEmail({ to: email, ...message });
     return {
       error:
-        "Confirma o teu email antes de iniciar sessão. Verifica a tua caixa de entrada.",
+        "Enviámos um link de confirmação para este email. Confirma-o para entrares.",
       email,
     };
   }

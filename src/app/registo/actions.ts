@@ -86,7 +86,7 @@ export async function register(
   const inserted = await db
     .insert(users)
     .values({ name: parsed.data.name, email, passwordHash })
-    .returning({ id: users.id, tokenVersion: users.tokenVersion });
+    .returning({ id: users.id });
   const created = inserted[0];
   if (!created) {
     return {
@@ -97,12 +97,16 @@ export async function register(
   }
 
   if (isEmailConfigured()) {
-    const token = await createEmailToken(db, created.id, "verify_email");
-    const message = verificationEmail(token);
+    // Com email ativo, a conta só entra após confirmação do endereço
+    // (verificação obrigatória antes do primeiro login).
+    const token = await createEmailToken(db, created.id, "verify_email", email);
+    const message = verificationEmail(token, email);
     await sendEmail({ to: email, ...message });
+    clearLoginAttempts(await requestIdentifier(email));
+    redirect("/login?verificar=1");
   }
 
   clearLoginAttempts(await requestIdentifier(email));
-  await createSession(created.id, created.tokenVersion);
+  await createSession(created.id, 0);
   redirect("/dashboard");
 }

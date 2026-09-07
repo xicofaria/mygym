@@ -42,7 +42,7 @@ export async function sendEmail({
 
 const APP_URL = () => (process.env.APP_URL ?? "").replace(/\/$/, "");
 
-export function verificationEmail(link: string): {
+export function verificationEmail(token: string, email: string): {
   subject: string;
   text: string;
 } {
@@ -50,17 +50,20 @@ export function verificationEmail(link: string): {
     subject: "Confirma o teu email — Gym Tracker",
     text:
       "Confirma o teu email para ativar a conta (válido por 24 horas):\n" +
-      `${APP_URL()}/verificar?token=${link}\n\n` +
+      `${APP_URL()}/verificar?token=${token}&email=${encodeURIComponent(email)}\n\n` +
       "Se não criaste esta conta, ignora este email.",
   };
 }
 
-export function resetEmail(link: string): { subject: string; text: string } {
+export function resetEmail(token: string, email: string): {
+  subject: string;
+  text: string;
+} {
   return {
     subject: "Repor palavra-passe — Gym Tracker",
     text:
       "Usa este link para escolheres uma nova palavra-passe (válido por 1 hora):\n" +
-      `${APP_URL()}/repor?token=${link}\n\n` +
+      `${APP_URL()}/repor?token=${token}&email=${encodeURIComponent(email)}\n\n` +
       "Se não pediste a reposição, ignora este email.",
   };
 }

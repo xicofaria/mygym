@@ -18,7 +18,6 @@ export function proxy(request: NextRequest) {
     // 'strict-dynamic' lets the nonced Next bootstrap load its own chunks, and
     // makes browsers that support it ignore the 'self' fallback above. React
     // needs eval in dev to rebuild server stack traces; it does not in prod.
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     // Deliberately not nonce-based. A nonce only whitelists <style> elements,
     // never style="…" attributes — and Recharts styles its SVG that way, as do
     // progress-chart.tsx and body/page.tsx. 'style-src-attr' would be the
@@ -27,6 +26,7 @@ export function proxy(request: NextRequest) {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' blob: data: https://images.openfoodfacts.org",
     "font-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
     `connect-src 'self'${isDev ? " ws:" : ""}`,
     "worker-src 'self'",
     "object-src 'none'",

@@ -5,7 +5,7 @@ import { performReset, type ResetState } from "./actions";
 
 const initialState: ResetState = { error: null };
 
-export function ResetForm({ token }: { token: string }) {
+export function ResetForm({ token, email }: { token: string; email: string }) {
   const [state, setState] = useState<ResetState>(initialState);
   const [pending, setPending] = useState(false);
 
@@ -26,6 +26,7 @@ export function ResetForm({ token }: { token: string }) {
   return (
     <form onSubmit={handleSubmit} className="card flex flex-col gap-4">
       <input type="hidden" name="token" value={token} />
+      <input type="hidden" name="email" value={email} />
       <div>
         <label className="label" htmlFor="password">
           Nova palavra-passe

@@ -39,7 +39,7 @@ export async function requestReset(
     requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     requestHeaders.get("x-real-ip") ??
     "unknown";
-  if (!consumeLoginAttempt(`${ip}:${email.data}`)) {
+  if (!consumeLoginAttempt(`${ip}:${email.data}`).allowed) {
     return {
       error: "Demasiadas tentativas. Aguarda alguns minutos.",
       notice: null,
@@ -52,8 +52,13 @@ export async function requestReset(
     .where(eq(users.email, email.data))
     .get();
   if (user) {
-    const token = await createEmailToken(db, user.id, "password_reset");
-    const message = resetEmail(token);
+    const token = await createEmailToken(
+      db,
+      user.id,
+      "password_reset",
+      email.data,
+    );
+    const message = resetEmail(token, email.data);
     await sendEmail({ to: email.data, ...message });
   }
   redirect("/recuperar?enviado=1");

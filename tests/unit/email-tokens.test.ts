@@ -9,40 +9,52 @@ import { drizzle } from "drizzle-orm/libsql";
 import {
   consumeEmailToken,
   createEmailToken,
+  revokeEmailTokens,
 } from "../../src/lib/email-tokens";
 
-test("email tokens are single use, purpose bound and expiry bound", async () => {
+test("email tokens are single use, purpose bound, email bound and revocable", async () => {
   const directory = await mkdtemp(join(tmpdir(), "gym-email-tokens-"));
   const url = pathToFileURL(join(directory, "tokens.db")).href;
   const client = createClient({ url });
   const database = drizzle(client);
   try {
     await client.execute(
-      "CREATE TABLE email_tokens (id integer PRIMARY KEY AUTOINCREMENT, user_id integer NOT NULL, purpose text NOT NULL, token_hash text NOT NULL UNIQUE, expires_at integer NOT NULL, used_at integer, created_at integer DEFAULT (unixepoch()) NOT NULL)",
+      "CREATE TABLE email_tokens (id integer PRIMARY KEY AUTOINCREMENT, user_id integer NOT NULL, purpose text NOT NULL, email text NOT NULL DEFAULT '', token_hash text NOT NULL UNIQUE, expires_at integer NOT NULL, used_at integer, created_at integer DEFAULT (unixepoch()) NOT NULL)",
     );
-    await client.execute("CREATE TABLE users (id integer PRIMARY KEY)");
-    await client.execute("INSERT INTO users (id) VALUES (42)");
 
-    const raw = await createEmailToken(database, 42, "verify_email");
+    const raw = await createEmailToken(database, 42, "verify_email", "a@t.pt");
     assert.match(raw, /^[0-9a-f]{64}$/);
-    const rawAgain = await createEmailToken(database, 42, "verify_email");
+    const rawAgain = await createEmailToken(database, 42, "verify_email", "a@t.pt");
     assert.notEqual(raw, rawAgain);
 
-    const consumed = await consumeEmailToken(database, raw, "verify_email");
+    // Email diferente do associado: recusado mesmo com token válido.
+    assert.equal(
+      await consumeEmailToken(database, raw, "verify_email", "b@t.pt"),
+      null,
+    );
+    const consumed = await consumeEmailToken(database, raw, "verify_email", "a@t.pt");
     assert.deepEqual(consumed, { userId: 42 });
-    assert.equal(await consumeEmailToken(database, raw, "verify_email"), null);
-    assert.equal(await consumeEmailToken(database, raw, "password_reset"), null);
-    assert.equal(await consumeEmailToken(database, rawAgain, "password_reset"), null);
+    assert.equal(await consumeEmailToken(database, raw, "verify_email", "a@t.pt"), null);
+    assert.equal(await consumeEmailToken(database, raw, "password_reset", "a@t.pt"), null);
     const reusedForRightPurpose = await consumeEmailToken(
       database,
       rawAgain,
       "verify_email",
+      "a@t.pt",
     );
     assert.deepEqual(reusedForRightPurpose, { userId: 42 });
 
-    assert.equal(await consumeEmailToken(database, "", "verify_email"), null);
+    assert.equal(await consumeEmailToken(database, "", "verify_email", "a@t.pt"), null);
     assert.equal(
-      await consumeEmailToken(database, "não-existe", "verify_email"),
+      await consumeEmailToken(database, "não-existe", "verify_email", "a@t.pt"),
+      null,
+    );
+
+    // Alterações de credenciais revogam todos os tokens pendentes.
+    const pending = await createEmailToken(database, 42, "password_reset", "a@t.pt");
+    await revokeEmailTokens(database, 42);
+    assert.equal(
+      await consumeEmailToken(database, pending, "password_reset", "a@t.pt"),
       null,
     );
   } finally {
@@ -57,7 +69,7 @@ test("expired tokens are consumed but refuse to authorize", async () => {
   const database = drizzle(client);
   try {
     await client.execute(
-      "CREATE TABLE email_tokens (id integer PRIMARY KEY AUTOINCREMENT, user_id integer NOT NULL, purpose text NOT NULL, token_hash text NOT NULL UNIQUE, expires_at integer NOT NULL, used_at integer, created_at integer DEFAULT (unixepoch()) NOT NULL)",
+      "CREATE TABLE email_tokens (id integer PRIMARY KEY AUTOINCREMENT, user_id integer NOT NULL, purpose text NOT NULL, email text NOT NULL DEFAULT '', token_hash text NOT NULL UNIQUE, expires_at integer NOT NULL, used_at integer, created_at integer DEFAULT (unixepoch()) NOT NULL)",
     );
     const expiredAt = new Date(Date.now() - 60_000);
     const raw = "a".repeat(64);
@@ -66,11 +78,11 @@ test("expired tokens are consumed but refuse to authorize", async () => {
       .update(raw)
       .digest("hex");
     await client.execute({
-      sql: "INSERT INTO email_tokens (user_id, purpose, token_hash, expires_at) VALUES (1, 'password_reset', ?, ?)",
+      sql: "INSERT INTO email_tokens (user_id, purpose, email, token_hash, expires_at) VALUES (1, 'password_reset', 'a@t.pt', ?, ?)",
       args: [tokenHash, Math.floor(expiredAt.getTime() / 1000)],
     });
     assert.equal(
-      await consumeEmailToken(database, raw, "password_reset"),
+      await consumeEmailToken(database, raw, "password_reset", "a@t.pt"),
       null,
     );
   } finally {
