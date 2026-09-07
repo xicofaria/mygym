@@ -81,6 +81,26 @@ test("text search retries transient failures once and then returns empty instead
   });
   assert.equal(failures, 3);
   assert.deepEqual(none, []);
+  let aborted = 0;
+  const started = Date.now();
+  assert.deepEqual(
+    await searchFoodByText({
+      term: "qualquer",
+      attempts: 2,
+      delayMs: 0,
+      timeoutMs: 50,
+      fetcher: (_url, options) =>
+        new Promise((_, reject) => {
+          options?.signal?.addEventListener("abort", () => {
+            aborted++;
+            reject(new Error("AbortError"));
+          });
+        }),
+    }),
+    [],
+  );
+  assert.equal(aborted, 2);
+  assert.ok(Date.now() - started < 5_000);
   let crashes = 0;
   assert.deepEqual(
     await searchFoodByText({
