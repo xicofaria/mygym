@@ -357,3 +357,34 @@ unitários verdes.
 **Por corrigir** (reportado, fora deste âmbito): o rollback de `/repor`
 des-consome o token, que fica replayable até expirar; e `getCalorieData` carrega
 o catálogo inteiro de produtos que o relatório nunca lê.
+
+### «Sem ligação ao servidor» num login bem-sucedido — 2026-09-07
+
+Reportado pelo utilizador: ao entrar, o formulário piscava «Sem ligação ao
+servidor. Tenta novamente.» e só depois navegava para o dashboard.
+
+Causa: `redirect()` numa server action chega ao cliente como um **erro de
+controlo** que o Next usa para navegar. Quando os formulários passaram de
+`useActionState` para `onSubmit` + `useState` (para resolver as submissões
+repetidas engolidas), o `catch` genérico passou a apanhar também esse erro e a
+pintar a mensagem de rede por cima de uma operação bem-sucedida. Afetava os
+cinco formulários que chamam ações com redirect: login, registo, reposição de
+palavra-passe, recuperação e eliminação de conta.
+
+Correção: `unstable_rethrow(error)` de `next/navigation` no início de cada
+`catch` — a API que a documentação do Next indica exatamente para não engolir
+`redirect()`/`notFound()`. O `setPending(false)` saiu do `finally` para depois
+do bloco, de modo a não correr num redirect: o botão fica desativado durante a
+navegação, em vez de reabrir para uma segunda submissão.
+
+Regressão coberta em `tests/e2e/login-flash.spec.ts`, que vigia o formulário
+*durante* a ação (a mensagem desaparece com a navegação, portanto uma asserção
+no fim não a apanha). Verificado que 2 dos 3 testes falham sem a correção; o de
+eliminação passa nos dois casos, porque o formulário desmonta antes de pintar o
+erro — vale como guarda, não como prova.
+
+Efeito lateral apanhado pela suite completa: o limite de registo por IP
+introduzido na ronda anterior (5 por 15 min) bloqueava os testes, que registam
+várias contas a partir de 127.0.0.1. O registo passou a ter limitador próprio,
+`REGISTRATION_MAX_ATTEMPTS` (1–1000, omissão 10), separado do de login — o que
+também é mais correto: são modelos de ameaça diferentes.
