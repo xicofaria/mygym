@@ -69,7 +69,7 @@ test("OpenRouter sends vision content, strict catalogue schema and privacy routi
   assert.deepEqual(result, { ...valid, suggestion: null });
 });
 
-test("OpenRouter rejects truncation, refusals, bad JSON and unknown IDs; accepts no match", async () => {
+test("OpenRouter rejects truncation, refusals and bad JSON; accepts no match", async () => {
   for (const body of [
     routerEnvelope(valid, "length"),
     {
@@ -81,10 +81,6 @@ test("OpenRouter rejects truncation, refusals, bad JSON and unknown IDs; accepts
       ],
     },
     { choices: [{ finish_reason: "stop", message: { content: "not json" } }] },
-    routerEnvelope({
-      ...valid,
-      candidates: [{ exerciseId: 999, confidence: "high" }],
-    }),
   ]) {
     await assert.rejects(
       recognizeMachine({
@@ -249,7 +245,7 @@ test("malformed proposals degrade instead of failing the analysis; prompt asks f
   }
 });
 
-test("accepts no match and rejects hallucinated or duplicate IDs", async () => {
+test("accepts no match, drops hallucinated and duplicate IDs, caps candidates", async () => {
   assert.deepEqual(
     (
       await run(
@@ -258,25 +254,82 @@ test("accepts no match and rejects hallucinated or duplicate IDs", async () => {
     ).candidates,
     [],
   );
-  for (const candidates of [
-    [{ exerciseId: 999, confidence: "high" }],
-    [valid.candidates[0], valid.candidates[0]],
-  ]) {
-    await assert.rejects(
-      run(envelope({ ...valid, candidates })),
-      RecognitionError,
-    );
-  }
+  const messy = await run(
+    envelope({
+      candidates: [
+        { exerciseId: 999, confidence: "high" },
+        valid.candidates[0],
+        valid.candidates[0],
+        { exerciseId: "7", confidence: "high" },
+        { exerciseId: 7, confidence: "urgent" },
+      ],
+      explanation: "vária música no meio",
+    }),
+  );
+  assert.deepEqual(messy.candidates, [
+    { exerciseId: 7, confidence: "high" },
+  ]);
+  const capped = await run(
+    envelope({
+      candidates: [
+        { exerciseId: 7, confidence: "low" },
+        { exerciseId: 7, confidence: "high" },
+      ],
+      explanation: "duas entradas iguais",
+    }),
+  );
+  assert.deepEqual(capped.candidates, [
+    { exerciseId: 7, confidence: "low" },
+  ]);
 });
 
-test("handles refusals, incomplete, malformed and provider errors without leaking details", async () => {
+test("tolerates fenced JSON, long explanations and odd confidence casing", async () => {
+  const fenced = await recognizeMachine({
+    photo: jpeg,
+    catalog,
+    apiKey: "test",
+    model: "test",
+    provider: "openrouter",
+    fetcher: async () =>
+      Response.json({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content:
+                "```json\n" +
+                JSON.stringify({
+                  ...valid,
+                  suggestion: null,
+                  explanation: "x".repeat(600),
+                }) +
+                "\n```",
+            },
+          },
+        ],
+      }),
+  });
+  assert.deepEqual(fenced.candidates, valid.candidates);
+  assert.equal(fenced.explanation.length, 400);
+  const shouting = await run(
+    envelope({
+      candidates: [{ exerciseId: 7, confidence: "HIGH" }],
+      explanation: "",
+    }),
+  );
+  assert.deepEqual(shouting.candidates, [
+    { exerciseId: 7, confidence: "high" },
+  ]);
+  assert.equal(shouting.explanation, "Confirma o exercício na lista.");
+});
+
+test("handles refusals, incomplete and provider errors without leaking details", async () => {
   for (const body of [
     { status: "incomplete", output: [] },
     {
       status: "completed",
       output: [{ type: "message", content: [{ type: "refusal" }] }],
     },
-    envelope({ unexpected: true }),
   ]) {
     await assert.rejects(run(body), RecognitionError);
   }
@@ -287,6 +340,10 @@ test("handles refusals, incomplete, malformed and provider errors without leakin
         error instanceof RecognitionError && !error.message.includes("private"),
     );
   }
+  const empty = await run(envelope({ unexpected: true }));
+  assert.deepEqual(empty.candidates, []);
+  assert.equal(empty.suggestion, null);
+  assert.equal(empty.explanation, "Confirma o exercício na lista.");
 });
 
 test("network aborts propagate and empty catalog never calls provider", async () => {
