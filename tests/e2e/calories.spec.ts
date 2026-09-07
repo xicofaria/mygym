@@ -29,6 +29,125 @@ async function upload(page: Page) {
   });
   await expect(page.getByAltText("Fotografia do produto")).toBeVisible();
 }
+test("280 g package suggestion is visible, persists and converts whole and half bottles", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page
+    .getByRole("button", { name: "+ Criar produto / fotografia" })
+    .click();
+  let packageQuantity: number | null = null;
+  await page.route("**/api/calories/recognize", (route) =>
+    route.fulfill({
+      json: {
+        product: {
+          name: "Garrafa 280 E2E",
+          brand: "Teste",
+          unit: "g",
+          nutrients: {
+            kcal: 50.4,
+            protein: 7.1,
+            carbs: null,
+            fat: 0.4,
+            saturated: 0.3,
+            sugars: 4,
+            fiber: null,
+            salt: 0.104,
+          },
+          details: {
+            packageQuantity,
+            packageEstimated: packageQuantity !== null,
+            pieceQuantity: null,
+            pieceEstimated: false,
+            nutrientEstimates: [],
+          },
+        },
+        explanation: "Porção de 280 g; confirma o conteúdo total.",
+      },
+    }),
+  );
+  await upload(page);
+  await page.getByRole("button", { name: "Analisar alimento" }).click();
+  await expect(
+    page.getByText("Peso da embalagem não identificado.", { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Peso da embalagem identificado")).toHaveCount(
+    0,
+  );
+  packageQuantity = 280;
+  await page
+    .getByText("Fotografia e análise · ver ou alterar", { exact: true })
+    .click();
+  await page.getByRole("button", { name: "Analisar alimento" }).click();
+  await expect(page.getByLabel("Peso da embalagem identificado")).toContainText(
+    "Embalagem: 280 g — estimativa, confirmar",
+  );
+  await expect(page.getByLabel("Valores por", { exact: true })).toHaveValue(
+    "g",
+  );
+  await expect(page.getByLabel("Energia (kcal) por 100")).toHaveValue("50.4");
+  await page.screenshot({
+    path: testInfo.outputPath("package-product.png"),
+    fullPage: true,
+  });
+  await page.getByRole("checkbox").check();
+  await page
+    .getByRole("button", { name: "Guardar produto", exact: true })
+    .click();
+  await expect(page.getByLabel("Modo de quantidade")).toHaveValue("package");
+  await expect(page.getByLabel("Alimento", { exact: true })).not.toHaveValue(
+    "",
+  );
+  const id = await page.getByLabel("Alimento", { exact: true }).inputValue();
+  await expect(page.getByLabel("Quantidade consumida")).toHaveValue("1");
+  await expect(
+    page.getByRole("article", { name: "Garrafa 280 E2E", exact: true }),
+  ).toHaveCount(0);
+  await page.reload();
+  await page.getByLabel("Alimento", { exact: true }).selectOption(id);
+  await expect(page.getByLabel("Modo de quantidade")).toHaveValue("package");
+  await expect(page.getByLabel("Quantidade consumida")).toHaveValue("1");
+  await expect(page.getByLabel("Conversão no diário")).toContainText(
+    "1 embalagem = 280 g (estimativa)",
+  );
+  await expect(
+    page.getByRole("status").filter({ hasText: "141,1 kcal para 280 g" }),
+  ).toBeVisible();
+  await page
+    .getByText("1 embalagem = 280 g (estimativa) · ajustar", { exact: true })
+    .click();
+  await page.getByLabel("Conteúdo da embalagem", { exact: true }).fill("300");
+  await expect(
+    page.getByRole("status").filter({ hasText: "151,2 kcal para 300 g" }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("package-diary-300g.png"),
+    fullPage: true,
+  });
+  await page.getByLabel("Conteúdo da embalagem", { exact: true }).fill("280");
+  await page.getByRole("button", { name: "½ embalagem", exact: true }).click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "70,6 kcal para 140 g" }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Registar consumo", exact: true })
+    .click();
+  const entry = page.getByRole("article", {
+    name: "Garrafa 280 E2E",
+    exact: true,
+  });
+  await expect(entry).toContainText("70,6 kcal");
+  await page.reload();
+  await expect(entry).toContainText("70,6 kcal");
+  page.once("dialog", (d) => d.accept());
+  await entry
+    .getByRole("button", { name: "Eliminar consumo", exact: true })
+    .click();
+  await expect(entry).toHaveCount(0);
+});
+
 test("missing unit weights are resolved inside diary and remembered only on consumption", async ({
   page,
   browser,

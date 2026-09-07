@@ -15,6 +15,54 @@ const value = {
   },
   explanation: "Confirma o rótulo.",
 };
+test("package weight is structured separately from the per-100 base; prose is not parsed as weight", async () => {
+  for (const quantity of [280, null]) {
+    const result = await recognizeFood({
+      photo,
+      apiKey: "test",
+      model: "z-ai/glm-5.3-flash",
+      provider: "openrouter",
+      mode: "estimate",
+      fetcher: async (_url, options) => {
+        const body = JSON.parse(String(options?.body));
+        assert.match(body.messages[0].content, /nunca apenas na explanation/);
+        assert.match(
+          body.messages[0].content,
+          /packageQuantity=280, packageEstimated=true/,
+        );
+        assert.match(
+          body.messages[0].content,
+          /sem indícios do conteúdo total, packageQuantity=null/,
+        );
+        return Response.json({
+          choices: [
+            {
+              finish_reason: "stop",
+              message: {
+                content: JSON.stringify({
+                  ...value,
+                  product: {
+                    ...value.product,
+                    details: {
+                      ...emptyProductDetails,
+                      packageQuantity: quantity,
+                      packageEstimated: quantity !== null,
+                    },
+                  },
+                  explanation:
+                    "Porção de 280 g; confirma se corresponde à embalagem.",
+                }),
+              },
+            },
+          ],
+        });
+      },
+    });
+    assert.equal(result.product?.details.packageQuantity, quantity);
+    assert.equal(result.product?.details.packageEstimated, quantity !== null);
+    assert.equal(result.product?.nutrients.kcal, 80);
+  }
+});
 test("diary unit suggestion sends text context without photo or diary and retains validation", async () => {
   for (const provider of ["openai", "openrouter"] as const) {
     const result = await recognizeFood({
