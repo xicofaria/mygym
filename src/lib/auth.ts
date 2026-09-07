@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { SignJWT, jwtVerify } from "jose";
@@ -71,7 +72,17 @@ async function getSessionPayload(): Promise<{ userId: number; tv: number } | nul
   }
 }
 
-export async function getCurrentUser(): Promise<User | null> {
+/**
+ * Memoized per request: the protected layout calls `requireUser()` and then so
+ * does every page and every server action beneath it. Without `cache()` each of
+ * those 50-odd call sites is its own `SELECT … FROM users`, and layout-then-page
+ * runs them *in series*, so a navigation pays two round trips to the database
+ * before the first real query even starts.
+ *
+ * The scope is one request, so a write that bumps `tokenVersion` is still seen
+ * by the next request. Nothing re-reads the user after mutating it.
+ */
+export const getCurrentUser = cache(async (): Promise<User | null> => {
   const session = await getSessionPayload();
   if (!session) return null;
   const row = await db
@@ -84,7 +95,7 @@ export async function getCurrentUser(): Promise<User | null> {
   // hold a usable session (defense in depth on top of the login/register gates).
   if (isEmailConfigured() && !row.emailVerifiedAt) return null;
   return row;
-}
+});
 
 /** Use at the top of every protected server component / server action. */
 export async function requireUser(): Promise<User> {
