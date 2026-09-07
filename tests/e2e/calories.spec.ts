@@ -698,6 +698,16 @@ test("photo analysis offers OFF matches that must be explicitly chosen or dismis
     pieceEstimated: false,
     nutrientEstimates: [],
   };
+  await page.route("**/images.openfoodfacts.org/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "base64",
+      ),
+    }),
+  );
   await page.route("**/api/calories/recognize", (route) =>
     route.fulfill({
       json: {
@@ -719,8 +729,7 @@ test("photo analysis offers OFF matches that must be explicitly chosen or dismis
           details: { ...details, nutrientEstimates: ["protein"] },
         },
         explanation: "Estimativa típica; confirma.",
-        candidates: [
-          {
+        candidates: [          {
             name: "Amêndoas OFF E2E",
             brand: "Marca Off",
             unit: "g",
@@ -737,7 +746,7 @@ test("photo analysis offers OFF matches that must be explicitly chosen or dismis
             details: { ...details, packageQuantity: 200 },
             source: "openfoodfacts",
             sourceUrl: "https://world.openfoodfacts.org/product/20724696",
-            imageUrl: "",
+            imageUrl: "https://images.openfoodfacts.org/images/products/e2e.jpg",
           },
           {
             name: "Cranberries OFF E2E",
@@ -773,6 +782,10 @@ test("photo analysis offers OFF matches that must be explicitly chosen or dismis
   await expect(matches).toBeVisible();
   await expect(matches).toContainText("Amêndoas OFF E2E");
   await expect(matches).toContainText("621 kcal/100 g");
+  await expect(matches).toContainText("Embalagem: 200 g");
+  await expect(
+    matches.getByAltText("Fotografia de Amêndoas OFF E2E"),
+  ).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("food-off-matches.png"),
     fullPage: true,
@@ -800,6 +813,10 @@ test("photo analysis offers OFF matches that must be explicitly chosen or dismis
   await expect(
     page.getByText("Estimativa — confirmar", { exact: true }),
   ).toHaveCount(0);
+  await page
+    .getByText("Fotografia e análise · ver ou alterar", { exact: true })
+    .click();
+  await page.getByRole("button", { name: "Remover fotografia" }).click();
   await page.getByRole("checkbox").check();
   await page
     .getByRole("button", { name: "Guardar produto", exact: true })
@@ -811,4 +828,11 @@ test("photo analysis offers OFF matches that must be explicitly chosen or dismis
   await expect(
     page.getByRole("status").filter({ hasText: "kcal para 200 g" }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Produtos", exact: true }).click();
+  const offProduct = page.getByRole("article", {
+    name: "Amêndoas OFF E2E",
+    exact: true,
+  });
+  await expect(offProduct).toBeVisible();
+  await expect(offProduct).toContainText("Open Food Facts");
 });

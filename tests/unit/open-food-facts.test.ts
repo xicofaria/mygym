@@ -136,13 +136,13 @@ test("text search retries transient failures once and then returns empty instead
   assert.ok(Math.abs(back[0].nutrients.kcal - 711.9742) < 0.001);
 });
 
-test("ranking tolerates typos and other languages, deduplicates and caps at three", () => {
+test("ranking tolerates typos and other languages and caps at three", () => {
   const products = [
     candidate("Amêndoas natural", "Alesto, LIDL", 621, "20724696"),
-    candidate("Amêndoas natural", "Alesto", 621, "20724696-dup"),
     candidate("Pistaches", "Alesto", 614, "4335619014442"),
     candidate("Cranberries", "Alesto", 330, "20150907"),
     candidate("Almendras de California", "Alesto", 621, "06104696"),
+    candidate("Nozes", "Alesto", 712, "20005733"),
   ];
   const ranked = rankFoodCandidates(
     { name: "Amêndoas de California", brand: "Alesto" },
@@ -150,11 +150,27 @@ test("ranking tolerates typos and other languages, deduplicates and caps at thre
   );
   assert.equal(ranked.length, 3);
   assert.match(ranked[0].name, /Amêndoas|Almendras/);
-  assert.equal(
-    ranked.filter((p) => p.name === "Amêndoas natural").length,
-    1,
-  );
   assert.ok(ranked.every((p) => p.sourceUrl));
+});
+
+test("deduplication is by product code; package sizes of the same name survive", () => {
+  const small = {
+    ...candidate("Amêndoas natural", "Alesto", 621, "20724696"),
+    details: { ...emptyProductDetails, packageQuantity: 200 },
+  };
+  const clone = candidate("Amêndoas natural", "Alesto", 621, "20724696");
+  const large = {
+    ...candidate("Amêndoas natural", "Alesto", 621, "20724697"),
+    details: { ...emptyProductDetails, packageQuantity: 300 },
+  };
+  const ranked = rankFoodCandidates(
+    { name: "Amêndoas", brand: "Alesto" },
+    [small, clone, large],
+  );
+  assert.deepEqual(
+    ranked.map((p) => p.details.packageQuantity),
+    [200, 300],
+  );
 });
 
 test("ranking filters unrelated rows and works without brand", () => {

@@ -107,6 +107,10 @@ export async function recognizeFood({
             },
           },
         };
+  const requestSignal = AbortSignal.any([
+    AbortSignal.timeout(provider === "openrouter" ? format.timeoutMs : 25000),
+    ...(signal ? [signal] : []),
+  ]);
   const readText = async (): Promise<string> => {
     const response = await fetcher(
       provider === "openrouter"
@@ -120,12 +124,7 @@ export async function recognizeFood({
         },
         body: JSON.stringify(body),
         cache: "no-store",
-        signal: AbortSignal.any([
-          AbortSignal.timeout(
-            provider === "openrouter" ? format.timeoutMs : 25000,
-          ),
-          ...(signal ? [signal] : []),
-        ]),
+        signal: requestSignal,
       },
     );
     if (!response.ok)

@@ -162,3 +162,11 @@ Food Facts?» com ação explícita Usar/Nenhum destes. Custos das experiências
 abaixo de 0,01 USD no total. Os testes automáticos continuam sem chaves e sem
 inferência paga; a cobertura PT do catálogo e a latência em produção continuam
 por validar em uso contínuo.
+
+Revisão pré-merge: a resolução no catálogo passou a partilhar um orçamento
+total de ~125 s com a análise (prazo único da IA entre tentativas, pesquisa de
+código/texto limitada ao tempo restante), «Remover fotografia» já não apaga a
+origem importada, a deduplicação é por código de produto (embalagens 200 g e
+300 g do mesmo nome permanecem distintas) e a lista mostra fotografia e peso de
+embalagem. A expressão «valores oficiais» foi removida: uma correspondência no
+catálogo não comprova o rótulo atual.

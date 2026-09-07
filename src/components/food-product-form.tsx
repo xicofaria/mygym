@@ -338,7 +338,6 @@ export function FoodProductForm({
               setBusy(false);
               setAnalyzing(false);
               setCandidates([]);
-              setChosen(null);
             }}
           >
             Remover fotografia
@@ -401,16 +400,32 @@ export function FoodProductForm({
               key={index}
               className="flex items-center justify-between gap-2"
             >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium">{candidate.name}</p>
-                <p className="text-xs text-zinc-500">
-                  {[
-                    candidate.brand,
-                    `${candidate.nutrients.kcal} kcal/100 ${candidate.unit}`,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
+              <div className="flex min-w-0 items-center gap-2">
+                {candidate.imageUrl && (
+                  <img
+                    src={candidate.imageUrl}
+                    alt={`Fotografia de ${candidate.name}`}
+                    className="h-10 w-10 shrink-0 rounded object-contain"
+                    referrerPolicy="no-referrer"
+                    loading="lazy"
+                  />
+                )}
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium">
+                    {candidate.name}
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    {[
+                      candidate.brand,
+                      `${candidate.nutrients.kcal} kcal/100 ${candidate.unit}`,
+                      candidate.details.packageQuantity !== null
+                        ? `Embalagem: ${candidate.details.packageQuantity} ${candidate.unit}`
+                        : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                </div>
               </div>
               <div className="flex shrink-0 items-center gap-3">
                 {candidate.sourceUrl && (

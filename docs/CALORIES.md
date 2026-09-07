@@ -68,20 +68,27 @@ servidor), além do nome e da marca identificados. O servidor tenta resolver no
 Open Food Facts: primeiro por código de barras exato, depois por pesquisa
 textual com ordenação difusa tolerante a typos e a nomes noutras línguas.
 Devolve até três correspondências validadas, sempre para ação explícita
-(**Usar**); descartar a lista mantém os valores da análise IA. Escolher uma
-correspondência aplica a fonte `openfoodfacts` com a atribuição ODbL/CC BY-SA
-já usada na consulta manual. A resolução no catálogo não consome quota de IA e
-uma indisponibilidade devolve `candidates: []` sem falhar a análise.
+(**Usar**); cada linha mostra fotografia, marca, kcal e peso de embalagem
+quando existem, para facilitar a confirmação na embalagem física. Descartar a
+lista mantém os valores da análise IA. Escolher uma correspondência aplica a
+fonte `openfoodfacts` com a atribuição ODbL/CC BY-SA já usada na consulta
+manual; a origem mantém-se mesmo que a fotografia local seja removida depois.
+A resolução no catálogo não consome quota de IA, partilha um orçamento total de
+tempo com a análise (a resposta nunca ultrapassa ~125 s, antes dos 130 s do
+browser e dos 150 s da rota) e uma indisponibilidade devolve `candidates: []`
+sem falhar a análise.
 
 Experiências reais autorizadas (setembro de 2026, descritas em VALIDATION.md):
 a chamada combinada (identificação + rótulo) não degradou a identificação —
 nenhum código de barras inventado, marca correta em todas as fotos de teste,
 estimativas sempre marcadas. As estimativas a partir de fotos frontais variaram
-0–7% entre chamadas, o que confirma que só a revisão humana e o catálogo dão
-valores oficiais. O backend de pesquisa do Open Food Facts devolveu HTTP 503 em
-cerca de metade das consultas, com ordenações instáveis e entradas duplicadas;
-por isso a pesquisa tem tentativas curtas, deduplicação e falha em silêncio. Um
-produto repetido no catálogo (mesmo nome e kcal) aparece uma só vez. A lista é
+0–7% entre chamadas: uma correspondência no catálogo não comprova que os dados
+correspondem ao rótulo atual, por isso a revisão na embalagem continua
+obrigatória. O backend de pesquisa do Open Food Facts devolveu HTTP 503 em
+cerca de metade das consultas, com ordenações instáveis e entradas repetidas;
+por isso a pesquisa tem tentativas curtas, falha em silêncio e deduplicação
+apenas por código de produto — embalagens diferentes do mesmo nome (ex.: 200 g
+e 300 g) ficam todas visíveis, porque o peso distingue o diário. A lista é
 sempre decidida pela pessoa: uma correspondência errada no topo não se torna
 produto guardado sem revisão.
 

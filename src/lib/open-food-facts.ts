@@ -80,10 +80,12 @@ export async function lookupFood({
   barcode,
   store,
   fetcher = fetch,
+  timeoutMs = 12000,
 }: {
   barcode?: string;
   store?: string;
   fetcher?: typeof fetch;
+  timeoutMs?: number;
 }) {
   let url: URL;
   if (barcode && /^\d{8,14}$/.test(barcode))
@@ -100,7 +102,7 @@ export async function lookupFood({
   url.searchParams.set("fields", fields);
   const response = await fetcher(url, {
     headers: { "User-Agent": "MyGym/1.0 (https://github.com/xicofaria/mygym)" },
-    signal: AbortSignal.timeout(12000),
+    signal: AbortSignal.timeout(timeoutMs),
     redirect: "error",
   });
   if (response.status === 404) return [];
@@ -219,9 +221,8 @@ export function rankFoodCandidates(
   const seen = new Set<string>();
   const deduped: FoodCandidate[] = [];
   for (const product of products) {
-    const key = `${normalizeText(product.name)}|${Math.round(product.nutrients.kcal)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (!product.sourceUrl || seen.has(product.sourceUrl)) continue;
+    seen.add(product.sourceUrl);
     deduped.push(product);
   }
   const identificationBrand = identification.brand || identification.name;

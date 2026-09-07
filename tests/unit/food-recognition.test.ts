@@ -433,3 +433,35 @@ test("malformed provider JSON is retried once; validation failures are not retri
   );
   assert.equal(once, 1);
 });
+test("the provider timeout budget is shared across the malformed-JSON retry", async () => {
+  const signals: unknown[] = [];
+  let calls = 0;
+  const result = await recognizeFood({
+    photo,
+    apiKey: "test",
+    model: "z-ai/glm-5.3-flash",
+    provider: "openrouter",
+    mode: "estimate",
+    fetcher: async (_url, options) => {
+      calls++;
+      signals.push(options?.signal);
+      return Response.json({
+        choices: [
+          {
+            finish_reason: "stop",
+            message: {
+              content:
+                calls === 1
+                  ? "{truncado"
+                  : JSON.stringify({ ...value, barcode: null }),
+            },
+          },
+        ],
+      });
+    },
+  });
+  assert.equal(calls, 2);
+  assert.ok(signals[0] instanceof AbortSignal);
+  assert.equal(signals[0], signals[1]);
+  assert.equal(result.product?.name, "Iogurte");
+});
