@@ -19,7 +19,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Product and architecture context
 
-- Private, two-account, phone-first PWA; no public registration. Next.js 16
+- Phone-first PWA with public registration (email + password; verification
+  active once a transactional email provider is configured). Next.js 16
   App Router / React 19 / Tailwind 4 / Drizzle / libSQL (local SQLite or Turso).
 - `src/app/(app)/layout.tsx` protects pages. Every action and API route must
   independently authenticate; layouts do not protect Route Handlers.

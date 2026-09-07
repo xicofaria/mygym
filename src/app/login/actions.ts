@@ -11,6 +11,7 @@ import {
   clearLoginAttempts,
   consumeLoginAttempt,
 } from "@/lib/login-rate-limit";
+import { isEmailConfigured } from "@/lib/email";
 
 /** `email` is echoed back so a wrong password does not clear it too.
  * The password is never returned. */
@@ -43,6 +44,7 @@ export async function login(
     };
   }
   const { email, password } = parsed.data;
+  console.log("[LOGIN-DEBUG] tentativa", email, Date.now());
 
   const requestHeaders = await headers();
   const ip =
@@ -67,8 +69,16 @@ export async function login(
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
     return { error: "Email ou palavra-passe inválidos.", email };
   }
+  // Dormant until a transactional email provider is configured on the server.
+  if (isEmailConfigured() && !user.emailVerifiedAt) {
+    return {
+      error:
+        "Confirma o teu email antes de iniciar sessão. Verifica a tua caixa de entrada.",
+      email,
+    };
+  }
 
   clearLoginAttempts(identifier);
-  await createSession(user.id);
+  await createSession(user.id, user.tokenVersion);
   redirect("/dashboard");
 }

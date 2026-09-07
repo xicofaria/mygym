@@ -1,6 +1,6 @@
 # 🏋️ Gym Tracker
 
-A private progress tracker built for **two people**. No more scribbling
+A progress tracker born for **two people**, now with public registration. No more scribbling
 "Bench Press: 3×12 @ 24kg" in a notebook — log your workouts, save reusable
 routines, track your bodyweight and measurements, and watch your progress on
 charts over time. Installable straight to your phone's home screen.
@@ -70,7 +70,7 @@ npm install
 
 # 1. Set up your local environment
 cp .env.example .env.local
-# then edit .env.local: set a SESSION_SECRET and your two accounts' credentials
+# then edit .env.local: set a SESSION_SECRET; accounts are created at /registo (the seed script still provisions the two original accounts)
 
 # 2. Apply the versioned migrations and seed both accounts + exercise catalog
 npm run db:migrate

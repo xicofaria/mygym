@@ -8,7 +8,6 @@ import {
   plannedWorkouts,
   routineGroups,
   sets,
-  users,
   workoutTemplates,
   workouts,
 } from "@/db/schema";
@@ -20,49 +19,12 @@ import {
   calculateDashboardWeekMetrics,
   currentLisbonWeekRange,
 } from "./dashboard-metrics";
-import { resolveViewedUserId } from "./viewer";
 import { chooseTopSet } from "./workout";
 import { enrichExercise } from "./exercise-catalog";
 import {
   buildWorkoutCalendar,
   type WorkoutCalendarData,
 } from "./workout-calendar";
-
-/** All users, for the "whose data am I viewing" switcher. */
-export async function getAllUsers() {
-  return db
-    .select({ id: users.id, name: users.name })
-    .from(users)
-    .orderBy(asc(users.id))
-    .all();
-}
-
-/**
- * Shared per-page setup: the signed-in user, everyone (for the switcher), and
- * whose data this page should render (from the ?user= param, default self).
- */
-export async function getPageContext(
-  searchParams: Promise<Record<string, string | string[] | undefined>>,
-) {
-  const [me, allUsers, sp] = await Promise.all([
-    requireUser(),
-    getAllUsers(),
-    searchParams,
-  ]);
-  const viewedId = resolveViewedUserId(
-    sp.user,
-    me.id,
-    allUsers.map((u) => u.id),
-  );
-  const viewed = allUsers.find((u) => u.id === viewedId) ?? {
-    id: me.id,
-    name: me.name,
-  };
-  const isSelf = viewedId === me.id;
-  /** Append to internal links to keep viewing the same person. */
-  const query = isSelf ? "" : `?user=${viewedId}`;
-  return { me, allUsers, viewed, viewedId, isSelf, query };
-}
 
 export async function getExerciseCatalog() {
   const catalog = await db

@@ -75,13 +75,14 @@ test("uma medição corporal pode ser criada, isolada e eliminada", async ({
   await expect(row).toContainText("88.5");
   await expect(page.getByText(notes)).toBeVisible();
 
-  await page.getByRole("button", { name: "E2E Partner" }).click();
+  // Sem seletor: ?user é ignorado e a medição continua visível só para a conta.
+  await page.goto("/body?range=all&user=2");
   await expect(page.getByRole("heading", { name: "Corpo" })).toBeVisible();
-  await expect(page.getByText("Evolução de E2E Partner")).toBeVisible();
-  await expect(page.getByText(notes)).toHaveCount(0);
+  await expect(page.getByText("Evolução de E2E Partner")).toHaveCount(0);
+  await expect(page.getByText(notes)).toBeVisible();
   await expect(
     page.getByRole("button", { name: "+ Adicionar medição" }),
-  ).toHaveCount(0);
+  ).toBeVisible();
 
   await page.goto("/body?range=all");
   await expect(page.getByText(notes)).toBeVisible();
@@ -191,13 +192,15 @@ test("treinos ficam isolados e só o proprietário os pode editar ou eliminar", 
     .getAttribute("href");
   expect(editPath).toMatch(/^\/workouts\/\d+\/edit$/);
 
-  // Viewing the partner's data never exposes the owner's workout or write UI.
-  await page.getByRole("button", { name: "E2E Partner" }).click();
+  // Sem seletor de utilizador: o parâmetro ?user é ignorado e os dados do
+  // proprietário nunca aparecem noutra conta.
+  await page.goto(`/workouts?user=${Number(editPath!.match(/\d+/)![0])}`);
+  await expect(page.getByText("O teu registo de treinos")).toBeVisible();
+  await expect(page.getByText(notes)).toBeVisible();
   await expect(
     page.getByText("Registo de treinos de E2E Partner"),
-  ).toBeVisible();
-  await expect(page.getByText(notes)).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "+ Registar" })).toHaveCount(0);
+  ).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "+ Registar" })).toBeVisible();
 
   // Authenticating as the second user also prevents a direct edit URL from
   // revealing or modifying the first user's workout.

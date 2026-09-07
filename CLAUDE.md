@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Gym Tracker — a private, two-person web app for logging workouts (exercise →
+Gym Tracker — a web app (two original accounts + public registration) for logging workouts (exercise →
 sets × reps × weight), reusable workout templates, and body measurements, with
 progress charts. Phone-first PWA, hosted on a free tier (Vercel + Turso).
 
@@ -190,7 +190,10 @@ anything. Editing `/workouts/routine` saves per weekday as you toggle chips
   edit shared metadata without changing exercise IDs. Favorites belong to the
   signed-in user. Group consecutive sets only, preserving supersets and order.
   The rest timer persists an absolute deadline under a per-user local key.
-- **Scope:** account/password management is explicitly deferred. Dependencies
+- **Accounts:** public registration + change email/password + RGPD deletion in
+  `/conta`; password reset is dormant until a transactional email provider
+  (RESEND_API_KEY/EMAIL_FROM) is configured. The `?user=` viewer switcher was
+  removed — every account sees only its own data. Dependencies
   updated to resolve audit findings; keep esbuild override compatible with
   drizzle-kit and validate generation as well as the application build.
 - **Civil dates:** use `lisbonDateKey`/`lisbonMonthKey` for the current date;

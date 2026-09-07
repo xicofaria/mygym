@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
-import { supportsViewedUser } from "./user-switcher";
 
 function Icon({ path }: { path: ReactNode }) {
   return (
@@ -86,9 +85,6 @@ const items = [
 
 export function BottomNav() {
   const pathname = usePathname();
-  const params = useSearchParams();
-  const user = params.get("user");
-  const suffix = user && supportsViewedUser(pathname) ? `?user=${user}` : "";
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-20 border-t border-black/5 bg-background/90 backdrop-blur dark:border-white/10">
@@ -99,7 +95,7 @@ export function BottomNav() {
           return (
             <Link
               key={it.href}
-              href={it.href + suffix}
+              href={it.href}
               className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-medium transition-colors ${
                 active
                   ? "text-indigo-600 dark:text-indigo-400"

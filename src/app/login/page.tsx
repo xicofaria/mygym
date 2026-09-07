@@ -2,9 +2,29 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { LoginForm } from "./login-form";
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    ok?: string | string[];
+    verificado?: string | string[];
+    eliminada?: string | string[];
+  }>;
+}) {
   const user = await getCurrentUser();
   if (user) redirect("/dashboard");
+  const params = await searchParams;
+  const flag = (name: "ok" | "verificado" | "eliminada") => {
+    const value = params[name];
+    return (Array.isArray(value) ? value[0] : value) === "1";
+  };
+  const notice = flag("ok")
+    ? "Palavra-passe alterada. Inicia sessão com a nova."
+    : flag("verificado")
+      ? "Email confirmado. Inicia sessão."
+      : flag("eliminada")
+        ? "A tua conta foi eliminada, incluindo todos os dados."
+        : null;
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-6 py-12">
@@ -27,6 +47,11 @@ export default async function LoginPage() {
           Inicia sessão para registares o teu progresso.
         </p>
       </div>
+      {notice && (
+        <p className="mb-4 text-center text-sm font-medium text-indigo-700 dark:text-indigo-300">
+          {notice}
+        </p>
+      )}
       <LoginForm />
     </main>
   );

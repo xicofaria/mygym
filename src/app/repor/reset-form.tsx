@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { login, type LoginState } from "./actions";
+import { performReset, type ResetState } from "./actions";
 
-export function LoginForm() {
-  const [state, setState] = useState<LoginState>({ error: null });
+const initialState: ResetState = { error: null };
+
+export function ResetForm({ token }: { token: string }) {
+  const [state, setState] = useState<ResetState>(initialState);
   const [pending, setPending] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -12,7 +14,7 @@ export function LoginForm() {
     if (pending) return;
     setPending(true);
     try {
-      const result = await login(state, new FormData(event.currentTarget));
+      const result = await performReset(state, new FormData(event.currentTarget));
       if (result) setState(result);
     } catch {
       setState({ error: "Sem ligação ao servidor. Tenta novamente." });
@@ -23,30 +25,17 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="card flex flex-col gap-4">
-      <div>
-        <label className="label" htmlFor="email">
-          Email
-        </label>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          autoComplete="username"
-          maxLength={254}
-          required
-          className="input"
-          placeholder="tu@exemplo.com"
-        />
-      </div>
+      <input type="hidden" name="token" value={token} />
       <div>
         <label className="label" htmlFor="password">
-          Palavra-passe
+          Nova palavra-passe
         </label>
         <input
           id="password"
           name="password"
           type="password"
-          autoComplete="current-password"
+          autoComplete="new-password"
+          minLength={8}
           maxLength={256}
           required
           className="input"
@@ -61,16 +50,8 @@ export function LoginForm() {
       )}
 
       <button type="submit" className="btn-primary" disabled={pending}>
-        {pending ? "A iniciar sessão…" : "Iniciar sessão"}
+        {pending ? "A guardar…" : "Guardar nova palavra-passe"}
       </button>
-      <div className="flex items-center justify-between text-sm">
-        <a href="/recuperar" className="underline">
-          Esqueceste a palavra-passe?
-        </a>
-        <a href="/registo" className="underline">
-          Criar conta
-        </a>
-      </div>
     </form>
   );
 }

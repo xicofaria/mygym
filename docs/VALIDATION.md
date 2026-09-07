@@ -197,3 +197,19 @@ nunca era chamado) — substituído por contentor simples com botão `type="butt
 Testes unitários (118) e E2E mocked cobrem contrato, conversão, saneamento,
 prompt, criação real na base descartável e rejeição de duplicado exato. Fotos
 de internet, não do ginásio; precisão visual real continua por validar.
+
+## Contas públicas — 2026-09-07
+
+Branch `feat/public-accounts`. Migração 0005: `users` ganha `email_verified_at`,
+`token_version` e `weekly_report_enabled`; nova tabela `email_tokens` (hash
+SHA-256, uso único, expiração). Registo público em `/registo` com auto-login e
+rate limit; recuperação e verificação construídas mas dormentes até existir
+provider de email (`RESEND_API_KEY`/`EMAIL_FROM`) — sem ele, a recuperação
+indica indisponibilidade. JWT passa a incluir `tokenVersion`: mudar
+palavra-passe/email ou eliminar a conta revoga todas as sessões.
+`/conta` com nome, email, palavra-passe e eliminação RGPD (transação, cascata
+total). Seletor `?user=` removido: cada conta vê apenas os seus dados
+(`?user=` é ignorado). Formulários convertidos de `useActionState` para
+submissão direta — descoberta crítica em E2E: a repetição de submissão era
+engolida (utilizador não conseguia repetir credenciais erradas). 116
+unitários + 31 E2E verdes; `npm run check` OK.

@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { login, type LoginState } from "./actions";
+import { register, type RegisterState } from "./actions";
 
-export function LoginForm() {
-  const [state, setState] = useState<LoginState>({ error: null });
+const initialState: RegisterState = { error: null };
+
+export function RegisterForm() {
+  const [state, setState] = useState<RegisterState>(initialState);
   const [pending, setPending] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -12,7 +14,7 @@ export function LoginForm() {
     if (pending) return;
     setPending(true);
     try {
-      const result = await login(state, new FormData(event.currentTarget));
+      const result = await register(state, new FormData(event.currentTarget));
       if (result) setState(result);
     } catch {
       setState({ error: "Sem ligação ao servidor. Tenta novamente." });
@@ -23,6 +25,20 @@ export function LoginForm() {
 
   return (
     <form onSubmit={handleSubmit} className="card flex flex-col gap-4">
+      <div>
+        <label className="label" htmlFor="name">
+          Nome
+        </label>
+        <input
+          id="name"
+          name="name"
+          autoComplete="name"
+          maxLength={80}
+          required
+          className="input"
+          placeholder="O teu nome"
+        />
+      </div>
       <div>
         <label className="label" htmlFor="email">
           Email
@@ -46,12 +62,16 @@ export function LoginForm() {
           id="password"
           name="password"
           type="password"
-          autoComplete="current-password"
+          autoComplete="new-password"
+          minLength={8}
           maxLength={256}
           required
           className="input"
-          placeholder="••••••••"
+          placeholder="Mínimo 8 caracteres"
         />
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          Mínimo 8 caracteres.
+        </p>
       </div>
 
       {state.error && (
@@ -61,16 +81,25 @@ export function LoginForm() {
       )}
 
       <button type="submit" className="btn-primary" disabled={pending}>
-        {pending ? "A iniciar sessão…" : "Iniciar sessão"}
+        {pending ? "A criar conta…" : "Criar conta"}
       </button>
-      <div className="flex items-center justify-between text-sm">
-        <a href="/recuperar" className="underline">
-          Esqueceste a palavra-passe?
+      <p className="text-center text-xs text-zinc-500 dark:text-zinc-400">
+        Ao criar a conta aceitas os{" "}
+        <a href="/termos" className="underline">
+          Termos
+        </a>{" "}
+        e a{" "}
+        <a href="/privacidade" className="underline">
+          Política de Privacidade
         </a>
-        <a href="/registo" className="underline">
-          Criar conta
+        .
+      </p>
+      <p className="text-center text-sm text-zinc-500 dark:text-zinc-400">
+        Já tens conta?{" "}
+        <a href="/login" className="underline">
+          Iniciar sessão
         </a>
-      </div>
+      </p>
     </form>
   );
 }

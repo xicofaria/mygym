@@ -1,11 +1,11 @@
 import Link from "next/link";
 import {
-  getPageContext,
   getPlannedWorkouts,
   getWorkoutDatesInRange,
   getWorkoutTemplates,
   getWorkouts,
 } from "@/lib/queries";
+import { requireUser } from "@/lib/auth";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { WorkoutCard } from "@/components/workout-card";
 import { MonthCalendar } from "@/components/month-calendar";
@@ -30,15 +30,12 @@ export default async function WorkoutsPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    user?: string | string[];
     date?: string | string[];
     month?: string | string[];
   }>;
 }) {
-  const [{ me, viewed, isSelf, query }, params] = await Promise.all([
-    getPageContext(searchParams),
-    searchParams,
-  ]);
+  const params = await searchParams;
+  const me = await requireUser();
   const selectedDate = readDateKey(params.date);
   const monthKey =
     readMonthKey(params.month) ??
@@ -49,28 +46,28 @@ export default async function WorkoutsPage({
   const [workouts, monthWorkoutDates, monthPlans, dayPlans, templates] =
     await Promise.all([
       getWorkouts(
-        viewed.id,
+        me.id,
         undefined,
         selectedDate ? dateFromKey(selectedDate) : undefined,
       ),
       getWorkoutDatesInRange(
-        viewed.id,
+        me.id,
         dateFromKey(range.from),
         dateFromKey(range.to),
       ),
       getPlannedWorkouts(
-        viewed.id,
+        me.id,
         dateFromKey(range.from),
         dateFromKey(range.to),
       ),
       selectedDate
         ? getPlannedWorkouts(
-            viewed.id,
+            me.id,
             dateFromKey(selectedDate),
             addUtcDays(dateFromKey(selectedDate), 1),
           )
         : Promise.resolve([]),
-      isSelf ? getWorkoutTemplates(me.id) : Promise.resolve([]),
+      getWorkoutTemplates(me.id),
     ]);
 
   const calendar = buildMonthCalendar(
@@ -80,9 +77,9 @@ export default async function WorkoutsPage({
   );
   const todayKey = lisbonDateKey();
   const canPlanSelectedDay =
-    isSelf && selectedDate != null && selectedDate >= todayKey;
+    selectedDate != null && selectedDate >= todayKey;
 
-  const ownerLabel = isSelf ? "Os teus treinos" : `Treinos de ${viewed.name}`;
+  const ownerLabel = "Os teus treinos";
   const registerHref = selectedDate
     ? `/workouts/new?date=${selectedDate}`
     : "/workouts/new";
@@ -95,7 +92,6 @@ export default async function WorkoutsPage({
           : (plan.template?.name ?? "Treino planeado"),
     })),
   );
-  const showActions = isSelf || selectedDate != null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -104,24 +100,19 @@ export default async function WorkoutsPage({
         subtitle={
           selectedDate
             ? `${ownerLabel} em ${fmtDate(dateFromKey(selectedDate))}`
-            : isSelf
-              ? "O teu registo de treinos"
-              : `Registo de treinos de ${viewed.name}`
+            : "O teu registo de treinos"
         }
-        action={
-          showActions ? (
+        action={(
             <div className="flex flex-wrap justify-end gap-2">
               {selectedDate && (
-                <Link href={`/workouts${query}`} className="btn-ghost">
+                <Link href="/workouts" className="btn-ghost">
                   Ver todos
                 </Link>
               )}
-              {isSelf && (
-                <Link href="/workouts/routine" className="btn-ghost">
-                  Rotina
-                </Link>
-              )}
-              {isSelf && workouts.length > 0 && (
+              <Link href="/workouts/routine" className="btn-ghost">
+                Rotina
+              </Link>
+              {workouts.length > 0 && (
                 <Link
                   href="/workouts/new?repeat=last"
                   className="btn-ghost"
@@ -129,20 +120,16 @@ export default async function WorkoutsPage({
                   Repetir último
                 </Link>
               )}
-              {isSelf && (
-                <Link href={registerHref} className="btn-primary">
-                  + Registar
-                </Link>
-              )}
+              <Link href={registerHref} className="btn-primary">
+                + Registar
+              </Link>
             </div>
-          ) : undefined
-        }
+          )}
       />
 
       <MonthCalendar
         calendar={calendar}
         selectedDate={selectedDate}
-        viewedUserId={isSelf ? undefined : viewed.id}
         planLabels={planLabels}
       />
 
@@ -200,7 +187,7 @@ export default async function WorkoutsPage({
                       ? "Não realizado"
                       : "Planeado"}
                 </span>
-                {isSelf && !isDone && (
+                {!isDone && (
                   <Link
                     href={`/workouts/new?${registrationParams.toString()}`}
                     className="btn-ghost shrink-0 px-3 py-1.5 text-xs"
@@ -208,13 +195,11 @@ export default async function WorkoutsPage({
                     Registar
                   </Link>
                 )}
-                {isSelf && (
-                  <DeleteButton
-                    action={deletePlannedWorkout}
-                    id={plan.id}
-                    confirmText="Remover este plano?"
-                  />
-                )}
+                <DeleteButton
+                  action={deletePlannedWorkout}
+                  id={plan.id}
+                  confirmText="Remover este plano?"
+                />
               </div>
             );
           })}
@@ -236,20 +221,16 @@ export default async function WorkoutsPage({
           title={selectedDate ? "Sem treinos neste dia" : "Ainda não há treinos"}
           hint={
             selectedDate
-              ? isSelf
-                ? "Podes registar uma sessão nesta data ou voltar ao histórico completo."
-                : `${viewed.name} não tem treinos registados nesta data.`
-              : isSelf
-              ? "Toca em + Registar para gravares a tua primeira sessão."
-              : `${viewed.name} ainda não registou nenhum treino.`
+              ? "Podes registar uma sessão nesta data ou voltar ao histórico completo."
+              : "Toca em + Registar para gravares a tua primeira sessão."
           }
-          href={isSelf ? registerHref : undefined}
-          cta={isSelf ? "Registar treino" : undefined}
+          href={registerHref}
+          cta="Registar treino"
         />
       ) : (
         <div className="flex flex-col gap-3">
           {workouts.map((w) => (
-            <WorkoutCard key={w.id} workout={w} deletable={isSelf} />
+            <WorkoutCard key={w.id} workout={w} deletable />
           ))}
         </div>
       )}

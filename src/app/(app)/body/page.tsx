@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { getBodyMetrics, getPageContext } from "@/lib/queries";
+import { requireUser } from "@/lib/auth";
+import { getBodyMetrics } from "@/lib/queries";
 import { EmptyState, PageHeader, StatCard } from "@/components/ui";
 import { ProgressChart } from "@/components/progress-chart";
 import { BodyMetricForm } from "@/components/body-metric-form";
@@ -101,20 +102,16 @@ export default async function BodyPage({
   searchParams,
 }: {
   searchParams: Promise<{
-    user?: string | string[];
     range?: string | string[];
     measure?: string | string[];
   }>;
 }) {
-  const [{ me, viewed, isSelf }, params] = await Promise.all([
-    getPageContext(searchParams),
-    searchParams,
-  ]);
+  const params = await searchParams;
+  const me = await requireUser();
   const range = readBodyRange(params.range);
-  const metrics = await getBodyMetrics(viewed.id);
+  const metrics = await getBodyMetrics(me.id);
   const progress = buildBodyProgress(metrics, range);
 
-  const userParam = isSelf ? undefined : viewed.id;
   const field = (key: BodyFieldKey) =>
     progress.fields.find((entry) => entry.key === key);
   const weight = field("weightKg");
@@ -132,23 +129,15 @@ export default async function BodyPage({
     <div className="flex flex-col gap-4">
       <PageHeader
         title="Corpo"
-        subtitle={
-          isSelf
-            ? "A tua evolução em peso e medidas"
-            : `Evolução de ${viewed.name}`
-        }
+        subtitle="A tua evolução em peso e medidas"
       />
 
-      {isSelf && <BodyMetricForm userId={me.id} />}
+      <BodyMetricForm userId={me.id} />
 
       {metrics.length === 0 ? (
         <EmptyState
           title="Ainda não há medidas"
-          hint={
-            isSelf
-              ? "Adiciona o teu peso e quaisquer medidas de fita para veres a tua evolução."
-              : `${viewed.name} ainda não adicionou medidas.`
-          }
+          hint="Adiciona o teu peso e quaisquer medidas de fita para veres a tua evolução."
         />
       ) : (
         <>
@@ -163,7 +152,6 @@ export default async function BodyPage({
                 <Link
                   key={option}
                   href={bodyHref({
-                    user: userParam,
                     range: option,
                     measure: selected?.key,
                   })}
@@ -237,7 +225,6 @@ export default async function BodyPage({
               </p>
               <Link
                 href={bodyHref({
-                  user: userParam,
                   range: "all",
                   measure: selected?.key,
                 })}
@@ -277,7 +264,6 @@ export default async function BodyPage({
                     field={entry}
                     isSelected={selected?.key === entry.key}
                     href={bodyHref({
-                      user: userParam,
                       range,
                       measure:
                         selected?.key === entry.key ? undefined : entry.key,
@@ -330,7 +316,7 @@ export default async function BodyPage({
               <BodyHistoryTable
                 rows={progress.history}
                 fields={progress.fields}
-                isSelf={isSelf}
+                isSelf
                 deleteAction={deleteBodyMetric}
               />
             )}

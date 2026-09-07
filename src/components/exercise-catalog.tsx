@@ -14,12 +14,12 @@ export function ExerciseCatalog({
   exercises,
   favoriteIds,
   isSelf,
-  query,
+  query = "",
 }: {
   exercises: ExerciseStat[];
   favoriteIds: number[];
   isSelf: boolean;
-  query: string;
+  query?: string;
 }) {
   const router = useRouter();
   const [search, setSearch] = useState("");
