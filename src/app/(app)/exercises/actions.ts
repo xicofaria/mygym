@@ -30,7 +30,7 @@ export async function createExercise(input: unknown) {
 
   revalidatePath("/exercises");
   revalidatePath("/workouts/new");
-  return { error: null as string | null };
+  return { error: null as string | null, id: inserted[0].id };
 }
 
 /** Catalogue is shared; edits never change exercise IDs or existing sets. */

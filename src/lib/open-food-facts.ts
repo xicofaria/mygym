@@ -5,6 +5,7 @@ import {
   productSchema,
   type FoodProduct,
 } from "./nutrition";
+import { tokenSimilarity } from "./text-match";
 
 const fields =
   "code,product_name,product_name_pt,brands,nutriments,image_front_small_url,product_quantity,product_quantity_unit,nutrition_data_per";
@@ -213,53 +214,6 @@ export async function searchFoodByText({
       await new Promise((resolve) => setTimeout(resolve, delayMs));
   }
   return [];
-}
-
-const normalizeText = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9 ]/g, " ")
-    .trim();
-
-function editDistance(a: string, b: string) {
-  const left = [...a];
-  const right = [...b];
-  const row = Array.from({ length: right.length + 1 }, (_, j) => j);
-  for (let i = 1; i <= left.length; i++) {
-    let previous = row[0];
-    row[0] = i;
-    for (let j = 1; j <= right.length; j++) {
-      const keep = row[j];
-      row[j] = Math.min(
-        row[j] + 1,
-        row[j - 1] + 1,
-        previous + (left[i - 1] === right[j - 1] ? 0 : 1),
-      );
-      previous = keep;
-    }
-  }
-  return row[right.length];
-}
-
-function tokenSimilarity(a: string, b: string) {
-  const left = normalizeText(a)
-    .split(/\s+/)
-    .filter((token) => token.length > 2);
-  const right = normalizeText(b)
-    .split(/\s+/)
-    .filter((token) => token.length > 2);
-  if (!left.length || !right.length) return 0;
-  let total = 0;
-  for (const token of left)
-    total += Math.max(
-      0,
-      ...right.map(
-        (other) => 1 - editDistance(token, other) / Math.max(token.length, other.length),
-      ),
-    );
-  return total / left.length;
 }
 
 export function rankFoodCandidates(

@@ -80,7 +80,36 @@ fornecedor e acompanhar despesa/latência. Existe ainda um limite em memória de
 6. Preencher peso/repetições manualmente e guardar normalmente.
 
 Uma máquina multifunções pode corresponder a vários exercícios. A confiança é uma
-estimativa, não uma probabilidade medida. A IA nunca cria exercícios ou estima cargas.
+estimativa, não uma probabilidade medida. A IA nunca estima cargas.
+
+### Proposta de exercício novo
+
+Quando o equipamento não corresponde a nada do catálogo, a mesma análise devolve
+uma proposta (nome, grupo muscular, aliases, equipamento) que aparece como
+«Criar «…»». Confirmar abre um formulário pré-preenchido e editável; só
+«Criar e adicionar à série» escreve no catálogo partilhado das duas contas e o
+exercício entra logo na primeira série vazia. Se a proposta coincidir
+fortemente (≥0.8) com um nome/alias existente, o servidor converte-a num
+candidato do exercício existente em vez de oferecer criação. Equipamento
+inválido degrada para desconhecido; propostas sem nome são descartadas. A IA
+nunca cria nada sem o clique do utilizador e nunca estima cargas.
+
+## Experiência real (2026-09-07)
+
+Sete fotografias públicas (Wikimedia Commons): quatro máquinas ausentes do
+catálogo e três correspondentes. Uma chamada combinada (identificação +
+proposta) em OpenRouter:
+
+- `z-ai/glm-5.3-flash`: 7/7 utilizáveis — 2 propostas de criação corretas
+  («Hiperextensão lombar»/Lombar/Máquina, «Abertura de peito na máquina
+  (Pec Deck)»/Peito/Máquina), máquinas multiuso com candidatos plausíveis e
+  3/3 correspondências certas; JSON 7/7; ~2,3 s; 0,0027 USD no total.
+- `qwen/qwen3-vl-30b-a3b-instruct`: 3 identificações erradas (pec deck como
+  «Lat Pulldown» com confiança high; máquina de press de peito como prensa de
+  pernas) e propostas em falta; custo +35%.
+
+A experiência usou fotos de internet, não máquinas do ginásio; continua por
+validar com equipamento real. Os testes automáticos continuam sem chaves.
 
 ## Privacidade e limites
 
@@ -89,7 +118,8 @@ estimativa, não uma probabilidade medida. A IA nunca cria exercícios ou estima
 - Verificação de MIME, assinatura e tamanho real do stream no servidor.
 - Sessão e Origin obrigatórios; catálogo server-side limitado a 500 exercícios.
   IDs inventados/duplicados e respostas truncadas, recusadas ou inválidas são rejeitados.
-- Timeout de 25 s no fornecedor e 30 s no cliente, sem retries automáticos da app.
+- Timeout de 25 s no fornecedor (GLM: 120 s) e 130 s no cliente, sem retries
+  automáticos da app.
 - A app não guarda fotos/resultados em disco, DB, logs ou rascunhos; guarda apenas
   contagem por conta/dia. Object URLs são revogados e respostas usam no-store.
 - Envia apenas fotografia e catálogo (ID/nome/grupo/sinónimos/equipamento), não

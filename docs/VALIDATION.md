@@ -174,3 +174,26 @@ tem testes próprios com orçamentos curtos reais — orçamento esgotado não c
 o catálogo, código lento consome o restante e salta a pesquisa textual, falha
 exata recai na pesquisa textual, sucesso exato não pesquisa texto; a rota
 completa com fornecedor de IA lentíssimo continua sem ensaio de integração.
+
+## Exercícios criados a partir da foto — 2026-09-07
+
+Branch `feat/food-photo-camera` (sobre o merge do #35). Experiência real com a
+mesma chave temporária autorizada (só env, nunca ficheiros): sete fotografias
+públicas de máquinas (Wikimedia Commons), catálogo seedado real, chamada
+combinada com proposta de criação em OpenRouter. GLM 5.3 Flash: 7/7 utilizáveis
+(2 criações corretas, 3/3 correspondências, JSON 7/7, ~2,3 s, 0,0027 USD);
+qwen3-vl: três identificações erradas com confiança alta. Detalhes em
+AI_RECOGNITION.md.
+
+Implementação: contrato com `suggestion` opcional (limites do
+`exerciseInputSchema`; equipamento inválido degrada; proposta sem nome é
+descartada), prompt testado, anti-duplicado server-side (proposta ≥0.8 contra
+nomes/aliases vira candidato do exercício existente), `createExercise` devolve o
+id e a UI oferece «Criar «…»» com formulário pré-preenchido, confirmação
+explícita e entrada direta na série (lista local de extras no formulário de
+treino até ao refresh). Correção de bug apanha em E2E: o formulário de criação
+não pode estar aninhado no formulário do treino (o submit borbulhava e o action
+nunca era chamado) — substituído por contentor simples com botão `type="button"`.
+Testes unitários (118) e E2E mocked cobrem contrato, conversão, saneamento,
+prompt, criação real na base descartável e rejeição de duplicado exato. Fotos
+de internet, não do ginásio; precisão visual real continua por validar.

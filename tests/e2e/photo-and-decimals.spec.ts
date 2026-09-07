@@ -86,6 +86,7 @@ test("photo suggests catalog exercise, requires confirmation and preserves fille
     await route.fulfill({
       json: {
         candidates: [{ exerciseId: id, confidence: "medium" }],
+        suggestion: null,
         explanation: "Parece uma prensa de pernas. Confirma a máquina.",
       },
     });
@@ -113,7 +114,7 @@ test("photo no match, service error and cancel leave manual selection available"
   await login(page);
   await page.route("**/api/exercises/recognize", (route) =>
     route.fulfill({
-      json: { candidates: [], explanation: "Sem correspondência." },
+      json: { candidates: [], suggestion: null, explanation: "Sem correspondência." },
     }),
   );
   await upload(page);
@@ -134,6 +135,87 @@ test("photo no match, service error and cancel leave manual selection available"
     page.getByAltText("Fotografia da máquina a identificar"),
   ).toHaveCount(0);
   await expect(page.getByLabel("Exercício da série 1")).toBeEnabled();
+});
+
+test("photo suggestion creates a shared exercise and adds it to the set", async ({
+  page,
+}) => {
+  await login(page);
+  const suggestion = {
+    name: "Pec Deck E2E",
+    muscleGroup: "Peito",
+    aliases: "Voador E2E",
+    equipment: "Máquina",
+  };
+  await page.route("**/api/exercises/recognize", (route) =>
+    route.fulfill({
+      json: {
+        candidates: [],
+        suggestion,
+        explanation: "Máquina de aberturas sem correspondência no catálogo.",
+      },
+    }),
+  );
+  await upload(page);
+  await page.getByRole("button", { name: "Analisar fotografia" }).click();
+  await expect(
+    page.getByText("Sem correspondência no catálogo", { exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: /Criar «Pec Deck E2E»/ })
+    .click();
+  await expect(page.getByLabel("Nome do exercício")).toHaveValue(
+    "Pec Deck E2E",
+  );
+  await expect(page.getByLabel("Grupo muscular")).toHaveValue("Peito");
+  await expect(page.getByLabel("Equipamento")).toHaveValue("Máquina");
+  await page
+    .getByRole("button", { name: "Criar e adicionar à série" })
+    .click();
+  await expect(
+    page.getByText("criado e adicionado à série"),
+  ).toBeVisible();
+  const select = page.getByLabel("Exercício da série 1");
+  const createdId = Number(
+    await select
+      .locator("option")
+      .filter({ hasText: /^Pec Deck E2E$/ })
+      .getAttribute("value"),
+  );
+  await expect(select).toHaveValue(String(createdId));
+  await page.getByLabel("Repetições da série 1").fill("10");
+  await page.getByLabel("Peso (kg) da série 1").fill("40");
+  await page
+    .getByRole("button", { name: "Guardar treino", exact: true })
+    .click();
+  await expect(page).toHaveURL(/\/workouts/);
+  await page.goto("/exercises");
+  await page
+    .getByLabel("Pesquisar exercícios", { exact: false })
+    .fill("Pec Deck E2E")
+    .catch(() => {});
+  await expect(page.getByText("Pec Deck E2E", { exact: true }).first()).toBeVisible();
+
+  await page.goto("/workouts/new");
+  await page.waitForLoadState("networkidle");
+  await page.route("**/api/exercises/recognize", (route) =>
+    route.fulfill({
+      json: {
+        candidates: [],
+        suggestion,
+        explanation: "Repetição do mesmo equipamento.",
+      },
+    }),
+  );
+  await upload(page);
+  await page.getByRole("button", { name: "Analisar fotografia" }).click();
+  await page.getByRole("button", { name: /Criar «Pec Deck E2E»/ }).click();
+  await page
+    .getByRole("button", { name: "Criar e adicionar à série" })
+    .click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Já existe um exercício" }),
+  ).toBeVisible();
 });
 
 test("recognition endpoint requires session and same origin; no key yields useful error", async ({
