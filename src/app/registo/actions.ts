@@ -7,7 +7,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { createSession, hashPassword } from "@/lib/auth";
-import { consumeLoginAttempt } from "@/lib/login-rate-limit";
+import { consumeRegistrationAttempt } from "@/lib/login-rate-limit";
 import { createEmailToken } from "@/lib/email-tokens";
 import { isEmailConfigured, sendEmail, verificationEmail } from "@/lib/email";
 
@@ -66,7 +66,7 @@ export async function register(
   }
   const { email } = parsed.data;
 
-  const rateLimit = consumeLoginAttempt(await registrationIdentifier());
+  const rateLimit = consumeRegistrationAttempt(await registrationIdentifier());
   if (!rateLimit.allowed) {
     return {
       error: "Demasiadas tentativas. Aguarda alguns minutos e tenta novamente.",

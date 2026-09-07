@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { unstable_rethrow } from "next/navigation";
 import { login, type LoginState } from "./actions";
 
 export function LoginForm() {
@@ -14,11 +15,15 @@ export function LoginForm() {
     try {
       const result = await login(state, new FormData(event.currentTarget));
       if (result) setState(result);
-    } catch {
+    } catch (error) {
+      // `redirect()` numa server action lança um erro de controlo que o Next
+      // usa para navegar. Engoli-lo aqui pintava «sem ligação ao servidor» por
+      // cima de uma operação bem-sucedida, um instante antes da navegação.
+      unstable_rethrow(error);
       setState({ error: "Sem ligação ao servidor. Tenta novamente." });
-    } finally {
-      setPending(false);
     }
+    // Não corre num redirect: o botão fica desativado durante a navegação.
+    setPending(false);
   }
 
   return (

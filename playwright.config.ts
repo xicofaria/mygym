@@ -45,6 +45,8 @@ export default defineConfig({
       OPENROUTER_API_KEY: "",
       AI_PROVIDER: "openai",
       CRON_SECRET: "e2e-cron-secret",
+      // A suite regista várias contas a partir de 127.0.0.1.
+      REGISTRATION_MAX_ATTEMPTS: "1000",
       VERCEL: "",
       VERCEL_ENV: "",
       SESSION_SECRET:
