@@ -7,10 +7,19 @@ import {
 import { currentLisbonWeekRange } from "@/lib/dashboard-metrics";
 import { calculateWeeklyReport } from "@/lib/weekly-report";
 import { fmtDate } from "@/lib/format";
-import { PageHeader, StatCard } from "@/components/ui";
-import { EmptyState } from "@/components/ui";
+import { BODY_FIELDS, deltaTone } from "@/lib/body-progress";
+import { EmptyState, PageHeader, StatCard } from "@/components/ui";
 
 export const metadata = { title: "Relatório semanal — Gym Tracker" };
+
+const WEIGHT_GOAL =
+  BODY_FIELDS.find((field) => field.key === "weightKg")?.goal ?? "neutral";
+
+const WEIGHT_TONE: Record<ReturnType<typeof deltaTone>, string> = {
+  good: "text-emerald-600 dark:text-emerald-400",
+  bad: "text-amber-600 dark:text-amber-400",
+  neutral: "text-zinc-700 dark:text-zinc-200",
+};
 
 function weekRange(week: "atual" | "anterior") {
   return week === "atual"
@@ -36,9 +45,12 @@ export default async function ReportsPage({
   const fromLabel = fmtDate(from);
   const toLabel = fmtDate(new Date(to.getTime() - 24 * 60 * 60 * 1000));
   const otherHref = `/relatorios?semana=${week === "atual" ? "anterior" : "atual"}`;
+  // Weight is a `neutral` measure — losing it is only "good" if you are cutting
+  // — so the colour comes from deltaTone, not from the sign of the change.
+  const weightTone = deltaTone(report.weightChange, WEIGHT_GOAL);
 
   return (
-    <main className="mx-auto w-full max-w-xl px-4 py-6">
+    <div className="flex flex-col gap-4">
       <PageHeader
         title="Relatório semanal"
         subtitle={`${fromLabel} — ${toLabel}`}
@@ -111,13 +123,7 @@ export default async function ReportsPage({
           {report.weightChange != null && (
             <p className="mt-6 text-sm text-zinc-500 dark:text-zinc-400">
               Peso:{" "}
-              <span
-                className={
-                  report.weightChange <= 0
-                    ? "text-emerald-600 dark:text-emerald-400"
-                    : "text-amber-600 dark:text-amber-400"
-                }
-              >
+              <span className={WEIGHT_TONE[weightTone]}>
                 {report.weightChange > 0 ? "+" : ""}
                 {report.weightChange} kg na semana
               </span>
@@ -130,6 +136,6 @@ export default async function ReportsPage({
           </p>
         </>
       )}
-    </main>
+    </div>
   );
 }

@@ -53,7 +53,11 @@ export async function preparePhoto(
   file: File,
   options: { maxSide?: number; maxBytes?: number } = {},
 ): Promise<Blob> {
-  if (!ACCEPTED.test(file.type)) {
+  // Chrome and several desktop pickers hand back an empty `type` for .heic, so
+  // the extension has to count too — otherwise the one message that actually
+  // helps an iPhone user is unreachable for the case it was written for.
+  const isHeic = IS_HEIC.test(file.type) || IS_HEIC.test(file.name);
+  if (!ACCEPTED.test(file.type) && !isHeic) {
     throw new Error("Escolhe uma imagem JPEG, PNG, WebP ou HEIC.");
   }
   if (!file.size || file.size > 20 * 1024 * 1024)
@@ -62,14 +66,18 @@ export async function preparePhoto(
   const maxSide = options.maxSide ?? 1280;
   const maxBytes = options.maxBytes ?? MAX_PHOTO_BYTES;
 
+  let image: HTMLImageElement;
   try {
-    return await renderToJpeg(await decodeImage(file), maxSide, maxBytes);
-  } catch (error) {
-    if (IS_HEIC.test(file.type) || IS_HEIC.test(file.name)) {
-      throw new Error(
-        "O teu browser não abre fotos HEIC. No iPhone usa o Safari (funciona desde o iOS 17) ou muda Definições → Câmara → Formatos para «Mais compatível».",
-      );
-    }
-    throw error;
+    image = await decodeImage(file);
+  } catch {
+    // Only a *decode* failure means the browser lacks the codec. Re-encoding
+    // errors (a photo that stays too large) keep their own message, and no raw
+    // DOMException text reaches the pt-PT UI.
+    throw new Error(
+      isHeic
+        ? "O teu browser não abre fotos HEIC. No iPhone usa o Safari (funciona desde o iOS 17) ou muda Definições → Câmara → Formatos para «Mais compatível»."
+        : "Não foi possível ler esta fotografia. Experimenta outra.",
+    );
   }
+  return renderToJpeg(image, maxSide, maxBytes);
 }

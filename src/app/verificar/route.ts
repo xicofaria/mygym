@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne } from "drizzle-orm";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -11,16 +11,26 @@ export async function GET(request: Request) {
   const email = (params.get("email") ?? "").trim().toLowerCase();
 
   let verified = false;
-  // Consumo e atualização atómicos: se o email da conta mudou entretanto,
-  // o link não verifica nada.
+  // Consumo do token e escrita do endereço na mesma transação: ou o link
+  // confirma e aplica o email, ou não deixa rasto nenhum.
   await db
     .transaction(async (tx) => {
       const consumed = await consumeEmailToken(tx, token, "verify_email", email);
       if (!consumed) throw new TransactionRollback();
+      // Consuming a token bound to `email` is the proof of control, so this is
+      // also where a pending change from /conta lands: the address is applied
+      // here, never before. For a registration token it equals the account's
+      // current address and the write is a no-op.
+      const claimed = await tx
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.email, email), ne(users.id, consumed.userId)))
+        .get();
+      if (claimed) throw new TransactionRollback();
       const rows = await tx
         .update(users)
-        .set({ emailVerifiedAt: new Date() })
-        .where(and(eq(users.id, consumed.userId), eq(users.email, email)))
+        .set({ email, emailVerifiedAt: new Date() })
+        .where(eq(users.id, consumed.userId))
         .returning({ id: users.id });
       if (!rows.length) throw new TransactionRollback();
       verified = true;

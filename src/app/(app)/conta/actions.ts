@@ -41,6 +41,7 @@ export async function updateName(
     return { error: "Introduz um nome válido." };
   }
   await db.update(users).set({ name: name.data }).where(eq(users.id, user.id));
+  revalidatePath("/conta");
   return { error: null, ok: "Nome atualizado." };
 }
 
@@ -118,6 +119,31 @@ export async function changeEmail(
   if (taken) {
     return { error: "Já existe uma conta com esse email." };
   }
+
+  if (isEmailConfigured()) {
+    // The address changes only once the new one is proven, in /verificar.
+    // Switching first and clearing emailVerifiedAt would eject the user on the
+    // very next navigation (getCurrentUser refuses unverified accounts) and a
+    // typo would be unrecoverable, since recovery would mail the typo.
+    const token = await db.transaction(async (tx) => {
+      await revokeEmailTokens(tx, user.id);
+      return createEmailToken(tx, user.id, "verify_email", parsed.data.newEmail);
+    });
+    const message = verificationEmail(token, parsed.data.newEmail);
+    const delivered = await sendEmail({ to: parsed.data.newEmail, ...message });
+    if (!delivered) {
+      return {
+        error:
+          "Não conseguimos enviar o email de confirmação. O teu email continua inalterado; tenta novamente dentro de alguns minutos.",
+      };
+    }
+    return {
+      error: null,
+      ok: `Enviámos um link de confirmação para ${parsed.data.newEmail}. Continuas a usar o email atual até o confirmares.`,
+    };
+  }
+
+  // No provider: there is nothing to prove the address with, so apply it now.
   const updated = await db
     .update(users)
     .set({
@@ -132,22 +158,8 @@ export async function changeEmail(
   if (!updated.length) return { error: STALE };
   await revokeEmailTokens(db, user.id);
   await createSession(user.id, updated[0].tokenVersion);
-  if (isEmailConfigured()) {
-    const token = await createEmailToken(
-      db,
-      user.id,
-      "verify_email",
-      parsed.data.newEmail,
-    );
-    const message = verificationEmail(token, parsed.data.newEmail);
-    await sendEmail({ to: parsed.data.newEmail, ...message });
-  }
-  return {
-    error: null,
-    ok: isEmailConfigured()
-      ? "Email atualizado. Confirma o novo endereço no teu email."
-      : "Email atualizado.",
-  };
+  revalidatePath("/conta");
+  return { error: null, ok: "Email atualizado." };
 }
 
 export async function setWeeklyReport(

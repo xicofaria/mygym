@@ -50,7 +50,8 @@ repetidos, controlos táteis e um único destaque de ação, mantendo o estilo d
    `resolveFoodCandidates` à escala real (o teste atual de aborto real vive no
    nível da pesquisa textual, com prazos curtos).
 
-**Gestão de conta/palavra-passe não implementada**, por indicação explícita do utilizador.
+**Gestão de conta implementada** (registo público, `/conta`, eliminação RGPD,
+verificação e reposição por email) — a exceção anterior deixou de se aplicar.
 
 ## Limites conhecidos
 

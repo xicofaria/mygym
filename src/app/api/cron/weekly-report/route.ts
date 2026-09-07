@@ -5,6 +5,10 @@ import { buildWeeklyReportEmail } from "@/lib/weekly-report-email";
 import { isEmailConfigured, sendEmail } from "@/lib/email";
 
 export const runtime = "nodejs";
+// One report per opted-in account, each a handful of queries plus a Resend call
+// with a 10 s timeout. The default budget truncates the loop silently, mailing
+// the first accounts and nobody after them, with no retry and no record.
+export const maxDuration = 300;
 
 /** Vercel cron target (Mondays 08:00 UTC). Authorization: Bearer $CRON_SECRET. */
 export async function GET(request: Request) {

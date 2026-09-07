@@ -7,10 +7,7 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { users } from "@/db/schema";
 import { createSession, hashPassword } from "@/lib/auth";
-import {
-  clearLoginAttempts,
-  consumeLoginAttempt,
-} from "@/lib/login-rate-limit";
+import { consumeLoginAttempt } from "@/lib/login-rate-limit";
 import { createEmailToken } from "@/lib/email-tokens";
 import { isEmailConfigured, sendEmail, verificationEmail } from "@/lib/email";
 
@@ -26,13 +23,22 @@ const registerSchema = z.object({
   password: z.string().min(8).max(256),
 });
 
-async function requestIdentifier(email: string) {
+/**
+ * Registration is capped per IP alone, in its own namespace.
+ *
+ * Keying it by `ip:email` like the login limiter capped nothing — a script just
+ * varies the address to get a fresh bucket every time, and each attempt still
+ * costs a bcrypt hash, a row, and (with a provider) an outbound mail to any
+ * address it likes. The separate namespace also stops a burst of duplicate-email
+ * attempts from burning the *login* bucket of the account being guessed at.
+ */
+async function registrationIdentifier() {
   const requestHeaders = await headers();
   const ip =
     requestHeaders.get("x-forwarded-for")?.split(",")[0]?.trim() ??
     requestHeaders.get("x-real-ip") ??
     "unknown";
-  return `${ip}:${email}`;
+  return `registo:${ip}`;
 }
 
 export async function register(
@@ -60,7 +66,7 @@ export async function register(
   }
   const { email } = parsed.data;
 
-  const rateLimit = consumeLoginAttempt(await requestIdentifier(email));
+  const rateLimit = consumeLoginAttempt(await registrationIdentifier());
   if (!rateLimit.allowed) {
     return {
       error: "Demasiadas tentativas. Aguarda alguns minutos e tenta novamente.",
@@ -86,7 +92,7 @@ export async function register(
   const inserted = await db
     .insert(users)
     .values({ name: parsed.data.name, email, passwordHash })
-    .returning({ id: users.id });
+    .returning({ id: users.id, tokenVersion: users.tokenVersion });
   const created = inserted[0];
   if (!created) {
     return {
@@ -96,17 +102,19 @@ export async function register(
     };
   }
 
+  // A successful signup still counts towards the per-IP cap: clearing it here
+  // would let one script alternate successes to keep the bucket permanently open.
   if (isEmailConfigured()) {
     // Com email ativo, a conta só entra após confirmação do endereço
     // (verificação obrigatória antes do primeiro login).
     const token = await createEmailToken(db, created.id, "verify_email", email);
     const message = verificationEmail(token, email);
-    await sendEmail({ to: email, ...message });
-    clearLoginAttempts(await requestIdentifier(email));
-    redirect("/login?verificar=1");
+    const delivered = await sendEmail({ to: email, ...message });
+    // Either way the account exists; a failed send is recoverable because the
+    // next sign-in attempt mints and sends a fresh link.
+    redirect(`/login?verificar=${delivered ? "1" : "0"}`);
   }
 
-  clearLoginAttempts(await requestIdentifier(email));
-  await createSession(created.id, 0);
+  await createSession(created.id, created.tokenVersion);
   redirect("/dashboard");
 }

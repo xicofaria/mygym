@@ -308,3 +308,52 @@ lento, e esses algoritmos salgam cada digest, o que tornaria impossível a
 pesquisa por hash (`eq(emailTokens.tokenHash, …)`) de que o consumo do token
 depende. SHA-256 sobre um token aleatório de alta entropia é a prática
 recomendada. A justificação está também em comentário no próprio módulo.
+
+### Bloqueadores da revisão do PR #38 — 2026-09-07
+
+Corrigidos os achados que a ronda automática do `--fix` não cobriu (fez uma
+revisão nova, de qualidade, em vez de retomar a lista da primeira):
+
+1. **`APP_URL` entra em `isEmailConfigured()`.** As três variáveis são um só
+   interruptor. Meio configurado armava a barreira de verificação em
+   `getCurrentUser` **e** enviava links sem host — lockout de todas as contas
+   sem via de recuperação. Documentado também no `.env.example`.
+2. **`console.log("[LOGIN-DEBUG]", email)` removido** de `login/actions.ts`.
+   Escrevia o email de cada tentativa nos logs do servidor, antes até do rate
+   limit.
+3. **A página de login mostra todos os desfechos**: `?ok=repor`, `?verificar=1`
+   (registo com email ativo), `?verificar=0` (conta criada mas envio falhou),
+   `?verificado=1` e `?verificado=0` (link expirado, em tom de aviso). Antes o
+   `flag()` só aceitava `=== "1"` e desconhecia `verificar`, portanto reset e
+   registo acabavam num ecrã de login mudo.
+4. **Mudar de email já não tranca a conta.** Com provider configurado o
+   endereço **não** muda no `/conta`: cria-se um token ligado ao novo endereço
+   e a troca acontece em `/verificar`, ao consumir o token. O email atual
+   continua válido entretanto, e um erro de escrita deixa de ser irrecuperável.
+   `/verificar` recusa a troca se outra conta tiver entretanto reclamado o
+   endereço. Sem provider mantém-se a troca imediata.
+5. **`sendEmail` deixou de ser ignorado.** Login, registo e mudança de email
+   distinguem entregue de não entregue em vez de prometerem um email que a
+   Resend recusou.
+6. **Login em conta não verificada revoga os tokens anteriores** antes de criar
+   o novo, em transação: uma tentativa deixa de acumular uma linha e um envio.
+7. **Registo tem balde próprio, só por IP** (`registo:<ip>`). Com `ip:email` não
+   limitava nada (bastava variar o email) e o caminho "email duplicado" queimava
+   o balde de *login* da conta visada. Um registo bem-sucedido também conta.
+8. **HEIC:** a deteção passa a olhar para a extensão antes do gate de MIME
+   (Chrome devolve `type` vazio para `.heic`), e só uma falha de *descodificação*
+   produz a mensagem do Safari — um ficheiro grande demais mantém a sua própria
+   mensagem. Erros de decode passam a pt-PT, portanto nenhum `DOMException` em
+   inglês chega à UI.
+9. **`/relatorios` colore o peso com `deltaTone`** e o `goal` de `BODY_FIELDS`
+   (`neutral`), em vez de pintar qualquer perda de verde.
+10. **Email semanal com URL absoluto** (`appUrl()`), `maxDuration` no cron, e
+    `<main>` aninhado removido de `/conta` e `/relatorios` (o layout já fornece um).
+
+E2E novo: mudança de email com palavra-passe errada recusada, troca aplicada, o
+email antigo deixa de autenticar e o novo passa a autenticar. 35 E2E e 122
+unitários verdes.
+
+**Por corrigir** (reportado, fora deste âmbito): o rollback de `/repor`
+des-consome o token, que fica replayable até expirar; e `getCalorieData` carrega
+o catálogo inteiro de produtos que o relatório nunca lê.

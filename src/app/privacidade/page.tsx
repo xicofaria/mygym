@@ -23,9 +23,11 @@ export default function PrivacyPage() {
           dados apenas para operar o serviço.
         </p>
         <p>
-          Direitos RGPD: podes exportar os teus dados, corrigi-los e eliminar a
-          conta com todos os dados associados na página Conta, a qualquer
-          momento. Para outras questões, contacta o responsável da instância.
+          Direitos RGPD: podes consultar e corrigir os teus dados, e eliminar a
+          conta com todos os dados associados, na página Conta, a qualquer
+          momento. A exportação automática ainda não está disponível; para
+          pedires uma cópia dos teus dados, ou para qualquer outra questão,
+          contacta o responsável da instância.
         </p>
         <p>
           Cookies: usamos apenas um cookie técnico de sessão (httpOnly) para te

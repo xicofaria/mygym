@@ -12,7 +12,7 @@ import {
   consumeLoginAttempt,
 } from "@/lib/login-rate-limit";
 import { isEmailConfigured, sendEmail, verificationEmail } from "@/lib/email";
-import { createEmailToken } from "@/lib/email-tokens";
+import { createEmailToken, revokeEmailTokens } from "@/lib/email-tokens";
 
 
 /** `email` is echoed back so a wrong password does not clear it too.
@@ -46,7 +46,6 @@ export async function login(
     };
   }
   const { email, password } = parsed.data;
-  console.log("[LOGIN-DEBUG] tentativa", email, Date.now());
 
   const requestHeaders = await headers();
   const ip =
@@ -74,12 +73,18 @@ export async function login(
   // Dormant until a transactional email provider is configured on the server.
   // Existing accounts migrate on first login: we send the verification link.
   if (isEmailConfigured() && !user.emailVerifiedAt) {
-    const token = await createEmailToken(db, user.id, "verify_email", email);
+    // Replace rather than accumulate: every attempt otherwise mints another row
+    // and another outbound mail, with only the per-instance limiter in the way.
+    const token = await db.transaction(async (tx) => {
+      await revokeEmailTokens(tx, user.id);
+      return createEmailToken(tx, user.id, "verify_email", email);
+    });
     const message = verificationEmail(token, email);
-    await sendEmail({ to: email, ...message });
+    const delivered = await sendEmail({ to: email, ...message });
     return {
-      error:
-        "Enviámos um link de confirmação para este email. Confirma-o para entrares.",
+      error: delivered
+        ? "Enviámos um link de confirmação para este email. Confirma-o para entrares."
+        : "Não conseguimos enviar o email de confirmação. Tenta novamente dentro de alguns minutos.",
       email,
     };
   }

@@ -126,6 +126,41 @@ test("alterar palavra-passe termina outras sessões e a antiga deixa de funciona
   await expect(page).toHaveURL(/\/dashboard$/);
 });
 
+test("alterar email exige a palavra-passe e passa a ser o novo login", async ({
+  page,
+}) => {
+  const email = uniqueEmail();
+  const novo = uniqueEmail();
+  const password = "palavra-do-email-123";
+  await page.goto("/registo");
+  await page.getByLabel("Nome").fill("Troca Email E2E");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Palavra-passe").fill(password);
+  await page.getByRole("button", { name: "Criar conta" }).click();
+  await expect(page).toHaveURL(/\/dashboard$/);
+
+  await page.goto("/conta");
+  // A palavra-passe errada nao muda nada.
+  await page.locator("#new-email").fill(novo);
+  await page.locator("#email-password").fill("palavra-errada-999");
+  await page.getByRole("button", { name: "Alterar email" }).click();
+  await expect(page.getByText("A palavra-passe está incorreta.")).toBeVisible();
+
+  await page.locator("#new-email").fill(novo);
+  await page.locator("#email-password").fill(password);
+  await page.getByRole("button", { name: "Alterar email" }).click();
+  // Sem provider de email configurado a troca aplica-se de imediato.
+  await expect(page.getByText("Email atualizado.")).toBeVisible();
+  await page.reload();
+  await expect(page.getByText(novo, { exact: true })).toBeVisible();
+
+  await logout(page);
+  await login(page, { email, password }).catch(() => {});
+  await expect(page).toHaveURL(/\/login$/);
+  await login(page, { email: novo, password });
+  await expect(page).toHaveURL(/\/dashboard$/);
+});
+
 test("eliminar conta apaga dados e impede novo login", async ({ page }) => {
   const email = uniqueEmail();
   await page.goto("/registo");

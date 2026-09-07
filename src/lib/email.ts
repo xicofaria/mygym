@@ -1,15 +1,26 @@
 import "server-only";
 
 /**
- * Pluggable transactional email. When RESEND_API_KEY and EMAIL_FROM are set,
- * verification and reset emails are active and email-verification becomes
- * enforced before the first login. Without them the app degrades gracefully:
- * registration works unverified, recovery reports itself unavailable, and the
- * weekly report cron is a no-op.
+ * Pluggable transactional email. When RESEND_API_KEY, EMAIL_FROM and APP_URL
+ * are all set, verification and reset emails are active and email-verification
+ * becomes enforced before the first login. Without them the app degrades
+ * gracefully: registration works unverified, recovery reports itself
+ * unavailable, and the weekly report cron is a no-op.
+ *
+ * APP_URL is part of the switch on purpose. Flipping this to true also arms the
+ * verification gate in `getCurrentUser`, so a half-configured server would lock
+ * every unverified account out while mailing them scheme-less links they cannot
+ * click. All three, or none.
  */
 
+export function appUrl(): string {
+  return (process.env.APP_URL ?? "").replace(/\/$/, "");
+}
+
 export function isEmailConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
+  return Boolean(
+    process.env.RESEND_API_KEY && process.env.EMAIL_FROM && appUrl(),
+  );
 }
 
 export async function sendEmail({
@@ -40,8 +51,6 @@ export async function sendEmail({
   }
 }
 
-const APP_URL = () => (process.env.APP_URL ?? "").replace(/\/$/, "");
-
 export function verificationEmail(token: string, email: string): {
   subject: string;
   text: string;
@@ -50,7 +59,7 @@ export function verificationEmail(token: string, email: string): {
     subject: "Confirma o teu email — Gym Tracker",
     text:
       "Confirma o teu email para ativar a conta (válido por 24 horas):\n" +
-      `${APP_URL()}/verificar?token=${token}&email=${encodeURIComponent(email)}\n\n` +
+      `${appUrl()}/verificar?token=${token}&email=${encodeURIComponent(email)}\n\n` +
       "Se não criaste esta conta, ignora este email.",
   };
 }
@@ -63,7 +72,7 @@ export function resetEmail(token: string, email: string): {
     subject: "Repor palavra-passe — Gym Tracker",
     text:
       "Usa este link para escolheres uma nova palavra-passe (válido por 1 hora):\n" +
-      `${APP_URL()}/repor?token=${token}&email=${encodeURIComponent(email)}\n\n` +
+      `${appUrl()}/repor?token=${token}&email=${encodeURIComponent(email)}\n\n` +
       "Se não pediste a reposição, ignora este email.",
   };
 }

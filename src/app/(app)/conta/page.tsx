@@ -8,7 +8,7 @@ export default async function AccountPage() {
   const user = await requireUser();
 
   return (
-    <main className="mx-auto w-full max-w-xl px-4 py-6">
+    <div className="flex flex-col gap-4">
       <h1 className="text-lg font-bold tracking-tight">A tua conta</h1>
       <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
         {user.email}
@@ -27,6 +27,6 @@ export default async function AccountPage() {
           {" "}— o resumo da tua semana de treinos e calorias.
         </span>
       </div>
-    </main>
+    </div>
   );
 }

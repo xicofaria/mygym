@@ -5,6 +5,7 @@ import {
 } from "./queries";
 import { calculateWeeklyReport } from "./weekly-report";
 import { fmtDate } from "./format";
+import { appUrl } from "./email";
 
 /** Builds the weekly summary email body for one account (no-op empty weeks). */
 export async function buildWeeklyReportEmail(
@@ -38,10 +39,7 @@ export async function buildWeeklyReportEmail(
       `Peso: ${report.weightChange > 0 ? "+" : ""}${report.weightChange} kg na semana`,
     );
   }
-  lines.push(
-    "",
-    "Abre a app para ver o relatório completo: /relatorios",
-  );
+  lines.push("", `Relatório completo: ${appUrl()}/relatorios`);
   return {
     subject: `O teu resumo semanal — Gym Tracker`,
     text: lines.join("\n"),

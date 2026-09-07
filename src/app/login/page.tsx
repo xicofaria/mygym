@@ -7,6 +7,7 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{
     ok?: string | string[];
+    verificar?: string | string[];
     verificado?: string | string[];
     eliminada?: string | string[];
   }>;
@@ -14,17 +15,42 @@ export default async function LoginPage({
   const user = await getCurrentUser();
   if (user) redirect("/dashboard");
   const params = await searchParams;
-  const flag = (name: "ok" | "verificado" | "eliminada") => {
-    const value = params[name];
-    return (Array.isArray(value) ? value[0] : value) === "1";
+  // Every redirect that lands here carries its outcome in the query string, so
+  // each one needs a branch: a silent login page reads as "nothing happened".
+  const value = (name: "ok" | "verificar" | "verificado" | "eliminada") => {
+    const raw = params[name];
+    return Array.isArray(raw) ? raw[0] : raw;
   };
-  const notice = flag("ok")
-    ? "Palavra-passe alterada. Inicia sessão com a nova."
-    : flag("verificado")
-      ? "Email confirmado. Inicia sessão."
-      : flag("eliminada")
-        ? "A tua conta foi eliminada, incluindo todos os dados."
-        : null;
+  const failed = value("verificado") === "0";
+  const notice: { text: string; tone: "info" | "warn" } | null =
+    value("ok") === "repor"
+      ? {
+          text: "Palavra-passe alterada. Inicia sessão com a nova.",
+          tone: "info",
+        }
+      : value("verificar") === "1"
+        ? {
+            text: "Conta criada. Enviámos um link de confirmação para o teu email — confirma-o para entrares.",
+            tone: "info",
+          }
+        : value("verificar") === "0"
+          ? {
+              text: "Conta criada, mas não conseguimos enviar o email de confirmação. Inicia sessão para receberes um novo link.",
+              tone: "warn",
+            }
+          : value("verificado") === "1"
+            ? { text: "Email confirmado. Inicia sessão.", tone: "info" }
+            : failed
+              ? {
+                  text: "Este link de confirmação expirou ou já foi usado. Inicia sessão para receberes um novo.",
+                  tone: "warn",
+                }
+              : value("eliminada") === "1"
+                ? {
+                    text: "A tua conta foi eliminada, incluindo todos os dados.",
+                    tone: "info",
+                  }
+                : null;
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-sm flex-col justify-center px-6 py-12">
@@ -48,8 +74,15 @@ export default async function LoginPage({
         </p>
       </div>
       {notice && (
-        <p className="mb-4 text-center text-sm font-medium text-indigo-700 dark:text-indigo-300">
-          {notice}
+        <p
+          role={notice.tone === "warn" ? "alert" : "status"}
+          className={`mb-4 text-center text-sm font-medium ${
+            notice.tone === "warn"
+              ? "text-amber-700 dark:text-amber-400"
+              : "text-indigo-700 dark:text-indigo-300"
+          }`}
+        >
+          {notice.text}
         </p>
       )}
       <LoginForm />
