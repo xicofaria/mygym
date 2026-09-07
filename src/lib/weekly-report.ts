@@ -2,11 +2,25 @@ import { epley1RM, round } from "./format";
 import { goalForDate, type CalorieGoal } from "./nutrition";
 
 export type WeeklySetRow = {
+  workoutId: number;
   dateKey: string;
   exercise: string;
   reps: number | null;
   weight: number | null;
 };
+
+/** Aggregates per-entry kcal into one row per civil day. */
+export function caloriesPerDay(
+  entries: { dateKey: string; kcal: number }[],
+): { dateKey: string; kcal: number }[] {
+  const byDay = new Map<string, number>();
+  for (const entry of entries) {
+    byDay.set(entry.dateKey, (byDay.get(entry.dateKey) ?? 0) + entry.kcal);
+  }
+  return [...byDay.entries()]
+    .map(([dateKey, kcal]) => ({ dateKey, kcal: round(kcal) }))
+    .sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+}
 
 export type WeeklyReportInput = {
   /** Monday of the reported week (inclusive), next Monday (exclusive). */
@@ -44,7 +58,8 @@ const inWindow = (dateKey: string, input: WeeklyReportInput) =>
 export function calculateWeeklyReport(input: WeeklyReportInput): WeeklyReport {
   const weekSets = input.sets.filter((row) => inWindow(row.dateKey, input));
 
-  const workoutDays = new Set(weekSets.map((row) => row.dateKey));
+  // A app permite várias sessões na mesma data: conta treinos, não dias.
+  const workoutIds = new Set(weekSets.map((row) => row.workoutId));
   let volume = 0;
   let sets = 0;
   const weekBests = new Map<
@@ -114,7 +129,7 @@ export function calculateWeeklyReport(input: WeeklyReportInput): WeeklyReport {
   return {
     fromKey: input.fromKey,
     toKey: input.toKey,
-    workouts: workoutDays.size,
+    workouts: workoutIds.size,
     volume: round(volume),
     sets,
     prs,

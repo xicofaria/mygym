@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   calculateWeeklyReport,
+  caloriesPerDay,
   type WeeklyReportInput,
 } from "../../src/lib/weekly-report";
 
@@ -16,26 +17,28 @@ const base: WeeklyReportInput = {
   goals: [],
 };
 
-test("weekly report counts workouts, volume and sets without rounding up", () => {
+test("counts distinct workouts (two sessions on the same day are two) and volume", () => {
   const report = calculateWeeklyReport({
     ...base,
     sets: [
-      { dateKey: "2026-08-31", exercise: "Bench Press", reps: 10, weight: 50 },
-      { dateKey: "2026-08-31", exercise: "Bench Press", reps: 8, weight: 52.5 },
-      { dateKey: "2026-09-02", exercise: "Squat", reps: 5, weight: 100 },
-      { dateKey: "2026-08-30", exercise: "Fora da semana", reps: 1, weight: 999 },
+      { workoutId: 1, dateKey: "2026-08-31", exercise: "Bench Press", reps: 10, weight: 50 },
+      { workoutId: 1, dateKey: "2026-08-31", exercise: "Bench Press", reps: 8, weight: 52.5 },
+      { workoutId: 2, dateKey: "2026-08-31", exercise: "Squat", reps: 5, weight: 100 },
+      { workoutId: 2, dateKey: "2026-09-02", exercise: "Squat", reps: 5, weight: 100 },
+      { workoutId: 99, dateKey: "2026-08-30", exercise: "Fora da semana", reps: 1, weight: 999 },
     ],
   });
+  // Treino 1 (31/08) + treino 2 (31/08 e 02/09) = 2 treinos distintos.
   assert.equal(report.workouts, 2);
-  assert.equal(report.sets, 3);
-  assert.equal(report.volume, 500 + 420 + 500);
+  assert.equal(report.sets, 4);
+  assert.equal(report.volume, 500 + 420 + 500 + 500);
 });
 
 test("a PR only counts when the week beats previous history", () => {
   const withHistory = calculateWeeklyReport({
     ...base,
     sets: [
-      { dateKey: "2026-09-01", exercise: "Bench Press", reps: 5, weight: 80 },
+      { workoutId: 1, dateKey: "2026-09-01", exercise: "Bench Press", reps: 5, weight: 80 },
     ],
     previousBests: {
       "Bench Press": { epley: 93.4, weight: 80 },
@@ -46,7 +49,7 @@ test("a PR only counts when the week beats previous history", () => {
   const beaten = calculateWeeklyReport({
     ...base,
     sets: [
-      { dateKey: "2026-09-01", exercise: "Bench Press", reps: 5, weight: 85 },
+      { workoutId: 1, dateKey: "2026-09-01", exercise: "Bench Press", reps: 5, weight: 85 },
     ],
     previousBests: {
       "Bench Press": { epley: 93.4, weight: 80 },
@@ -59,13 +62,13 @@ test("a PR only counts when the week beats previous history", () => {
   const firstTime = calculateWeeklyReport({
     ...base,
     sets: [
-      { dateKey: "2026-09-01", exercise: "Pec Deck", reps: 12, weight: 40 },
+      { workoutId: 1, dateKey: "2026-09-01", exercise: "Pec Deck", reps: 12, weight: 40 },
     ],
   });
   assert.equal(firstTime.prs.length, 0);
 });
 
-test("calories count per day; within-goal requires an explicitly completed day", () => {
+test("calories aggregate per day; within-goal requires an explicitly completed day", () => {
   const report = calculateWeeklyReport({
     ...base,
     calories: [
@@ -78,9 +81,34 @@ test("calories count per day; within-goal requires an explicitly completed day",
   assert.equal(report.kcalTotal, 4400);
   assert.equal(report.kcalRecordedDays, 2);
   assert.equal(report.kcalAvg, 2200);
-  // 31/08: concluído e dentro de ±10% → conta. 01/09: dentro mas por concluir.
   assert.equal(report.daysWithinGoal, 1);
   assert.equal(report.daysCompleted, 1);
+});
+
+test("caloriesPerDay merges multiple entries of the same civil day", () => {
+  const perDay = caloriesPerDay([
+    { dateKey: "2026-09-01", kcal: 1000 },
+    { dateKey: "2026-09-01", kcal: 1000 },
+    { dateKey: "2026-09-02", kcal: 500 },
+  ]);
+  assert.deepEqual(perDay, [
+    { dateKey: "2026-09-01", kcal: 2000 },
+    { dateKey: "2026-09-02", kcal: 500 },
+  ]);
+
+  const report = calculateWeeklyReport({
+    ...base,
+    calories: caloriesPerDay([
+      { dateKey: "2026-08-31", kcal: 1000 },
+      { dateKey: "2026-08-31", kcal: 1000 },
+    ]),
+    completedDays: ["2026-08-31"],
+    goals: [{ effectiveFrom: "2026-08-01", kcal: 2000, tolerance: 10 }],
+  });
+  // 1 dia registado, média 2000 e o dia conta como dentro da meta.
+  assert.equal(report.kcalRecordedDays, 1);
+  assert.equal(report.kcalAvg, 2000);
+  assert.equal(report.daysWithinGoal, 1);
 });
 
 test("weight change compares the last in-week reading with the last before it", () => {

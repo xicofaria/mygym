@@ -17,6 +17,7 @@ export default async function AccountPage() {
         name={user.name}
         email={user.email}
         emailVerified={user.emailVerifiedAt != null}
+        weeklyReport={user.weeklyReportEnabled}
       />
       <div className="mt-8 border-t border-black/10 pt-4 text-sm dark:border-white/10">
         <Link href="/relatorios" className="underline">

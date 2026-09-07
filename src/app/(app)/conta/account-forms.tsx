@@ -5,6 +5,7 @@ import {
   changeEmail,
   changePassword,
   deleteAccount,
+  setWeeklyReport,
   updateName,
   type AccountState,
 } from "./actions";
@@ -53,14 +54,17 @@ export function AccountForms({
   name,
   email,
   emailVerified,
+  weeklyReport,
 }: {
   name: string;
   email: string;
   emailVerified: boolean;
+  weeklyReport: boolean;
 }) {
   const nameForm = useAction(updateName);
   const pwForm = useAction(changePassword);
   const emailForm = useAction(changeEmail);
+  const reportForm = useAction(setWeeklyReport);
   const deleteForm = useAction(deleteAccount);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -117,6 +121,26 @@ export function AccountForms({
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
           Termina a sessão em todos os outros dispositivos.
         </p>
+      </form>
+
+      <form onSubmit={reportForm.submit} className="card flex flex-col gap-3">
+        <h2 className="font-semibold">Relatório semanal</h2>
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="enabled"
+            defaultChecked={weeklyReport}
+          />
+          Receber o resumo semanal (treinos, recordes e calorias) por email.
+        </label>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
+          Os emails só são enviados quando o servidor tem envio de email
+          configurado e o teu email está confirmado.
+        </p>
+        <Feedback state={reportForm.state} />
+        <button type="submit" className="btn-ghost self-start" disabled={reportForm.pending}>
+          {reportForm.pending ? "A guardar…" : "Guardar preferência"}
+        </button>
       </form>
 
       <form onSubmit={emailForm.submit} className="card flex flex-col gap-3">

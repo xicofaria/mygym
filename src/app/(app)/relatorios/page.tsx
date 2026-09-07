@@ -6,7 +6,7 @@ import {
 } from "@/lib/queries";
 import { currentLisbonWeekRange } from "@/lib/dashboard-metrics";
 import { calculateWeeklyReport } from "@/lib/weekly-report";
-import { fmtDate, lisbonDateKey } from "@/lib/format";
+import { fmtDate } from "@/lib/format";
 import { PageHeader, StatCard } from "@/components/ui";
 import { EmptyState } from "@/components/ui";
 

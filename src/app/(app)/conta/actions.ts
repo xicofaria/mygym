@@ -149,6 +149,24 @@ export async function changeEmail(
   };
 }
 
+export async function setWeeklyReport(
+  _prev: AccountState,
+  formData: FormData,
+): Promise<AccountState> {
+  const user = await requireUser();
+  const enabled = formData.get("enabled") === "on";
+  await db
+    .update(users)
+    .set({ weeklyReportEnabled: enabled })
+    .where(eq(users.id, user.id));
+  return {
+    error: null,
+    ok: enabled
+      ? "Relatório semanal por email ativado."
+      : "Relatório semanal por email desativado.",
+  };
+}
+
 const DELETE_WORD = "ELIMINAR";
 
 export async function deleteAccount(

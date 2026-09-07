@@ -1,7 +1,15 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, eq, isNull } from "drizzle-orm";
 import type { LibSQLDatabase } from "drizzle-orm/libsql";
+import type { SQLiteTransaction } from "drizzle-orm/sqlite-core";
+import type { ExtractTablesWithRelations } from "drizzle-orm";
+import type { ResultSet } from "@libsql/client";
 import { emailTokens } from "@/db/schema";
+
+/** The plain database or an open transaction (consumo e atualização atómicos). */
+export type EmailTokenDatabase<TSchema extends Record<string, unknown>> =
+  | LibSQLDatabase<TSchema>
+  | SQLiteTransaction<"async", ResultSet, TSchema, ExtractTablesWithRelations<TSchema>>;
 
 export const TOKEN_PURPOSES = ["verify_email", "password_reset"] as const;
 export type EmailTokenPurpose = (typeof TOKEN_PURPOSES)[number];
@@ -19,7 +27,7 @@ const hashToken = (raw: string) =>
 export async function createEmailToken<
   TSchema extends Record<string, unknown>,
 >(
-  database: LibSQLDatabase<TSchema>,
+  database: EmailTokenDatabase<TSchema>,
   userId: number,
   purpose: EmailTokenPurpose,
   email: string,
@@ -40,7 +48,7 @@ export async function createEmailToken<
 export async function consumeEmailToken<
   TSchema extends Record<string, unknown>,
 >(
-  database: LibSQLDatabase<TSchema>,
+  database: EmailTokenDatabase<TSchema>,
   raw: string,
   purpose: EmailTokenPurpose,
   email: string,
@@ -68,6 +76,6 @@ export async function consumeEmailToken<
 /** Drops every outstanding token of an account (credential changes). */
 export async function revokeEmailTokens<
   TSchema extends Record<string, unknown>,
->(database: LibSQLDatabase<TSchema>, userId: number): Promise<void> {
+>(database: EmailTokenDatabase<TSchema>, userId: number): Promise<void> {
   await database.delete(emailTokens).where(eq(emailTokens.userId, userId));
 }

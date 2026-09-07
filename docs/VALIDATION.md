@@ -246,3 +246,14 @@ seletor semana atual/anterior. Email de segunda 08:00 UTC via `vercel.json`
 cron → `/api/cron/weekly-report` protegido por `CRON_SECRET` (401 sem
 segredo); sem provider de email o cron é um no-op explícito; destinos:
 contas verificadas com opt-out ativo (`/conta`).
+
+### Segunda ronda da revisão (4 correções) — 2026-09-07
+
+1. Reset e verificação passaram a ser transacionais: consumo do token e
+   atualização da conta na mesma transação, com binding ao email atual — se o
+   endereço mudou entretanto, o link morre sem consumir nada.
+2. O relatório agrega calorias por dia civil (duas entradas de 1000 kcal no
+   mesmo dia contam como 1 dia, média 2000, dia na meta com meta 2000) —
+   `caloriesPerDay` puro e testado.
+3. Treinos contam IDs distintos (duas sessões no mesmo dia = 2), ecrã e email.
+4. Opt-out do relatório semanal em `/conta` com persistência verificada em E2E.

@@ -23,7 +23,7 @@ import { chooseTopSet } from "./workout";
 import { enrichExercise } from "./exercise-catalog";
 import {
   calculateWeeklyReport,
-  type WeeklyReportInput,
+  caloriesPerDay,
 } from "./weekly-report";
 import { getCalorieData } from "./calorie-queries";
 import {
@@ -636,6 +636,7 @@ export async function getWeeklyReportData(
 
   const weekRows = await db
     .select({
+      workoutId: workouts.id,
       date: workouts.date,
       exercise: exercises.name,
       reps: sets.reps,
@@ -700,18 +701,19 @@ export async function getWeeklyReportData(
     startKey,
     endKey,
   );
-  const calories = entries
-    .map((entry) => ({
+  // Uma linha por consumo; o relatório agrega por dia civil.
+  const calories = caloriesPerDay(
+    entries.map((entry) => ({
       dateKey: entry.date,
-      kcal:
-        ((entry.snapshot.nutrients.kcal ?? 0) * entry.quantity) / 100,
-    }))
-    .filter((row) => row.kcal > 0);
+      kcal: ((entry.snapshot.nutrients.kcal ?? 0) * entry.quantity) / 100,
+    })),
+  );
 
   return {
     fromKey,
     toKey,
     sets: weekRows.map((row) => ({
+      workoutId: row.workoutId,
       dateKey: lisbonDateKey(row.date),
       exercise: row.exercise,
       reps: row.reps,
@@ -721,7 +723,7 @@ export async function getWeeklyReportData(
     weights: weightRows
       .filter((row) => row.kg != null)
       .map((row) => ({ dateKey: lisbonDateKey(row.date), kg: row.kg as number })),
-    calories,
+    calories: caloriesPerDay(calories),
     completedDays: days
       .filter((day) => day.completed)
       .map((day) => day.date),

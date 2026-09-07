@@ -36,6 +36,15 @@ test("registo público cria conta, entra e volta a entrar", async ({ page }) => 
   await login(page, { email, password: "palavra-nova-123" });
   await page.goto("/conta");
   await expect(page.getByText(email, { exact: true })).toBeVisible();
+
+  // Opt-out do relatório semanal persiste.
+  const reportBox = page.getByRole("checkbox", { name: /resumo semanal/i });
+  await expect(reportBox).toBeChecked();
+  await reportBox.uncheck();
+  await page.getByRole("button", { name: "Guardar preferência" }).click();
+  await expect(page.getByText("Relatório semanal por email desativado.")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("checkbox", { name: /resumo semanal/i })).not.toBeChecked();
 });
 
 test("email duplicado e palavra-passe curta são recusados", async ({ page }) => {
