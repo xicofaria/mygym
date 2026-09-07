@@ -44,6 +44,7 @@ export default defineConfig({
       OPENAI_API_KEY: "",
       OPENROUTER_API_KEY: "",
       AI_PROVIDER: "openai",
+      CRON_SECRET: "e2e-cron-secret",
       VERCEL: "",
       VERCEL_ENV: "",
       SESSION_SECRET:

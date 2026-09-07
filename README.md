@@ -10,6 +10,7 @@ UI is in **European Portuguese (pt-PT)**. Weights and measurements are
 
 ## Features
 
+- **Weekly report** — workouts, volume, personal records beaten and calories vs goal, on screen and by email
 - **Calorie tracker** — a private food diary with user-defined calorie goals,
   meal portions, full nutrition, product photos and day/week/month overviews.
   Manual entry, reviewed label/food AI and Open Food Facts barcode/store lookup.

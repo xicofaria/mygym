@@ -235,3 +235,14 @@ prebuilt não decodifica HEVC-HEIC. Solução: HEIC é aceite onde o browser o
 descodifica nativamente (Safari/iOS 17+, a origem real de ficheiros HEIC);
 noutros browsers, mensagem acionável (Safari ou mudar o formato da câmara).
 E2E cobre a orientação; decoder WASM compatível com CSP fica como follow-up.
+
+## Relatório semanal — 2026-09-07
+
+Branch `feat/public-accounts` (mesmo PR das contas). `calculateWeeklyReport`
+puro e testado (treinos/volume/séries, PRs só quando a semana supera o
+histórico anterior por exercício, kcal/dia com a regra «conta quando
+concluído», variação de peso vs última anterior). Página `/relatorios` com
+seletor semana atual/anterior. Email de segunda 08:00 UTC via `vercel.json`
+cron → `/api/cron/weekly-report` protegido por `CRON_SECRET` (401 sem
+segredo); sem provider de email o cron é um no-op explícito; destinos:
+contas verificadas com opt-out ativo (`/conta`).
