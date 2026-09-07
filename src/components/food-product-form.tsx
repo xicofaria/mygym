@@ -57,6 +57,8 @@ export function FoodProductForm({
   const [pending, start] = useTransition();
   const generation = useRef(0);
   const request = useRef<AbortController | null>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
+  const libraryInput = useRef<HTMLInputElement>(null);
   useEffect(
     () => () => {
       generation.current++;
@@ -299,23 +301,52 @@ export function FoodProductForm({
             ? "Fotografia do produto ou rótulo"
             : "Fotografia e análise · ver ou alterar"}
         </summary>
-        <label className="btn-ghost relative flex min-h-12 cursor-pointer items-center justify-center focus-within:ring-2 focus-within:ring-indigo-500">
-          {preview ? "Substituir fotografia" : "Adicionar fotografia"}
-          <input
-            aria-label="Escolher fotografia do alimento"
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
+        <input
+          ref={cameraInput}
+          aria-label="Fotografar alimento"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          capture="environment"
+          className="hidden"
+          disabled={busy || pending}
+          onChange={(e) => {
+            void choose(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+        <input
+          ref={libraryInput}
+          aria-label="Escolher fotografia do alimento"
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          disabled={busy || pending}
+          onChange={(e) => {
+            void choose(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn-ghost min-h-12 flex-1"
             disabled={busy || pending}
-            onChange={(e) => {
-              void choose(e.target.files?.[0]);
-              e.target.value = "";
-            }}
-          />
-        </label>
+            onClick={() => cameraInput.current?.click()}
+          >
+            {preview ? "Tirar outra fotografia" : "Tirar fotografia"}
+          </button>
+          <button
+            type="button"
+            className="btn-ghost min-h-12 flex-1"
+            disabled={busy || pending}
+            onClick={() => libraryInput.current?.click()}
+          >
+            {preview ? "Escolher outra imagem" : "Escolher imagem"}
+          </button>
+        </div>
         <p className="mt-2 text-xs text-zinc-500">
-          Usa a câmara ou a galeria nas opções do telemóvel. Fotografa o rótulo
-          para maior precisão.
+          Fotografa o rótulo para maior precisão, ou escolhe uma imagem da
+          galeria.
         </p>
         {preview && (
           <img

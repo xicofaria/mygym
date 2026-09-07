@@ -12,7 +12,7 @@ async function login(page: Page, partner = false) {
   await page.goto("/calories");
   await page.waitForLoadState("networkidle");
 }
-async function upload(page: Page) {
+async function upload(page: Page, via: "camera" | "library" = "library") {
   const base64 = await page.evaluate(() => {
     const c = document.createElement("canvas");
     c.width = 64;
@@ -22,12 +22,24 @@ async function upload(page: Page) {
     ctx.fillRect(0, 0, 64, 64);
     return c.toDataURL("image/png").split(",")[1];
   });
-  await page.getByLabel("Escolher fotografia do alimento").setInputFiles({
-    name: "label.png",
-    mimeType: "image/png",
-    buffer: Buffer.from(base64, "base64"),
-  });
+  await page
+    .getByLabel(
+      via === "camera"
+        ? "Fotografar alimento"
+        : "Escolher fotografia do alimento",
+    )
+    .setInputFiles({
+      name: "label.png",
+      mimeType: "image/png",
+      buffer: Buffer.from(base64, "base64"),
+    });
   await expect(page.getByAltText("Fotografia do produto")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Tirar( outra)? fotografia/ }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Escolher( outra)? imagem/ }),
+  ).toBeVisible();
 }
 test("280 g package suggestion is visible, persists and converts whole and half bottles", async ({
   page,
@@ -282,7 +294,7 @@ test("thinking indicator shows elapsed time, supports reduced motion and cancels
   await page
     .getByRole("button", { name: "+ Criar produto / fotografia" })
     .click();
-  await upload(page);
+  await upload(page, "camera");
   await page
     .getByLabel("Nome do alimento", { exact: true })
     .fill("Manter estes dados");
@@ -332,7 +344,8 @@ test("one photo picker fills nutrition and estimated portions; units and half pa
   await page
     .getByRole("button", { name: "+ Criar produto / fotografia" })
     .click();
-  await expect(page.locator('input[type="file"]')).toHaveCount(1);
+  await expect(page.locator('input[type="file"]')).toHaveCount(2);
+  await expect(page.locator('input[capture="environment"]')).toHaveCount(1);
   const nutrients = {
     kcal: 600,
     protein: 25,
