@@ -91,8 +91,13 @@ test("text search retries transient failures once and then returns empty instead
       timeoutMs: 50,
       fetcher: (_url, options) =>
         new Promise((_, reject) => {
+          const backstop = setTimeout(
+            () => reject(new Error("abort não disparou")),
+            1_000,
+          );
           options?.signal?.addEventListener("abort", () => {
             aborted++;
+            clearTimeout(backstop);
             reject(new Error("AbortError"));
           });
         }),
