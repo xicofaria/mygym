@@ -11,6 +11,9 @@ import {
   clearLoginAttempts,
   consumeLoginAttempt,
 } from "@/lib/login-rate-limit";
+import { isEmailConfigured, sendEmail, verificationEmail } from "@/lib/email";
+import { createEmailToken, revokeEmailTokens } from "@/lib/email-tokens";
+
 
 /** `email` is echoed back so a wrong password does not clear it too.
  * The password is never returned. */
@@ -67,8 +70,26 @@ export async function login(
   if (!user || !(await verifyPassword(password, user.passwordHash))) {
     return { error: "Email ou palavra-passe inválidos.", email };
   }
+  // Dormant until a transactional email provider is configured on the server.
+  // Existing accounts migrate on first login: we send the verification link.
+  if (isEmailConfigured() && !user.emailVerifiedAt) {
+    // Replace rather than accumulate: every attempt otherwise mints another row
+    // and another outbound mail, with only the per-instance limiter in the way.
+    const token = await db.transaction(async (tx) => {
+      await revokeEmailTokens(tx, user.id);
+      return createEmailToken(tx, user.id, "verify_email", email);
+    });
+    const message = verificationEmail(token, email);
+    const delivered = await sendEmail({ to: email, ...message });
+    return {
+      error: delivered
+        ? "Enviámos um link de confirmação para este email. Confirma-o para entrares."
+        : "Não conseguimos enviar o email de confirmação. Tenta novamente dentro de alguns minutos.",
+      email,
+    };
+  }
 
   clearLoginAttempts(identifier);
-  await createSession(user.id);
+  await createSession(user.id, user.tokenVersion);
   redirect("/dashboard");
 }

@@ -1,8 +1,6 @@
-import { Suspense } from "react";
+import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { getAllUsers } from "@/lib/queries";
 import { BottomNav } from "@/components/bottom-nav";
-import { UserSwitcher } from "@/components/user-switcher";
 import { logout } from "./actions";
 
 export default async function AppLayout({
@@ -10,17 +8,31 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await requireUser();
-  const users = await getAllUsers();
+  await requireUser();
 
   return (
     <div className="mx-auto flex min-h-dvh w-full max-w-xl flex-col">
       <header className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-black/5 bg-background/80 px-4 py-3 backdrop-blur dark:border-white/10">
         <span className="text-lg font-bold tracking-tight">Gym Tracker</span>
         <div className="flex items-center gap-2">
-          <Suspense fallback={null}>
-            <UserSwitcher users={users} selfId={user.id} />
-          </Suspense>
+          <Link
+            href="/conta"
+            aria-label="A tua conta"
+            className="btn-ghost h-9 w-9 rounded-lg px-0"
+          >
+            <svg
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.9}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="12" cy="8" r="3.5" />
+              <path d="M5 20a7 7 0 0 1 14 0" />
+            </svg>
+          </Link>
           <form action={logout}>
             <button
               type="submit"
@@ -45,9 +57,7 @@ export default async function AppLayout({
 
       <main className="flex-1 px-4 pb-28 pt-4">{children}</main>
 
-      <Suspense fallback={null}>
-        <BottomNav />
-      </Suspense>
+      <BottomNav />
     </div>
   );
 }

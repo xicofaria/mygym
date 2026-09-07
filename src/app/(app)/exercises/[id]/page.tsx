@@ -1,23 +1,22 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getExerciseProgression, getPageContext } from "@/lib/queries";
+import { requireUser } from "@/lib/auth";
+import { getExerciseProgression } from "@/lib/queries";
 import { PageHeader, StatCard } from "@/components/ui";
 import { ProgressChart } from "@/components/progress-chart";
 import { fmtDate } from "@/lib/format";
 
 export default async function ExerciseDetailPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ user?: string }>;
 }) {
+  await requireUser();
   const { id } = await params;
   const exerciseId = Number(id);
-  const { viewed, isSelf, query } = await getPageContext(searchParams);
   const { exercise, points } = await getExerciseProgression(
     exerciseId,
-    viewed.id,
+    (await requireUser()).id,
   );
   if (!exercise) notFound();
 
@@ -28,9 +27,9 @@ export default async function ExerciseDetailPage({
     <div className="flex flex-col gap-4">
       <PageHeader
         title={exercise.name}
-        subtitle={isSelf ? "A tua progressão" : `Progressão de ${viewed.name}`}
+        subtitle="A tua progressão"
         action={
-          <Link href={`/exercises${query}`} className="btn-ghost">
+          <Link href="/exercises" className="btn-ghost">
             Voltar
           </Link>
         }
@@ -38,9 +37,8 @@ export default async function ExerciseDetailPage({
 
       {points.length === 0 ? (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          {isSelf
-            ? "Ainda não há séries registadas para este exercício. Regista um treino que o inclua para veres a tua progressão."
-            : `${viewed.name} ainda não registou este exercício.`}
+          Ainda não há séries registadas para este exercício. Regista um treino
+          que o inclua para veres a tua progressão.
         </p>
       ) : (
         <>

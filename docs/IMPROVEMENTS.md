@@ -39,7 +39,9 @@ repetidos, controlos táteis e um único destaque de ação, mantendo o estilo d
 3. **Decimais consistentes nas medidas corporais:** aplicar ponto/vírgula e
    formatação pt-PT sem arredondar o valor guardado.
 4. **Exportação pessoal CSV/JSON:** treinos e medidas da própria conta.
-5. **Fotografias:** HEIC no iPhone, recorte e melhor gestão de memória para imagens grandes.
+5. **Fotografias:** recorte e melhor gestão de memória para imagens grandes.
+   HEIC funciona em Safari/iOS 17+; um decoder WASM compatível com CSP
+   (sem eval) é follow-up para Chrome/Firefox.
 6. **Acessibilidade e PWA em dispositivos reais:** VoiceOver/TalkBack, modo instalado,
    captura nativa, contraste e comportamento com pouca rede.
 7. **Correspondência OFF na análise de calorias (2026-09-07):** ensaio de
@@ -48,7 +50,8 @@ repetidos, controlos táteis e um único destaque de ação, mantendo o estilo d
    `resolveFoodCandidates` à escala real (o teste atual de aborto real vive no
    nível da pesquisa textual, com prazos curtos).
 
-**Gestão de conta/palavra-passe não implementada**, por indicação explícita do utilizador.
+**Gestão de conta implementada** (registo público, `/conta`, eliminação RGPD,
+verificação e reposição por email) — a exceção anterior deixou de se aplicar.
 
 ## Limites conhecidos
 

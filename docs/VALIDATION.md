@@ -197,3 +197,163 @@ nunca era chamado) — substituído por contentor simples com botão `type="butt
 Testes unitários (118) e E2E mocked cobrem contrato, conversão, saneamento,
 prompt, criação real na base descartável e rejeição de duplicado exato. Fotos
 de internet, não do ginásio; precisão visual real continua por validar.
+
+## Contas públicas — 2026-09-07
+
+Branch `feat/public-accounts`. Migração 0005: `users` ganha `email_verified_at`,
+`token_version` e `weekly_report_enabled`; nova tabela `email_tokens` (hash
+SHA-256, uso único, expiração). Registo público em `/registo` com auto-login e
+rate limit; recuperação e verificação construídas mas dormentes até existir
+provider de email (`RESEND_API_KEY`/`EMAIL_FROM`) — sem ele, a recuperação
+indica indisponibilidade. JWT passa a incluir `tokenVersion`: mudar
+palavra-passe/email ou eliminar a conta revoga todas as sessões.
+`/conta` com nome, email, palavra-passe e eliminação RGPD (transação, cascata
+total). Seletor `?user=` removido: cada conta vê apenas os seus dados
+(`?user=` é ignorado). Formulários convertidos de `useActionState` para
+submissão direta — descoberta crítica em E2E: a repetição de submissão era
+engolida (utilizador não conseguia repetir credenciais erradas). 116
+unitários + 31 E2E verdes; `npm run check` OK.
+
+### Revisão das contas públicas (5 correções) — 2026-09-07
+
+1. Tokens ficam vinculados ao endereço concreto (coluna `email`) e são
+   revogados em alterações de email/palavra-passe; links antigos deixam de
+   autorizar após a mudança.
+2. Com email ativo, o registo já não cria sessão: exige confirmação do
+   endereço (e `getCurrentUser` devolve nulo para contas não verificadas).
+3. `consumeLoginAttempt(...).allowed` na recuperação (o objeto era sempre
+   verdadeiro e o limite nunca bloqueava).
+4. Contas existentes migram no primeiro login com email ativo: o login envia
+   o link de verificação; a reposição por link marca o email como verificado.
+5. `tokenVersion` incrementa atomicamente (SQL) com optimistic lock; corridas
+   são rejeitadas em vez de deixarem sessões por revogar.
+
+### HEIC — decisão
+
+heic2any exige `unsafe-eval` (incompatível com a CSP da app) e o sharp
+prebuilt não decodifica HEVC-HEIC. Solução: HEIC é aceite onde o browser o
+descodifica nativamente (Safari/iOS 17+, a origem real de ficheiros HEIC);
+noutros browsers, mensagem acionável (Safari ou mudar o formato da câmara).
+E2E cobre a orientação; decoder WASM compatível com CSP fica como follow-up.
+
+## Relatório semanal — 2026-09-07
+
+Branch `feat/public-accounts` (mesmo PR das contas). `calculateWeeklyReport`
+puro e testado (treinos/volume/séries, PRs só quando a semana supera o
+histórico anterior por exercício, kcal/dia com a regra «conta quando
+concluído», variação de peso vs última anterior). Página `/relatorios` com
+seletor semana atual/anterior. Email de segunda 08:00 UTC via `vercel.json`
+cron → `/api/cron/weekly-report` protegido por `CRON_SECRET` (401 sem
+segredo); sem provider de email o cron é um no-op explícito; destinos:
+contas verificadas que **ativaram** o envio em `/conta` (opt-in: a coluna
+`weekly_report_enabled` nasce a `false`, migração 0007).
+
+### Segunda ronda da revisão (4 correções) — 2026-09-07
+
+1. Reset e verificação passaram a ser transacionais: consumo do token e
+   atualização da conta na mesma transação, com binding ao email atual — se o
+   endereço mudou entretanto, o link morre sem consumir nada.
+2. O relatório agrega calorias por dia civil (duas entradas de 1000 kcal no
+   mesmo dia contam como 1 dia, média 2000, dia na meta com meta 2000) —
+   `caloriesPerDay` puro e testado.
+3. Treinos contam IDs distintos (duas sessões no mesmo dia = 2), ecrã e email.
+4. Preferência do relatório semanal em `/conta` com persistência verificada
+   em E2E. É **opt-in**: por indicação do utilizador (2026-09-07) o default
+   passou a desativado na migração 0007, que também desliga as contas
+   existentes — a 0005 tinha criado a coluna com `DEFAULT true` no mesmo PR
+   ainda não lançado, portanto ninguém chegou a consentir o envio.
+
+### Terceira ronda da revisão — 2026-09-07
+
+- A agregação por dia civil passou para dentro de `calculateWeeklyReport`:
+  `getWeeklyReportData` entrega uma linha por consumo e deixa de aplicar
+  `caloriesPerDay` duas vezes. Um dia só com produtos de 0 kcal volta a não
+  contar como dia registado (antes inflava `kcalRecordedDays` e baixava a
+  média).
+- `performReset` calcula o hash bcrypt **antes** de abrir a transação, para não
+  segurar o lock de escrita (nem esgotar uma transação interativa remota).
+- `TransactionRollback`/`ignoreRollback` vivem em `src/lib/transaction.ts`, em
+  vez de duplicados em `/repor` e `/verificar` (onde a classe estava declarada
+  acima dos imports).
+- `getWeeklyReportData` usa `dateKey()` para as datas-só lidas da base de dados
+  (convenção documentada) e corre as quatro leituras em `Promise.all`; o cron
+  semanal repete-as por conta.
+- `withinGoal()` em `nutrition.ts` é a única definição da margem da meta,
+  partilhada por `dayResult` e pelo relatório semanal.
+- `setWeeklyReport` revalida `/conta` depois de gravar.
+
+### Relatório semanal: opt-in — 2026-09-07
+
+Por indicação do utilizador, o email semanal passou a **opt-in**. Migração 0007:
+`users.weekly_report_enabled` muda de `DEFAULT true` para `DEFAULT false` (via
+`ALTER COLUMN`, suportado pelo libSQL) e um `UPDATE` desliga as contas
+existentes — a coluna tinha nascido a `true` na 0005, do mesmo PR ainda não
+lançado, portanto nenhuma conta chegou a consentir o envio. O cron continua a
+filtrar `weekly_report_enabled = true`, logo passa a não enviar nada até alguém
+ativar em `/conta`. A página `/relatorios` não é afetada: o resumo no ecrã está
+sempre disponível. E2E cobre o ciclo completo (nasce desligado → ativar →
+persistir → desativar).
+
+### CodeQL `js/insufficient-password-hash` — falso positivo
+
+O alerta aponta `src/lib/email-tokens.ts` (`createHash("sha256")`) com origem
+declarada numa chamada de teste que passa o literal `"password_reset"` como
+`purpose`. Não há palavra-passe nenhuma nesse caminho: o valor com hash é o
+token de 32 bytes gerado por `randomBytes` no próprio `createEmailToken`, e as
+palavras-passe reais usam bcrypt em `src/lib/auth.ts`.
+
+A remediação sugerida pela regra (bcrypt/scrypt/argon2) é inaplicável por duas
+razões: um token de 256 bits não tem entropia baixa que justifique hashing
+lento, e esses algoritmos salgam cada digest, o que tornaria impossível a
+pesquisa por hash (`eq(emailTokens.tokenHash, …)`) de que o consumo do token
+depende. SHA-256 sobre um token aleatório de alta entropia é a prática
+recomendada. A justificação está também em comentário no próprio módulo.
+
+### Bloqueadores da revisão do PR #38 — 2026-09-07
+
+Corrigidos os achados que a ronda automática do `--fix` não cobriu (fez uma
+revisão nova, de qualidade, em vez de retomar a lista da primeira):
+
+1. **`APP_URL` entra em `isEmailConfigured()`.** As três variáveis são um só
+   interruptor. Meio configurado armava a barreira de verificação em
+   `getCurrentUser` **e** enviava links sem host — lockout de todas as contas
+   sem via de recuperação. Documentado também no `.env.example`.
+2. **`console.log("[LOGIN-DEBUG]", email)` removido** de `login/actions.ts`.
+   Escrevia o email de cada tentativa nos logs do servidor, antes até do rate
+   limit.
+3. **A página de login mostra todos os desfechos**: `?ok=repor`, `?verificar=1`
+   (registo com email ativo), `?verificar=0` (conta criada mas envio falhou),
+   `?verificado=1` e `?verificado=0` (link expirado, em tom de aviso). Antes o
+   `flag()` só aceitava `=== "1"` e desconhecia `verificar`, portanto reset e
+   registo acabavam num ecrã de login mudo.
+4. **Mudar de email já não tranca a conta.** Com provider configurado o
+   endereço **não** muda no `/conta`: cria-se um token ligado ao novo endereço
+   e a troca acontece em `/verificar`, ao consumir o token. O email atual
+   continua válido entretanto, e um erro de escrita deixa de ser irrecuperável.
+   `/verificar` recusa a troca se outra conta tiver entretanto reclamado o
+   endereço. Sem provider mantém-se a troca imediata.
+5. **`sendEmail` deixou de ser ignorado.** Login, registo e mudança de email
+   distinguem entregue de não entregue em vez de prometerem um email que a
+   Resend recusou.
+6. **Login em conta não verificada revoga os tokens anteriores** antes de criar
+   o novo, em transação: uma tentativa deixa de acumular uma linha e um envio.
+7. **Registo tem balde próprio, só por IP** (`registo:<ip>`). Com `ip:email` não
+   limitava nada (bastava variar o email) e o caminho "email duplicado" queimava
+   o balde de *login* da conta visada. Um registo bem-sucedido também conta.
+8. **HEIC:** a deteção passa a olhar para a extensão antes do gate de MIME
+   (Chrome devolve `type` vazio para `.heic`), e só uma falha de *descodificação*
+   produz a mensagem do Safari — um ficheiro grande demais mantém a sua própria
+   mensagem. Erros de decode passam a pt-PT, portanto nenhum `DOMException` em
+   inglês chega à UI.
+9. **`/relatorios` colore o peso com `deltaTone`** e o `goal` de `BODY_FIELDS`
+   (`neutral`), em vez de pintar qualquer perda de verde.
+10. **Email semanal com URL absoluto** (`appUrl()`), `maxDuration` no cron, e
+    `<main>` aninhado removido de `/conta` e `/relatorios` (o layout já fornece um).
+
+E2E novo: mudança de email com palavra-passe errada recusada, troca aplicada, o
+email antigo deixa de autenticar e o novo passa a autenticar. 35 E2E e 122
+unitários verdes.
+
+**Por corrigir** (reportado, fora deste âmbito): o rollback de `/repor`
+des-consome o token, que fica replayable até expirar; e `getCalorieData` carrega
+o catálogo inteiro de produtos que o relatório nunca lê.

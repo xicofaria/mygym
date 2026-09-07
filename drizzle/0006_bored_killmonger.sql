@@ -1,0 +1,1 @@
+ALTER TABLE `email_tokens` ADD `email` text DEFAULT '' NOT NULL;

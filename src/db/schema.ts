@@ -27,6 +27,29 @@ export const users = sqliteTable("users", {
   email: text("email").notNull().unique(),
   name: text("name").notNull(),
   passwordHash: text("password_hash").notNull(),
+  emailVerifiedAt: integer("email_verified_at", { mode: "timestamp" }),
+  tokenVersion: integer("token_version").notNull().default(0),
+  /** Opt-in: the weekly email is only sent to accounts that ask for it. */
+  weeklyReportEnabled: integer("weekly_report_enabled", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
+/** One-time links for email verification and password resets (hashed at rest). */
+export const emailTokens = sqliteTable("email_tokens", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  userId: integer("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+  purpose: text("purpose").notNull(),
+  /** Binds the link to the concrete address it was sent to. */
+  email: text("email").notNull().default(""),
+  tokenHash: text("token_hash").notNull().unique(),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
+  usedAt: integer("used_at", { mode: "timestamp" }),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),

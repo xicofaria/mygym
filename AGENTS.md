@@ -19,7 +19,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Product and architecture context
 
-- Private, two-account, phone-first PWA; no public registration. Next.js 16
+- Phone-first PWA with public registration (email + password; verification
+  active once a transactional email provider is configured). Next.js 16
   App Router / React 19 / Tailwind 4 / Drizzle / libSQL (local SQLite or Turso).
 - `src/app/(app)/layout.tsx` protects pages. Every action and API route must
   independently authenticate; layouts do not protect Route Handlers.
@@ -165,6 +166,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Next/eslint-config-next 16.3.4, postcss 8.5.28 and esbuild >=0.28.2 resolve
   the audited dependency findings. Verify drizzle-kit generation after changing
   its transitive esbuild override; do not downgrade via audit fix --force.
-- Account/password management is deliberately out of scope for this PR.
+- Account management is implemented: public registration, change of name /
+  email / password, RGPD deletion and the weekly-report preference all live in
+  `/conta`. Email verification and password reset activate only when
+  RESEND_API_KEY, EMAIL_FROM and APP_URL are all set; a change of address is
+  applied in `/verificar`, never before the new one is confirmed.
 - Update README, architecture notes and feature docs when behaviour changes.
   Prioritised follow-ups and review boundaries are in `docs/IMPROVEMENTS.md`.

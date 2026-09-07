@@ -1,15 +1,28 @@
 "use client";
 
-import { useActionState } from "react";
+import { useState } from "react";
 import { login, type LoginState } from "./actions";
 
-const initialState: LoginState = { error: null };
-
 export function LoginForm() {
-  const [state, formAction, pending] = useActionState(login, initialState);
+  const [state, setState] = useState<LoginState>({ error: null });
+  const [pending, setPending] = useState(false);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (pending) return;
+    setPending(true);
+    try {
+      const result = await login(state, new FormData(event.currentTarget));
+      if (result) setState(result);
+    } catch {
+      setState({ error: "Sem ligação ao servidor. Tenta novamente." });
+    } finally {
+      setPending(false);
+    }
+  }
 
   return (
-    <form action={formAction} className="card flex flex-col gap-4">
+    <form onSubmit={handleSubmit} className="card flex flex-col gap-4">
       <div>
         <label className="label" htmlFor="email">
           Email
@@ -23,11 +36,6 @@ export function LoginForm() {
           required
           className="input"
           placeholder="tu@exemplo.com"
-          // React resets the form after an action, which would also wipe the
-          // email on a wrong password. Put it back so only the password is
-          // retyped.
-          defaultValue={state.email ?? ""}
-          key={state.email ?? ""}
         />
       </div>
       <div>
@@ -55,6 +63,14 @@ export function LoginForm() {
       <button type="submit" className="btn-primary" disabled={pending}>
         {pending ? "A iniciar sessão…" : "Iniciar sessão"}
       </button>
+      <div className="flex items-center justify-between text-sm">
+        <a href="/recuperar" className="underline">
+          Esqueceste a palavra-passe?
+        </a>
+        <a href="/registo" className="underline">
+          Criar conta
+        </a>
+      </div>
     </form>
   );
 }

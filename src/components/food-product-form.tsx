@@ -90,9 +90,13 @@ export function FoodProductForm({
       if (current !== generation.current) return;
       setBlob(prepared);
       setPhoto(data);
-    } catch {
+    } catch (e) {
       if (current === generation.current)
-        setError("Escolhe uma fotografia JPEG, PNG ou WebP até 20 MB.");
+        setError(
+          e instanceof Error
+            ? e.message
+            : "Escolhe uma imagem JPEG, PNG, WebP ou HEIC até 20 MB.",
+        );
     } finally {
       if (current === generation.current) setBusy(false);
     }
@@ -305,7 +309,7 @@ export function FoodProductForm({
           ref={cameraInput}
           aria-label="Fotografar alimento"
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
           capture="environment"
           className="hidden"
           disabled={busy || pending}
@@ -318,7 +322,7 @@ export function FoodProductForm({
           ref={libraryInput}
           aria-label="Escolher fotografia do alimento"
           type="file"
-          accept="image/jpeg,image/png,image/webp"
+          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
           className="hidden"
           disabled={busy || pending}
           onChange={(e) => {

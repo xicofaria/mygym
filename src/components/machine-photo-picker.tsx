@@ -229,7 +229,7 @@ export function MachinePhotoPicker({
         ref={camera}
         aria-label="Fotografar máquina"
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
         capture="environment"
         className="hidden"
         onChange={(e) => {
@@ -241,7 +241,7 @@ export function MachinePhotoPicker({
         ref={library}
         aria-label="Escolher fotografia da máquina"
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
         className="hidden"
         onChange={(e) => {
           void choose(e.target.files?.[0]);

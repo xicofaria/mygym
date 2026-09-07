@@ -1,17 +1,14 @@
 import Link from "next/link";
-import { getDashboard, getPageContext } from "@/lib/queries";
+import { requireUser } from "@/lib/auth";
+import { getDashboard } from "@/lib/queries";
 import { EmptyState, PageHeader, StatCard } from "@/components/ui";
 import { WorkoutCard } from "@/components/workout-card";
 import { ProgressChart } from "@/components/progress-chart";
 import { WorkoutCalendar } from "@/components/workout-calendar";
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ user?: string }>;
-}) {
-  const { viewed, isSelf, query } = await getPageContext(searchParams);
-  const data = await getDashboard(viewed.id);
+export default async function DashboardPage() {
+  const me = await requireUser();
+  const data = await getDashboard(me.id);
 
   const weightSub =
     data.weightChange == null ? (
@@ -32,14 +29,12 @@ export default async function DashboardPage({
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
-        title={isSelf ? "O teu progresso" : `Progresso de ${viewed.name}`}
+        title="O teu progresso"
         subtitle="Um resumo rápido de como estás a evoluir."
         action={
-          isSelf ? (
-            <Link href="/workouts/new" className="btn-primary">
-              + Registar
-            </Link>
-          ) : undefined
+          <Link href="/workouts/new" className="btn-primary">
+            + Registar
+          </Link>
         }
       />
 
@@ -58,10 +53,7 @@ export default async function DashboardPage({
         <StatCard label="Total de treinos" value={data.totalWorkouts} />
       </div>
 
-      <WorkoutCalendar
-        calendar={data.calendar}
-        viewedUserId={isSelf ? undefined : viewed.id}
-      />
+      <WorkoutCalendar calendar={data.calendar} />
 
       {data.weightSeries.length >= 2 && (
         <div className="card">
@@ -82,7 +74,7 @@ export default async function DashboardPage({
           </h2>
           {data.recent.length > 0 && (
             <Link
-              href={`/workouts${query}`}
+              href="/workouts"
               className="text-sm font-medium text-indigo-600 dark:text-indigo-400"
             >
               Ver todos
@@ -93,13 +85,9 @@ export default async function DashboardPage({
         {data.recent.length === 0 ? (
           <EmptyState
             title="Ainda não há treinos registados"
-            hint={
-              isSelf
-                ? "Regista a tua primeira sessão para começares a acompanhar o teu progresso."
-                : `${viewed.name} ainda não registou nenhum treino.`
-            }
-            href={isSelf ? "/workouts/new" : undefined}
-            cta={isSelf ? "Registar treino" : undefined}
+            hint="Regista a tua primeira sessão para começares a acompanhar o teu progresso."
+            href="/workouts/new"
+            cta="Registar treino"
           />
         ) : (
           <div className="flex flex-col gap-3">

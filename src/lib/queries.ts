@@ -8,61 +8,29 @@ import {
   plannedWorkouts,
   routineGroups,
   sets,
-  users,
   workoutTemplates,
   workouts,
 } from "@/db/schema";
 import type { RoutineDay } from "./routine";
 import { requireUser } from "./auth";
-import { epley1RM, round } from "./format";
+import { epley1RM, lisbonDateKey, round } from "./format";
 import {
   calculateDashboardWeightMetrics,
   calculateDashboardWeekMetrics,
   currentLisbonWeekRange,
 } from "./dashboard-metrics";
-import { resolveViewedUserId } from "./viewer";
 import { chooseTopSet } from "./workout";
 import { enrichExercise } from "./exercise-catalog";
+import { calculateWeeklyReport } from "./weekly-report";
+import { getCalorieData } from "./calorie-queries";
 import {
+  addUtcDays,
   buildWorkoutCalendar,
+  dateFromKey,
+  dateKey,
+  startOfUtcWeek,
   type WorkoutCalendarData,
 } from "./workout-calendar";
-
-/** All users, for the "whose data am I viewing" switcher. */
-export async function getAllUsers() {
-  return db
-    .select({ id: users.id, name: users.name })
-    .from(users)
-    .orderBy(asc(users.id))
-    .all();
-}
-
-/**
- * Shared per-page setup: the signed-in user, everyone (for the switcher), and
- * whose data this page should render (from the ?user= param, default self).
- */
-export async function getPageContext(
-  searchParams: Promise<Record<string, string | string[] | undefined>>,
-) {
-  const [me, allUsers, sp] = await Promise.all([
-    requireUser(),
-    getAllUsers(),
-    searchParams,
-  ]);
-  const viewedId = resolveViewedUserId(
-    sp.user,
-    me.id,
-    allUsers.map((u) => u.id),
-  );
-  const viewed = allUsers.find((u) => u.id === viewedId) ?? {
-    id: me.id,
-    name: me.name,
-  };
-  const isSelf = viewedId === me.id;
-  /** Append to internal links to keep viewing the same person. */
-  const query = isSelf ? "" : `?user=${viewedId}`;
-  return { me, allUsers, viewed, viewedId, isSelf, query };
-}
 
 export async function getExerciseCatalog() {
   const catalog = await db
@@ -640,5 +608,121 @@ export async function getWorkoutTemplate(
       id: i.exercise.id,
       name: i.exercise.name,
     })),
+  };
+}
+
+/** Previous Lisbon week (Monday-to-Monday), for the weekly report. */
+export function previousLisbonWeekRange(instant: Date = new Date()): {
+  from: Date;
+  to: Date;
+} {
+  const today = dateFromKey(lisbonDateKey(instant));
+  const from = addUtcDays(startOfUtcWeek(today), -7);
+  return { from, to: addUtcDays(from, 7) };
+}
+
+export type WeeklyReportData = Parameters<typeof calculateWeeklyReport>[0];
+
+/** Assembles everything the weekly report calculates, from real rows. */
+export async function getWeeklyReportData(
+  userId: number,
+  from: Date,
+  to: Date,
+): Promise<WeeklyReportData> {
+  // `from`/`to` já são datas-só à meia-noite UTC (convenção da base de dados).
+  const fromKey = dateKey(from);
+  const toKey = dateKey(to);
+
+  // Quatro leituras independentes: o cron semanal repete-as por conta.
+  const [weekRows, beforeRows, weightRows, { entries, goals, days }] =
+    await Promise.all([
+      db
+        .select({
+          workoutId: workouts.id,
+          date: workouts.date,
+          exercise: exercises.name,
+          reps: sets.reps,
+          weight: sets.weight,
+        })
+        .from(workouts)
+        .innerJoin(sets, eq(sets.workoutId, workouts.id))
+        .innerJoin(exercises, eq(sets.exerciseId, exercises.id))
+        .where(
+          and(
+            eq(workouts.userId, userId),
+            gte(workouts.date, from),
+            lt(workouts.date, to),
+          ),
+        )
+        .orderBy(asc(workouts.date))
+        .all(),
+      db
+        .select({
+          exercise: exercises.name,
+          reps: sets.reps,
+          weight: sets.weight,
+        })
+        .from(workouts)
+        .innerJoin(sets, eq(sets.workoutId, workouts.id))
+        .innerJoin(exercises, eq(sets.exerciseId, exercises.id))
+        .where(
+          and(
+            eq(workouts.userId, userId),
+            lt(workouts.date, from),
+            gte(sets.reps, 1),
+            gte(sets.weight, 0),
+          ),
+        )
+        .all(),
+      db
+        .select({ date: bodyMetrics.date, kg: bodyMetrics.weightKg })
+        .from(bodyMetrics)
+        .where(
+          and(
+            eq(bodyMetrics.userId, userId),
+            gte(bodyMetrics.date, addUtcDays(from, -365)),
+          ),
+        )
+        .orderBy(asc(bodyMetrics.date))
+        .all(),
+      getCalorieData(userId, fromKey, toKey),
+    ]);
+
+  const previousBests: WeeklyReportData["previousBests"] = {};
+  for (const row of beforeRows) {
+    if (row.reps == null || row.weight == null) continue;
+    const oneRm = epley1RM(row.weight, row.reps);
+    const current = previousBests[row.exercise];
+    if (!current || oneRm > current.epley) {
+      previousBests[row.exercise] = {
+        epley: oneRm,
+        weight: row.weight,
+      };
+    }
+  }
+
+  return {
+    fromKey,
+    toKey,
+    sets: weekRows.map((row) => ({
+      workoutId: row.workoutId,
+      dateKey: dateKey(row.date),
+      exercise: row.exercise,
+      reps: row.reps,
+      weight: row.weight,
+    })),
+    previousBests,
+    weights: weightRows
+      .filter((row) => row.kg != null)
+      .map((row) => ({ dateKey: dateKey(row.date), kg: row.kg as number })),
+    // Uma linha por consumo; o relatório agrega por dia civil.
+    calories: entries.map((entry) => ({
+      dateKey: entry.date,
+      kcal: ((entry.snapshot.nutrients.kcal ?? 0) * entry.quantity) / 100,
+    })),
+    completedDays: days
+      .filter((day) => day.completed)
+      .map((day) => day.date),
+    goals,
   };
 }

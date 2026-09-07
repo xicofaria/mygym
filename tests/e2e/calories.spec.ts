@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { expect, test, type Page } from "@playwright/test";
 async function login(page: Page, partner = false) {
   await page.goto("/login");
@@ -848,4 +849,22 @@ test("photo analysis offers OFF matches that must be explicitly chosen or dismis
   });
   await expect(offProduct).toBeVisible();
   await expect(offProduct).toContainText("Open Food Facts");
+});
+test("fotografia HEIC fora do Safari mostra orientação clara", async ({
+  page,
+}) => {
+  await login(page);
+  await page
+    .getByRole("button", { name: "+ Criar produto / fotografia" })
+    .click();
+  await page
+    .getByLabel("Escolher fotografia do alimento")
+    .setInputFiles({
+      name: "amostra.heic",
+      mimeType: "image/heic",
+      buffer: readFileSync("tests/e2e/fixtures/amostra.heic"),
+    });
+  await expect(
+    page.getByText("O teu browser não abre fotos HEIC.", { exact: false }),
+  ).toBeVisible();
 });

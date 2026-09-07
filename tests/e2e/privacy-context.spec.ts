@@ -184,39 +184,32 @@ test("rascunhos locais pertencem apenas à conta autenticada", async ({
   });
 });
 
-test("o seletor só aparece em vistas de leitura e o documento é acessível", async ({
+test("sem seletor de utilizador: ?user é ignorado e cada conta vê só os seus dados", async ({
   page,
 }) => {
   await login(page, OWNER);
 
   for (const pathname of ["/dashboard", "/workouts", "/body", "/exercises"]) {
     await page.goto(pathname);
-    await expect(page.getByRole("button", { name: "E2E Partner" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "E2E Partner" })).toHaveCount(
+      0,
+    );
+    await expect(
+      page.getByRole("link", { name: "A tua conta" }),
+    ).toBeVisible();
   }
 
-  for (const pathname of [
-    "/workouts/new",
-    "/workouts/routine",
-    "/workouts/templates",
-    "/workouts/999999/edit",
-  ]) {
-    await page.goto(pathname);
-    await expect(page.getByRole("button", { name: "E2E Partner" })).toHaveCount(0);
-  }
+  await page.goto("/dashboard?user=2");
+  await expect(page.getByText("O teu progresso", { exact: true })).toBeVisible();
+  await expect(page.getByText("E2E Partner")).toHaveCount(0);
+  expect(await page.content()).not.toContain(PARTNER.email);
 
   await page.goto("/workouts/new?user=2");
-  await expect(page).toHaveURL(/\/workouts\/new$/);
+  await expect(page.getByPlaceholder("Como correu?")).toBeVisible();
 
   await expect(page.locator("html")).toHaveAttribute("lang", "pt-PT");
   const viewport = await page
     .locator('meta[name="viewport"]')
     .getAttribute("content");
   expect(viewport).not.toContain("maximum-scale");
-
-  await page.goto("/dashboard");
-  await page.getByRole("button", { name: "E2E Partner" }).click();
-  await expect(
-    page.getByRole("button", { name: "E2E Partner" }),
-  ).toHaveAttribute("aria-pressed", "true");
-  expect(await page.content()).not.toContain(PARTNER.email);
 });
