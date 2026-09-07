@@ -146,6 +146,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Validation and handoff
 
+- E2E must wait for a valid selected product ID after saving before constructing
+  API URLs. An existing select can still hold its empty placeholder while refresh
+  completes; inputValue() alone does not wait for the desired value.
+
 - Run `npm run check` and `npm run test:e2e` for these workout changes.
   E2E uses disposable `e2e.db` and clears both provider keys; tests must never
   call a billable provider or inherit production database credentials.

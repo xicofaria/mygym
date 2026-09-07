@@ -171,7 +171,11 @@ test("missing unit weights are resolved inside diary and remembered only on cons
   await page
     .getByRole("button", { name: "Guardar produto", exact: true })
     .click();
-  const id = await page.getByLabel("Alimento", { exact: true }).inputValue();
+  const selectedProduct = page.getByLabel("Alimento", { exact: true });
+  // Saving returns before refreshed product options necessarily reach the DOM.
+  // Wait for a real ID before constructing security-test URLs.
+  await expect(selectedProduct).toHaveValue(/^[1-9]\d*$/);
+  const id = await selectedProduct.inputValue();
   const cookie = (await page.context().cookies())
     .map((c) => `${c.name}=${c.value}`)
     .join("; ");
