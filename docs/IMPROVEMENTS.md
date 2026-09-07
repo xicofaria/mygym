@@ -42,6 +42,11 @@ repetidos, controlos táteis e um único destaque de ação, mantendo o estilo d
 5. **Fotografias:** HEIC no iPhone, recorte e melhor gestão de memória para imagens grandes.
 6. **Acessibilidade e PWA em dispositivos reais:** VoiceOver/TalkBack, modo instalado,
    captura nativa, contraste e comportamento com pouca rede.
+7. **Correspondência OFF na análise de calorias (2026-09-07):** ensaio de
+   integração da rota completa com fornecedor de IA realmente lento (valida o
+   orçamento total ponta a ponta) e teste de aborto por timeout a atravessar
+   `resolveFoodCandidates` à escala real (o teste atual de aborto real vive no
+   nível da pesquisa textual, com prazos curtos).
 
 **Gestão de conta/palavra-passe não implementada**, por indicação explícita do utilizador.
 

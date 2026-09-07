@@ -683,3 +683,156 @@ test("external product lookup is explicitly reviewed and missing AI key is handl
     page.getByRole("status").filter({ hasText: "100 kcal para 250 ml" }),
   ).toBeVisible();
 });
+test("photo analysis offers OFF matches that must be explicitly chosen or dismissed", async ({
+  page,
+}, testInfo) => {
+  await login(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page
+    .getByRole("button", { name: "+ Criar produto / fotografia" })
+    .click();
+  const details = {
+    packageQuantity: null,
+    pieceQuantity: null,
+    packageEstimated: false,
+    pieceEstimated: false,
+    nutrientEstimates: [],
+  };
+  await page.route("**/images.openfoodfacts.org/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "image/png",
+      body: Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        "base64",
+      ),
+    }),
+  );
+  await page.route("**/api/calories/recognize", (route) =>
+    route.fulfill({
+      json: {
+        barcode: null,
+        product: {
+          name: "Análise IA E2E",
+          brand: "Teste",
+          unit: "g",
+          nutrients: {
+            kcal: 500,
+            protein: 10,
+            carbs: 40,
+            fat: 20,
+            saturated: 5,
+            sugars: 3,
+            fiber: null,
+            salt: 0.1,
+          },
+          details: { ...details, nutrientEstimates: ["protein"] },
+        },
+        explanation: "Estimativa típica; confirma.",
+        candidates: [          {
+            name: "Amêndoas OFF E2E",
+            brand: "Marca Off",
+            unit: "g",
+            nutrients: {
+              kcal: 621,
+              protein: 24.5,
+              carbs: 4.8,
+              fat: 53.3,
+              saturated: 4,
+              sugars: 4,
+              fiber: 8,
+              salt: 0,
+            },
+            details: { ...details, packageQuantity: 200 },
+            source: "openfoodfacts",
+            sourceUrl: "https://world.openfoodfacts.org/product/20724696",
+            imageUrl: "https://images.openfoodfacts.org/images/products/e2e.jpg",
+          },
+          {
+            name: "Cranberries OFF E2E",
+            brand: "Marca Off",
+            unit: "g",
+            nutrients: {
+              kcal: 330,
+              protein: 0.5,
+              carbs: 76,
+              fat: 1,
+              saturated: null,
+              sugars: null,
+              fiber: null,
+              salt: null,
+            },
+            details,
+            source: "openfoodfacts",
+            sourceUrl: "https://world.openfoodfacts.org/product/20150907",
+            imageUrl: "",
+          },
+        ],
+      },
+    }),
+  );
+  await upload(page);
+  await page.getByRole("button", { name: "Analisar alimento" }).click();
+  await expect(
+    page.getByLabel("Nome do alimento", { exact: true }),
+  ).toHaveValue("Análise IA E2E");
+  const matches = page.getByRole("region", {
+    name: "Correspondências no Open Food Facts",
+  });
+  await expect(matches).toBeVisible();
+  await expect(matches).toContainText("Amêndoas OFF E2E");
+  await expect(matches).toContainText("621 kcal/100 g");
+  await expect(matches).toContainText("Embalagem: 200 g");
+  await expect(
+    matches.getByAltText("Fotografia de Amêndoas OFF E2E"),
+  ).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("food-off-matches.png"),
+    fullPage: true,
+    animations: "disabled",
+  });
+  await page
+    .getByRole("button", { name: "Nenhum destes — manter a análise IA" })
+    .click();
+  await expect(matches).toHaveCount(0);
+  await expect(
+    page.getByLabel("Nome do alimento", { exact: true }),
+  ).toHaveValue("Análise IA E2E");
+  await expect(page.getByLabel("Energia (kcal) por 100")).toHaveValue("500");
+  await page
+    .getByText("Fotografia e análise · ver ou alterar", { exact: true })
+    .click();
+  await page.getByRole("button", { name: "Analisar alimento" }).click();
+  await expect(matches).toBeVisible();
+  await matches.getByRole("button", { name: "Usar" }).first().click();
+  await expect(
+    page.getByLabel("Nome do alimento", { exact: true }),
+  ).toHaveValue("Amêndoas OFF E2E");
+  await expect(page.getByLabel("Energia (kcal) por 100")).toHaveValue("621");
+  await expect(page.getByLabel("Proteína por 100")).toHaveValue("24.5");
+  await expect(
+    page.getByText("Estimativa — confirmar", { exact: true }),
+  ).toHaveCount(0);
+  await page
+    .getByText("Fotografia e análise · ver ou alterar", { exact: true })
+    .click();
+  await page.getByRole("button", { name: "Remover fotografia" }).click();
+  await page.getByRole("checkbox").check();
+  await page
+    .getByRole("button", { name: "Guardar produto", exact: true })
+    .click();
+  await expect(page.getByLabel("Alimento", { exact: true })).toContainText(
+    "Amêndoas OFF E2E",
+  );
+  await expect(page.getByLabel("Modo de quantidade")).toHaveValue("package");
+  await expect(
+    page.getByRole("status").filter({ hasText: "kcal para 200 g" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Produtos", exact: true }).click();
+  const offProduct = page.getByRole("article", {
+    name: "Amêndoas OFF E2E",
+    exact: true,
+  });
+  await expect(offProduct).toBeVisible();
+  await expect(offProduct).toContainText("Open Food Facts");
+});

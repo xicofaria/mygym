@@ -6,6 +6,7 @@ import { lisbonDateKey } from "@/lib/format";
 import { hasSameOrigin } from "@/lib/request-origin";
 import { readPhoto, RecognitionError } from "@/lib/machine-recognition";
 import { recognizeFood } from "@/lib/food-recognition";
+import { resolveFoodCandidates } from "@/lib/open-food-facts";
 import { LoginRateLimiter } from "@/lib/login-rate-limit-core";
 const limiter = new LoginRateLimiter({ maxAttempts: 10, windowMs: 60000 });
 export const runtime = "nodejs";
@@ -13,6 +14,7 @@ export const maxDuration = 150;
 const json = (body: unknown, status = 200) =>
   Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
 export async function POST(request: Request) {
+  const startedAt = Date.now();
   try {
     const user = await getCurrentUser();
     if (!user) return json({ error: "Inicia sessão." }, 401);
@@ -40,9 +42,22 @@ export async function POST(request: Request) {
         { error: "Limite diário de IA atingido. Continua manualmente." },
         429,
       );
-    return json(
-      await recognizeFood({ photo, ...config, mode, signal: request.signal }),
-    );
+    const result = await recognizeFood({
+      photo,
+      ...config,
+      mode,
+      signal: request.signal,
+    });
+    const identification = {
+      barcode: result.barcode,
+      name: result.product?.name ?? "",
+      brand: result.product?.brand ?? "",
+    };
+    const candidates = await resolveFoodCandidates({
+      identification,
+      startedAt,
+    });
+    return json({ ...result, candidates: candidates.slice(0, 3) });
   } catch (e) {
     return json(
       {
