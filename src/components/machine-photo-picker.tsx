@@ -1,30 +1,47 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { preparePhoto } from "@/lib/prepare-photo";
 import { AIThinking } from "./ai-thinking";
 import {
   recognitionSchema,
+  type ExerciseSuggestion,
   type Recognition,
 } from "@/lib/recognition-contract";
+import { createExercise } from "@/app/(app)/exercises/actions";
+import { EQUIPMENT } from "@/lib/exercise-catalog";
+import { MUSCLE_GROUP_SUGGESTIONS } from "@/lib/muscle-groups";
 
 export function MachinePhotoPicker({
   exercises,
   onSelect,
+  onCreated,
   disabled = false,
   provider = "openai",
 }: {
   exercises: { id: number; name: string }[];
   onSelect: (exerciseId: number) => void;
+  onCreated?: (exercise: { id: number; name: string }) => void;
   disabled?: boolean;
   provider?: "openai" | "openrouter";
 }) {
+  const router = useRouter();
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [preview, setPreview] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<Recognition | null>(null);
   const [notice, setNotice] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [form, setForm] = useState<ExerciseSuggestion>({
+    name: "",
+    muscleGroup: "",
+    aliases: "",
+    equipment: "",
+  });
   const camera = useRef<HTMLInputElement>(null);
   const library = useRef<HTMLInputElement>(null);
   const request = useRef<AbortController | null>(null);
@@ -50,6 +67,8 @@ export function MachinePhotoPicker({
     setResult(null);
     setError("");
     setBusy(false);
+    setCreating(false);
+    setFormError("");
   }
 
   async function choose(file?: File) {
@@ -89,6 +108,8 @@ export function MachinePhotoPicker({
     setError("");
     setResult(null);
     setNotice("");
+    setCreating(false);
+    setFormError("");
     const current = ++generation.current;
     const controller = new AbortController();
     request.current = controller;
@@ -133,6 +154,50 @@ export function MachinePhotoPicker({
     }
   }
 
+  function startCreating(suggestion: ExerciseSuggestion) {
+    setForm({
+      name: suggestion.name,
+      muscleGroup: suggestion.muscleGroup,
+      aliases: suggestion.aliases,
+      equipment: suggestion.equipment,
+    });
+    setFormError("");
+    setCreating(true);
+  }
+  async function createSuggestion() {
+    if (saving || disabled) return;
+    setSaving(true);
+    setFormError("");
+    try {
+      const res = await createExercise({
+        name: form.name,
+        muscleGroup: form.muscleGroup,
+        aliases: form.aliases,
+        equipment: form.equipment,
+      });
+      if (res.error) {
+        setFormError(res.error);
+        return;
+      }
+      if (typeof res.id !== "number") {
+        setFormError("Criado, mas não foi possível adicionar à série.");
+        setCreating(false);
+        router.refresh();
+        return;
+      }
+      const name = form.name;
+      if (onCreated) onCreated({ id: res.id, name });
+      else onSelect(res.id);
+      router.refresh();
+      setCreating(false);
+      clear();
+      setNotice(`«${name}» criado e adicionado à série.`);
+    } catch {
+      setFormError("Sem ligação. Tenta novamente.");
+    } finally {
+      setSaving(false);
+    }
+  }
   return (
     <section
       aria-label="Identificação por fotografia"
@@ -295,10 +360,113 @@ export function MachinePhotoPicker({
               );
             })}
           </div>
+          {result.suggestion && !creating && (
+            <button
+              type="button"
+              disabled={disabled || saving}
+              className="btn-ghost mt-2 justify-between text-left"
+              onClick={() => {
+                if (result.suggestion) startCreating(result.suggestion);
+              }}
+            >
+              <span>Criar «{result.suggestion.name}»</span>
+              <span className="text-xs font-normal">
+                {[result.suggestion.muscleGroup, result.suggestion.equipment]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </button>
+          )}
           <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
             A IA pode enganar-se. Podes sempre escolher ou corrigir o exercício
             na lista.
           </p>
+        </div>
+      )}
+      {creating && (
+        <div className="mt-4 border-t border-indigo-200 pt-3 dark:border-indigo-900">
+          <p className="text-sm font-semibold">Criar exercício</p>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+            Entra no catálogo partilhado das duas contas. Revê os valores.
+          </p>
+          <label className="label mt-2">
+            Nome do exercício
+            <input
+              className="input"
+              required
+              maxLength={80}
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+            />
+          </label>
+          <label className="label">
+            Grupo muscular
+            <input
+              className="input"
+              maxLength={40}
+              list="suggestion-muscle-groups"
+              value={form.muscleGroup}
+              onChange={(e) =>
+                setForm({ ...form, muscleGroup: e.target.value })
+              }
+            />
+            <datalist id="suggestion-muscle-groups">
+              {MUSCLE_GROUP_SUGGESTIONS.map((group) => (
+                <option key={group} value={group} />
+              ))}
+            </datalist>
+          </label>
+          <label className="label">
+            Equipamento
+            <select
+              className="input"
+              value={form.equipment}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  equipment: e.target.value as ExerciseSuggestion["equipment"],
+                })
+              }
+            >
+              {["", ...EQUIPMENT].map((item) => (
+                <option key={item} value={item}>
+                  {item || "Desconhecido"}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="label">
+            Nomes alternativos (separados por vírgulas)
+            <input
+              className="input"
+              maxLength={300}
+              value={form.aliases}
+              onChange={(e) => setForm({ ...form, aliases: e.target.value })}
+            />
+          </label>
+          <div className="mt-2 flex gap-2">
+            <button
+              type="button"
+              className="btn-primary flex-1"
+              disabled={saving}
+              onClick={() => void createSuggestion()}
+            >
+              {saving ? "A criar…" : "Criar e adicionar à série"}
+            </button>
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={saving}
+              onClick={() => setCreating(false)}
+            >
+              Cancelar
+            </button>
+          </div>
+          {formError && (
+            <p role="alert" className="mt-2 text-sm text-red-600 dark:text-red-400">
+              {formError}
+            </p>
+          )}
         </div>
       )}
     </section>

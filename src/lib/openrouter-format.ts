@@ -7,7 +7,7 @@ export function openRouterFormat(model: string, name: string, schema: object) {
     reasoning: jsonOnly ? { effort: "max", exclude: true } : undefined,
     timeoutMs: jsonOnly ? 120_000 : 25_000,
     foodTokens: jsonOnly ? 8000 : 2500,
-    machineTokens: jsonOnly ? 4000 : 700,
+    machineTokens: jsonOnly ? 4000 : 900,
     instruction: jsonOnly
       ? ` Devolve apenas um objeto JSON válido, sem Markdown, conforme este schema: ${JSON.stringify(schema)}`
       : "",

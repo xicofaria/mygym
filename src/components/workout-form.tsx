@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createWorkout, updateWorkout } from "@/app/(app)/workouts/actions";
 import { toDateInputValue } from "@/lib/format";
@@ -93,6 +93,11 @@ export function WorkoutForm({
 }) {
   const router = useRouter();
   const firstId = exercises[0]?.id ?? 0;
+  const [extraExercises, setExtraExercises] = useState<Ex[]>([]);
+  const allExercises = useMemo(() => {
+    const known = new Set(exercises.map((ex) => ex.id));
+    return [...exercises, ...extraExercises.filter((ex) => !known.has(ex.id))];
+  }, [exercises, extraExercises]);
   const [date, setDate] = useState(initialDate ?? toDateInputValue());
   const [notes, setNotes] = useState(initialNotes ?? "");
   const [rows, setRows] = useState<Row[]>(
@@ -192,7 +197,7 @@ export function WorkoutForm({
     }
     const invalidIndex = entries.findIndex(
       (r) =>
-        !exercises.some((ex) => ex.id === r.exerciseId) ||
+        !allExercises.some((ex) => ex.id === r.exerciseId) ||
         !Number.isInteger(r.reps) ||
         r.reps < 1 ||
         r.reps > 1000 ||
@@ -250,7 +255,7 @@ export function WorkoutForm({
     });
   }
 
-  if (exercises.length === 0) {
+  if (allExercises.length === 0) {
     return (
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
         Adiciona primeiro um exercício ao catálogo e depois regista aqui as tuas
@@ -258,6 +263,20 @@ export function WorkoutForm({
       </p>
     );
   }
+
+  const addExerciseRow = (exerciseId: number) => {
+    setDirty(true);
+    setRows((current) => {
+      const empty = current.findIndex(
+        (row) => !row.reps.trim() && !row.weight.trim(),
+      );
+      return empty === -1
+        ? [...current, { exerciseId, reps: "", weight: "" }]
+        : current.map((row, index) =>
+            index === empty ? { ...row, exerciseId } : row,
+          );
+    });
+  };
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
@@ -297,20 +316,16 @@ export function WorkoutForm({
 
       <MachinePhotoPicker
         provider={aiProvider}
-        exercises={exercises}
+        exercises={allExercises}
         disabled={pending}
-        onSelect={(exerciseId) => {
-          setDirty(true);
-          setRows((current) => {
-            const empty = current.findIndex(
-              (row) => !row.reps.trim() && !row.weight.trim(),
-            );
-            return empty === -1
-              ? [...current, { exerciseId, reps: "", weight: "" }]
-              : current.map((row, index) =>
-                  index === empty ? { ...row, exerciseId } : row,
-                );
-          });
+        onSelect={addExerciseRow}
+        onCreated={(exercise) => {
+          setExtraExercises((current) =>
+            current.some((ex) => ex.id === exercise.id)
+              ? current
+              : [...current, exercise],
+          );
+          addExerciseRow(exercise.id);
         }}
       />
 
@@ -339,7 +354,7 @@ export function WorkoutForm({
               className="border-t border-black/10 pt-4 dark:border-white/10"
             >
               <ExercisePicker
-                exercises={exercises}
+                exercises={allExercises}
                 value={group.exerciseId}
                 label={`Exercício da série ${group.indices[0] + 1}`}
                 favoriteIds={favoriteIds}
@@ -445,7 +460,7 @@ export function WorkoutForm({
             setDirty(true);
             // Start a new block without altering any existing set.
             const exerciseId =
-              exercises.find((ex) => ex.id !== rows.at(-1)?.exerciseId)?.id ??
+              allExercises.find((ex) => ex.id !== rows.at(-1)?.exerciseId)?.id ??
               firstId;
             setRows((current) => [
               ...current,

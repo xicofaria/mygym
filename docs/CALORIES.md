@@ -93,8 +93,10 @@ produto guardado sem revisão.
 
 ### Tabela, embalagem e quantidade consumida
 
-- Um único seletor de fotografia abre as opções disponibilizadas pelo sistema;
-  câmara/galeria dependem do browser e dispositivo. Não se promete captura nativa no desktop.
+- Dois botões explícitos, como no registo de treinos: **Tirar fotografia**
+  (abre a câmara traseira no telemóvel) e **Escolher imagem** (galeria ou
+  ficheiros). No desktop, tirar fotografias depende do dispositivo e das
+  permissões do browser; não se promete captura nativa no desktop.
 - A tabela tem gorduras (lípidos), saturados, proteína, hidratos, açúcares, fibra e
   sal em gramas, e energia em kcal. Cada campo estimado tem um aviso próprio.
 - O prompt lê primeiro os dados visíveis, normaliza porções legíveis para 100,

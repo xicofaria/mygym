@@ -66,7 +66,7 @@ test("OpenRouter sends vision content, strict catalogue schema and privacy routi
       return Response.json(routerEnvelope(valid));
     },
   });
-  assert.deepEqual(result, valid);
+  assert.deepEqual(result, { ...valid, suggestion: null });
 });
 
 test("OpenRouter rejects truncation, refusals, bad JSON and unknown IDs; accepts no match", async () => {
@@ -166,7 +166,87 @@ test("uses fixed provider URL, server catalog and non-stored structured response
       return Response.json(envelope(valid));
     },
   });
-  assert.deepEqual(result, valid);
+  assert.deepEqual(result, { ...valid, suggestion: null });
+});
+
+test("an unmatched machine returns the creation proposal for explicit confirmation", async () => {
+  const result = await run(
+    envelope({
+      candidates: [],
+      suggestion: {
+        name: "Pec Deck",
+        muscleGroup: "Peito",
+        aliases: "Voador, Borboleta",
+        equipment: "Máquina",
+      },
+      explanation: "Máquina de aberturas sem correspondência.",
+    }),
+  );
+  assert.deepEqual(result.suggestion, {
+    name: "Pec Deck",
+    muscleGroup: "Peito",
+    aliases: "Voador, Borboleta",
+    equipment: "Máquina",
+  });
+  assert.deepEqual(result.candidates, []);
+});
+
+test("a proposal that matches the catalogue becomes an existing candidate instead", async () => {
+  const result = await run(
+    envelope({
+      candidates: [],
+      suggestion: {
+        name: "Leg Press",
+        muscleGroup: "Pernas",
+        aliases: "",
+        equipment: "Máquina",
+      },
+      explanation: "Parece a prensa existente.",
+    }),
+  );
+  assert.equal(result.suggestion, null);
+  assert.deepEqual(result.candidates, [
+    { exerciseId: 7, confidence: "medium" },
+  ]);
+});
+
+test("malformed proposals degrade instead of failing the analysis; prompt asks for creation", async () => {
+  const prompt = await new Promise<string>((resolve) => {
+    void recognizeMachine({
+      photo: jpeg,
+      catalog,
+      apiKey: "test",
+      model: "test",
+      provider: "openrouter",
+      fetcher: async (_url, options) => {
+        const body = JSON.parse(String(options?.body));
+        resolve(String(body.messages[0].content));
+        return Response.json(
+          routerEnvelope({ candidates: [], explanation: "Sem match." }),
+        );
+      },
+    });
+  });
+  assert.match(prompt, /devolve também suggestion/);
+  assert.match(prompt, /depende de confirmação do utilizador/);
+  for (const suggestion of [
+    { name: "", muscleGroup: "Peito", aliases: "", equipment: "Máquina" },
+    {
+      name: "Pec Deck",
+      muscleGroup: "Peito",
+      aliases: "",
+      equipment: "machine",
+    },
+  ]) {
+    const result = await run(
+      envelope({ candidates: [], suggestion, explanation: "…" }),
+    );
+    if (suggestion.name) {
+      assert.deepEqual(result.suggestion?.equipment, "");
+    } else {
+      assert.equal(result.suggestion, null);
+    }
+  }
 });
 
 test("accepts no match and rejects hallucinated or duplicate IDs", async () => {
