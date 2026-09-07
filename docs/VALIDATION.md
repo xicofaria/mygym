@@ -163,10 +163,14 @@ abaixo de 0,01 USD no total. Os testes automáticos continuam sem chaves e sem
 inferência paga; a cobertura PT do catálogo e a latência em produção continuam
 por validar em uso contínuo.
 
-Revisão pré-merge: a resolução no catálogo passou a partilhar um orçamento
-total de ~125 s com a análise (prazo único da IA entre tentativas, pesquisa de
-código/texto limitada ao tempo restante), «Remover fotografia» já não apaga a
-origem importada, a deduplicação é por código de produto (embalagens 200 g e
-300 g do mesmo nome permanecem distintas) e a lista mostra fotografia e peso de
+Revisão pré-merge: a resolução no catálogo limita a pesquisa ao orçamento
+restante da análise (alvo de ~125 s; prazo único da IA entre tentativas e
+sub-orçamentos para código/texto), «Remover fotografia» já não apaga a origem
+importada, a deduplicação é por código de produto (embalagens 200 g e 300 g do
+mesmo nome permanecem distintas) e a lista mostra fotografia e peso de
 embalagem. A expressão «valores oficiais» foi removida: uma correspondência no
-catálogo não comprova o rótulo atual.
+catálogo não comprova o rótulo atual. A lógica do orçamento (`resolveFoodCandidates`)
+tem testes próprios com orçamentos curtos reais — orçamento esgotado não chama
+o catálogo, código lento consome o restante e salta a pesquisa textual, falha
+exata recai na pesquisa textual, sucesso exato não pesquisa texto; a rota
+completa com fornecedor de IA lentíssimo continua sem ensaio de integração.

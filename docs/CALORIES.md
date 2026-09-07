@@ -73,10 +73,9 @@ quando existem, para facilitar a confirmação na embalagem física. Descartar a
 lista mantém os valores da análise IA. Escolher uma correspondência aplica a
 fonte `openfoodfacts` com a atribuição ODbL/CC BY-SA já usada na consulta
 manual; a origem mantém-se mesmo que a fotografia local seja removida depois.
-A resolução no catálogo não consome quota de IA, partilha um orçamento total de
-tempo com a análise (a resposta nunca ultrapassa ~125 s, antes dos 130 s do
-browser e dos 150 s da rota) e uma indisponibilidade devolve `candidates: []`
-sem falhar a análise.
+A resolução no catálogo não consome quota de IA e limita a pesquisa ao orçamento
+restante da análise (alvo de ~125 s, antes dos 130 s do browser e dos 150 s da
+rota); uma indisponibilidade devolve `candidates: []` sem falhar a análise.
 
 Experiências reais autorizadas (setembro de 2026, descritas em VALIDATION.md):
 a chamada combinada (identificação + rótulo) não degradou a identificação —

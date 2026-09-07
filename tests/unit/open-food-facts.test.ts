@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   rankFoodCandidates,
+  resolveFoodCandidates,
   searchFoodByText,
   type FoodCandidate,
 } from "../../src/lib/open-food-facts";
@@ -173,7 +174,7 @@ test("deduplication is by product code; package sizes of the same name survive",
   );
 });
 
-test("ranking filters unrelated rows and works without brand", () => {
+test("ranking filters unrelated rows", () => {
   assert.deepEqual(
     rankFoodCandidates(
       { name: "Iogurte de morango", brand: "Marca X" },
@@ -181,6 +182,9 @@ test("ranking filters unrelated rows and works without brand", () => {
     ),
     [],
   );
+});
+
+test("without brand, ranking falls back to the identified name", () => {
   const withoutBrand = rankFoodCandidates(
     { name: "Brazil Nuts", brand: "" },
     [
@@ -189,4 +193,80 @@ test("ranking filters unrelated rows and works without brand", () => {
     ],
   );
   assert.equal(withoutBrand[0].name, "Brazil Nuts");
+});
+
+const offRow = {
+  code: "20724696",
+  product_name: "Amêndoas natural",
+  brands: "Alesto",
+  nutriments: { "energy-kcal_100g": 621 },
+};
+
+test("candidate resolution skips the catalogue when the budget is already spent", async () => {
+  let calls = 0;
+  const none = await resolveFoodCandidates({
+    identification: { barcode: "5601234567890", name: "Amêndoas", brand: "Alesto" },
+    startedAt: Date.now() - 200_000,
+    budgetMs: 125_000,
+    fetcher: async () => {
+      calls++;
+      throw new Error("não deve ser chamado");
+    },
+  });
+  assert.deepEqual(none, []);
+  assert.equal(calls, 0);
+});
+
+test("a slow barcode lookup consumes the remaining budget and skips the text search", async () => {
+  let calls = 0;
+  const none = await resolveFoodCandidates({
+    identification: { barcode: "5601234567890", name: "Amêndoas", brand: "Alesto" },
+    startedAt: Date.now(),
+    budgetMs: 7_000,
+    fetcher: async (url, options) => {
+      calls++;
+      assert.match(String(url), /api\/v2\/product\//);
+      assert.ok(options?.signal instanceof AbortSignal);
+      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      return new Response("Not Found", { status: 404 });
+    },
+  });
+  assert.equal(calls, 1);
+  assert.deepEqual(none, []);
+});
+
+test("a failed exact lookup falls through to the text search inside the budget", async () => {
+  const calls: string[] = [];
+  const found = await resolveFoodCandidates({
+    identification: { barcode: "5601234567890", name: "Amêndoas", brand: "Alesto" },
+    startedAt: Date.now(),
+    budgetMs: 7_000,
+    fetcher: async (url) => {
+      const target = String(url);
+      calls.push(target);
+      if (target.includes("/api/v2/product/"))
+        return new Response("Not Found", { status: 404 });
+      return Response.json({ products: [offRow] });
+    },
+  });
+  assert.equal(calls.length, 2);
+  assert.match(calls[1], /cgi\/search\.pl/);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].name, "Amêndoas natural");
+});
+
+test("a successful exact barcode lookup never triggers the text search", async () => {
+  let calls = 0;
+  const found = await resolveFoodCandidates({
+    identification: { barcode: "20724696", name: "Amêndoas", brand: "Alesto" },
+    startedAt: Date.now(),
+    budgetMs: 125_000,
+    fetcher: async () => {
+      calls++;
+      return Response.json({ product: offRow });
+    },
+  });
+  assert.equal(calls, 1);
+  assert.equal(found.length, 1);
+  assert.equal(found[0].details.packageQuantity, null);
 });

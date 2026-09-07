@@ -123,6 +123,55 @@ export async function lookupFood({
     .filter((p: FoodCandidate | null): p is FoodCandidate => p !== null);
 }
 
+export async function resolveFoodCandidates({
+  identification,
+  startedAt,
+  budgetMs = 125_000,
+  fetcher = fetch,
+}: {
+  identification: { barcode: string | null; name: string; brand: string };
+  startedAt: number;
+  budgetMs?: number;
+  fetcher?: typeof fetch;
+}): Promise<FoodCandidate[]> {
+  const remainingMs = () => budgetMs - (Date.now() - startedAt);
+  let candidates: FoodCandidate[] = [];
+  if (identification.barcode && remainingMs() >= 3_000) {
+    try {
+      candidates = await lookupFood({
+        barcode: identification.barcode,
+        timeoutMs: Math.min(12_000, remainingMs()),
+        fetcher,
+      });
+    } catch {
+      candidates = [];
+    }
+  }
+  if (!candidates.length && identification.name && remainingMs() >= 6_000) {
+    const term = [identification.name, identification.brand]
+      .filter(Boolean)
+      .join(" ");
+    const textBudget = Math.min(remainingMs(), 24_000);
+    const attempts = textBudget >= 22_000 ? 2 : 1;
+    try {
+      candidates = rankFoodCandidates(
+        identification,
+        await searchFoodByText({
+          term,
+          attempts,
+          timeoutMs:
+            attempts === 2 ? 10_000 : Math.max(1_000, textBudget - 1_000),
+          delayMs: attempts === 2 ? 2_000 : 0,
+          fetcher,
+        }),
+      );
+    } catch {
+      candidates = [];
+    }
+  }
+  return candidates;
+}
+
 export async function searchFoodByText({
   term,
   fetcher = fetch,
