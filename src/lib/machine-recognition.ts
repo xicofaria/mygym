@@ -283,42 +283,63 @@ export async function recognizeMachine({
       .join("");
   }
   let result: Recognition;
+  const ids = new Set(catalog.map((ex) => ex.id));
   try {
-    const decoded = JSON.parse(text) as { suggestion?: unknown };
-    if (decoded && typeof decoded === "object") {
-      if (decoded.suggestion === undefined) decoded.suggestion = null;
-      if (decoded.suggestion && typeof decoded.suggestion === "object") {
-        const raw = decoded.suggestion as Record<string, unknown>;
-        const suggestion = {
-          name: String(raw.name ?? "").trim().slice(0, 80),
-          muscleGroup: String(raw.muscleGroup ?? "").trim().slice(0, 40),
-          aliases: String(raw.aliases ?? "").trim().slice(0, 300),
-          equipment: (EQUIPMENT as readonly string[]).includes(
-            String(raw.equipment),
-          )
-            ? String(raw.equipment)
-            : "",
+    // Alguns modelos embrulham o JSON em fences ou juntam texto; o schema
+    // também não deve derrubar a análise por detalhes sanitizáveis.
+    const raw = JSON.parse(
+      text.slice(
+        Math.max(0, text.indexOf("{")),
+        Math.min(text.length, text.lastIndexOf("}") + 1) || undefined,
+      ),
+    ) as Record<string, unknown>;
+    const confidenceValues = ["high", "medium", "low"];
+    const candidates = (Array.isArray(raw.candidates) ? raw.candidates : [])
+      .map((entry) => {
+        const item = entry as { exerciseId?: unknown; confidence?: unknown };
+        const confidence = String(item.confidence ?? "").toLowerCase();
+        return {
+          exerciseId: Number(item.exerciseId),
+          confidence: (confidenceValues as string[]).includes(confidence)
+            ? (confidence as "high" | "medium" | "low")
+            : ("low" as const),
         };
-        decoded.suggestion = suggestion.name ? suggestion : null;
-      }
+      })
+      .filter((c) => Number.isInteger(c.exerciseId) && ids.has(c.exerciseId))
+      .filter(
+        (c, index, list) =>
+          list.findIndex((other) => other.exerciseId === c.exerciseId) ===
+          index,
+      )
+      .slice(0, 3);
+    if (raw.suggestion === undefined) raw.suggestion = null;
+    if (raw.suggestion && typeof raw.suggestion === "object") {
+      const input = raw.suggestion as Record<string, unknown>;
+      const suggestion = {
+        name: String(input.name ?? "").trim().slice(0, 80),
+        muscleGroup: String(input.muscleGroup ?? "").trim().slice(0, 40),
+        aliases: String(input.aliases ?? "").trim().slice(0, 300),
+        equipment: (EQUIPMENT as readonly string[]).includes(
+          String(input.equipment),
+        )
+          ? String(input.equipment)
+          : "",
+      };
+      raw.suggestion = suggestion.name ? suggestion : null;
     }
-    const parsed = recognitionSchema.safeParse(decoded);
+    const explanation = String(raw.explanation ?? "")
+      .trim()
+      .slice(0, 400);
+    const parsed = recognitionSchema.safeParse({
+      candidates,
+      suggestion: raw.suggestion,
+      explanation: explanation || "Confirma o exercício na lista.",
+    });
     if (!parsed.success) throw new Error("schema");
     result = parsed.data;
   } catch {
     throw new RecognitionError(
       "A IA não conseguiu identificar a máquina. Tenta outra fotografia.",
-      502,
-    );
-  }
-  const ids = new Set(catalog.map((ex) => ex.id));
-  if (
-    result.candidates.some((c) => !ids.has(c.exerciseId)) ||
-    new Set(result.candidates.map((c) => c.exerciseId)).size !==
-      result.candidates.length
-  ) {
-    throw new RecognitionError(
-      "A sugestão não corresponde ao catálogo. Escolhe o exercício na lista.",
       502,
     );
   }
