@@ -245,7 +245,8 @@ concluído», variação de peso vs última anterior). Página `/relatorios` com
 seletor semana atual/anterior. Email de segunda 08:00 UTC via `vercel.json`
 cron → `/api/cron/weekly-report` protegido por `CRON_SECRET` (401 sem
 segredo); sem provider de email o cron é um no-op explícito; destinos:
-contas verificadas com opt-out ativo (`/conta`).
+contas verificadas que **ativaram** o envio em `/conta` (opt-in: a coluna
+`weekly_report_enabled` nasce a `false`, migração 0007).
 
 ### Segunda ronda da revisão (4 correções) — 2026-09-07
 
@@ -256,4 +257,54 @@ contas verificadas com opt-out ativo (`/conta`).
    mesmo dia contam como 1 dia, média 2000, dia na meta com meta 2000) —
    `caloriesPerDay` puro e testado.
 3. Treinos contam IDs distintos (duas sessões no mesmo dia = 2), ecrã e email.
-4. Opt-out do relatório semanal em `/conta` com persistência verificada em E2E.
+4. Preferência do relatório semanal em `/conta` com persistência verificada
+   em E2E. É **opt-in**: por indicação do utilizador (2026-09-07) o default
+   passou a desativado na migração 0007, que também desliga as contas
+   existentes — a 0005 tinha criado a coluna com `DEFAULT true` no mesmo PR
+   ainda não lançado, portanto ninguém chegou a consentir o envio.
+
+### Terceira ronda da revisão — 2026-09-07
+
+- A agregação por dia civil passou para dentro de `calculateWeeklyReport`:
+  `getWeeklyReportData` entrega uma linha por consumo e deixa de aplicar
+  `caloriesPerDay` duas vezes. Um dia só com produtos de 0 kcal volta a não
+  contar como dia registado (antes inflava `kcalRecordedDays` e baixava a
+  média).
+- `performReset` calcula o hash bcrypt **antes** de abrir a transação, para não
+  segurar o lock de escrita (nem esgotar uma transação interativa remota).
+- `TransactionRollback`/`ignoreRollback` vivem em `src/lib/transaction.ts`, em
+  vez de duplicados em `/repor` e `/verificar` (onde a classe estava declarada
+  acima dos imports).
+- `getWeeklyReportData` usa `dateKey()` para as datas-só lidas da base de dados
+  (convenção documentada) e corre as quatro leituras em `Promise.all`; o cron
+  semanal repete-as por conta.
+- `withinGoal()` em `nutrition.ts` é a única definição da margem da meta,
+  partilhada por `dayResult` e pelo relatório semanal.
+- `setWeeklyReport` revalida `/conta` depois de gravar.
+
+### Relatório semanal: opt-in — 2026-09-07
+
+Por indicação do utilizador, o email semanal passou a **opt-in**. Migração 0007:
+`users.weekly_report_enabled` muda de `DEFAULT true` para `DEFAULT false` (via
+`ALTER COLUMN`, suportado pelo libSQL) e um `UPDATE` desliga as contas
+existentes — a coluna tinha nascido a `true` na 0005, do mesmo PR ainda não
+lançado, portanto nenhuma conta chegou a consentir o envio. O cron continua a
+filtrar `weekly_report_enabled = true`, logo passa a não enviar nada até alguém
+ativar em `/conta`. A página `/relatorios` não é afetada: o resumo no ecrã está
+sempre disponível. E2E cobre o ciclo completo (nasce desligado → ativar →
+persistir → desativar).
+
+### CodeQL `js/insufficient-password-hash` — falso positivo
+
+O alerta aponta `src/lib/email-tokens.ts` (`createHash("sha256")`) com origem
+declarada numa chamada de teste que passa o literal `"password_reset"` como
+`purpose`. Não há palavra-passe nenhuma nesse caminho: o valor com hash é o
+token de 32 bytes gerado por `randomBytes` no próprio `createEmailToken`, e as
+palavras-passe reais usam bcrypt em `src/lib/auth.ts`.
+
+A remediação sugerida pela regra (bcrypt/scrypt/argon2) é inaplicável por duas
+razões: um token de 256 bits não tem entropia baixa que justifique hashing
+lento, e esses algoritmos salgam cada digest, o que tornaria impossível a
+pesquisa por hash (`eq(emailTokens.tokenHash, …)`) de que o consumo do token
+depende. SHA-256 sobre um token aleatório de alta entropia é a prática
+recomendada. A justificação está também em comentário no próprio módulo.

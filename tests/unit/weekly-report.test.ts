@@ -24,12 +24,12 @@ test("counts distinct workouts (two sessions on the same day are two) and volume
       { workoutId: 1, dateKey: "2026-08-31", exercise: "Bench Press", reps: 10, weight: 50 },
       { workoutId: 1, dateKey: "2026-08-31", exercise: "Bench Press", reps: 8, weight: 52.5 },
       { workoutId: 2, dateKey: "2026-08-31", exercise: "Squat", reps: 5, weight: 100 },
-      { workoutId: 2, dateKey: "2026-09-02", exercise: "Squat", reps: 5, weight: 100 },
+      { workoutId: 3, dateKey: "2026-09-02", exercise: "Squat", reps: 5, weight: 100 },
       { workoutId: 99, dateKey: "2026-08-30", exercise: "Fora da semana", reps: 1, weight: 999 },
     ],
   });
-  // Treino 1 (31/08) + treino 2 (31/08 e 02/09) = 2 treinos distintos.
-  assert.equal(report.workouts, 2);
+  // Treinos 1 e 2 no mesmo dia (31/08) contam dois, mais o treino 3 (02/09).
+  assert.equal(report.workouts, 3);
   assert.equal(report.sets, 4);
   assert.equal(report.volume, 500 + 420 + 500 + 500);
 });
@@ -109,6 +109,23 @@ test("caloriesPerDay merges multiple entries of the same civil day", () => {
   assert.equal(report.kcalRecordedDays, 1);
   assert.equal(report.kcalAvg, 2000);
   assert.equal(report.daysWithinGoal, 1);
+});
+
+test("the report aggregates raw entries and ignores days without real intake", () => {
+  const report = calculateWeeklyReport({
+    ...base,
+    // Entradas por consumo, não por dia: o relatório agrega sozinho.
+    calories: [
+      { dateKey: "2026-08-31", kcal: 1500 },
+      { dateKey: "2026-08-31", kcal: 700 },
+      { dateKey: "2026-09-01", kcal: 0 },
+      { dateKey: "2026-09-01", kcal: 0 },
+    ],
+  });
+  // Só 31/08 tem consumo real; um dia só de produtos de 0 kcal não é registo.
+  assert.equal(report.kcalRecordedDays, 1);
+  assert.equal(report.kcalTotal, 2200);
+  assert.equal(report.kcalAvg, 2200);
 });
 
 test("weight change compares the last in-week reading with the last before it", () => {

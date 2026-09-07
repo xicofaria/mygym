@@ -213,6 +213,11 @@ export function goalForDate(goals: CalorieGoal[], date: string) {
       .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0] ?? null
   );
 }
+/** True when the day's intake sits inside the goal's tolerance band. */
+export function withinGoal(kcal: number, goal: CalorieGoal): boolean {
+  const margin = (goal.kcal * goal.tolerance) / 100;
+  return kcal >= goal.kcal - margin && kcal <= goal.kcal + margin;
+}
 export function dayResult(
   kcal: number,
   goal: CalorieGoal | null,
@@ -222,8 +227,7 @@ export function dayResult(
   if (!hasEntries) return "Sem registos";
   if (!completed) return "Por completar";
   if (!goal) return "Sem meta";
-  const margin = (goal.kcal * goal.tolerance) / 100;
-  return kcal >= goal.kcal - margin && kcal <= goal.kcal + margin
+  return withinGoal(kcal, goal)
     ? "Dentro da meta"
     : kcal < goal.kcal
       ? "Abaixo do intervalo"

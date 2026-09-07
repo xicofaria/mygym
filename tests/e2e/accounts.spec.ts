@@ -37,10 +37,17 @@ test("registo público cria conta, entra e volta a entrar", async ({ page }) => 
   await page.goto("/conta");
   await expect(page.getByText(email, { exact: true })).toBeVisible();
 
-  // Opt-out do relatório semanal persiste.
+  // O relatório semanal é opt-in: uma conta nova arranca desativada.
   const reportBox = page.getByRole("checkbox", { name: /resumo semanal/i });
-  await expect(reportBox).toBeChecked();
-  await reportBox.uncheck();
+  await expect(reportBox).not.toBeChecked();
+  await reportBox.check();
+  await page.getByRole("button", { name: "Guardar preferência" }).click();
+  await expect(page.getByText("Relatório semanal por email ativado.")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("checkbox", { name: /resumo semanal/i })).toBeChecked();
+
+  // E volta a desativar-se.
+  await page.getByRole("checkbox", { name: /resumo semanal/i }).uncheck();
   await page.getByRole("button", { name: "Guardar preferência" }).click();
   await expect(page.getByText("Relatório semanal por email desativado.")).toBeVisible();
   await page.reload();

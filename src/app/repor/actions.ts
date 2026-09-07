@@ -7,6 +7,7 @@ import { db } from "@/db";
 import { users } from "@/db/schema";
 import { hashPassword } from "@/lib/auth";
 import { consumeEmailToken, revokeEmailTokens } from "@/lib/email-tokens";
+import { TransactionRollback, ignoreRollback } from "@/lib/transaction";
 
 export type ResetState = { error: string | null };
 
@@ -15,8 +16,6 @@ const schema = z.object({
   email: z.string().trim().toLowerCase().pipe(z.email().max(254)),
   password: z.string().min(8).max(256),
 });
-
-class TransactionRollback extends Error {}
 
 export async function performReset(
   _prev: ResetState,
@@ -35,6 +34,9 @@ export async function performReset(
   };
 
   let outcome = invalid;
+  // Bcrypt é deliberadamente lento: fica fora da transação para não segurar o
+  // lock de escrita (nem esgotar o tempo de uma transação interativa remota).
+  const passwordHash = await hashPassword(parsed.data.password);
   // Consumo do token e atualização da conta na mesma transação, validando o
   // estado atual: se o email da conta mudou entretanto, o link morre.
   await db
@@ -46,7 +48,6 @@ export async function performReset(
         parsed.data.email,
       );
       if (!consumed) throw new TransactionRollback();
-      const passwordHash = await hashPassword(parsed.data.password);
       const rows = await tx
         .update(users)
         .set({
@@ -65,9 +66,7 @@ export async function performReset(
       await revokeEmailTokens(tx, consumed.userId);
       outcome = { error: null };
     })
-    .catch((error) => {
-      if (!(error instanceof TransactionRollback)) throw error;
-    });
+    .catch(ignoreRollback);
 
   if (outcome.error) return outcome;
   redirect("/login?ok=repor");

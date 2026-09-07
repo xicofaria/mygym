@@ -193,7 +193,10 @@ anything. Editing `/workouts/routine` saves per weekday as you toggle chips
 - **Accounts:** public registration + change email/password + RGPD deletion in
   `/conta`; password reset is dormant until a transactional email provider
   (RESEND_API_KEY/EMAIL_FROM) is configured. The `?user=` viewer switcher was
-  removed — every account sees only its own data. Dependencies
+  removed — every account sees only its own data. The weekly report email is
+  **opt-in**: `users.weekly_report_enabled` defaults to `false` (migration
+  0007) and only `/conta` flips it, so the cron never mails an account that
+  did not ask for it. Dependencies
   updated to resolve audit findings; keep esbuild override compatible with
   drizzle-kit and validate generation as well as the application build.
 - **Civil dates:** use `lisbonDateKey`/`lisbonMonthKey` for the current date;

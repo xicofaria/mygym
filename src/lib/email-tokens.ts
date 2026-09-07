@@ -19,6 +19,20 @@ const TOKEN_TTL: Record<EmailTokenPurpose, number> = {
   password_reset: 60 * 60 * 1000,
 };
 
+/**
+ * SHA-256 is the right primitive here and deliberately NOT bcrypt/scrypt.
+ *
+ * `raw` is never a user secret: it is 32 bytes straight from the CSPRNG in
+ * `createEmailToken`, so there is no low-entropy guess to slow an attacker
+ * down to — the 256 bits already make offline search infeasible. A password
+ * hash would also break the lookup outright, because bcrypt/scrypt salt every
+ * digest and tokens are found *by* their hash (`eq(emailTokens.tokenHash, …)`).
+ *
+ * Real passwords go through bcrypt in `src/lib/auth.ts`. CodeQL's
+ * `js/insufficient-password-hash` heuristic reads the `"password_reset"`
+ * purpose literal as a password reaching this call; see the note in
+ * docs/VALIDATION.md.
+ */
 const hashToken = (raw: string) =>
   createHash("sha256").update(raw).digest("hex");
 

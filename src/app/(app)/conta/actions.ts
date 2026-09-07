@@ -2,6 +2,7 @@
 
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { users } from "@/db/schema";
@@ -159,6 +160,7 @@ export async function setWeeklyReport(
     .update(users)
     .set({ weeklyReportEnabled: enabled })
     .where(eq(users.id, user.id));
+  revalidatePath("/conta");
   return {
     error: null,
     ok: enabled

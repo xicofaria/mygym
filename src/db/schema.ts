@@ -29,9 +29,10 @@ export const users = sqliteTable("users", {
   passwordHash: text("password_hash").notNull(),
   emailVerifiedAt: integer("email_verified_at", { mode: "timestamp" }),
   tokenVersion: integer("token_version").notNull().default(0),
+  /** Opt-in: the weekly email is only sent to accounts that ask for it. */
   weeklyReportEnabled: integer("weekly_report_enabled", { mode: "boolean" })
     .notNull()
-    .default(true),
+    .default(false),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .default(sql`(unixepoch())`),

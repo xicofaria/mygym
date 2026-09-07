@@ -21,15 +21,13 @@ import {
 } from "./dashboard-metrics";
 import { chooseTopSet } from "./workout";
 import { enrichExercise } from "./exercise-catalog";
-import {
-  calculateWeeklyReport,
-  caloriesPerDay,
-} from "./weekly-report";
+import { calculateWeeklyReport } from "./weekly-report";
 import { getCalorieData } from "./calorie-queries";
 import {
   addUtcDays,
   buildWorkoutCalendar,
   dateFromKey,
+  dateKey,
   startOfUtcWeek,
   type WorkoutCalendarData,
 } from "./workout-calendar";
@@ -631,48 +629,64 @@ export async function getWeeklyReportData(
   from: Date,
   to: Date,
 ): Promise<WeeklyReportData> {
-  const fromKey = lisbonDateKey(from);
-  const toKey = lisbonDateKey(to);
+  // `from`/`to` já são datas-só à meia-noite UTC (convenção da base de dados).
+  const fromKey = dateKey(from);
+  const toKey = dateKey(to);
 
-  const weekRows = await db
-    .select({
-      workoutId: workouts.id,
-      date: workouts.date,
-      exercise: exercises.name,
-      reps: sets.reps,
-      weight: sets.weight,
-    })
-    .from(workouts)
-    .innerJoin(sets, eq(sets.workoutId, workouts.id))
-    .innerJoin(exercises, eq(sets.exerciseId, exercises.id))
-    .where(
-      and(
-        eq(workouts.userId, userId),
-        gte(workouts.date, from),
-        lt(workouts.date, to),
-      ),
-    )
-    .orderBy(asc(workouts.date))
-    .all();
-
-  const beforeRows = await db
-    .select({
-      exercise: exercises.name,
-      reps: sets.reps,
-      weight: sets.weight,
-    })
-    .from(workouts)
-    .innerJoin(sets, eq(sets.workoutId, workouts.id))
-    .innerJoin(exercises, eq(sets.exerciseId, exercises.id))
-    .where(
-      and(
-        eq(workouts.userId, userId),
-        lt(workouts.date, from),
-        gte(sets.reps, 1),
-        gte(sets.weight, 0),
-      ),
-    )
-    .all();
+  // Quatro leituras independentes: o cron semanal repete-as por conta.
+  const [weekRows, beforeRows, weightRows, { entries, goals, days }] =
+    await Promise.all([
+      db
+        .select({
+          workoutId: workouts.id,
+          date: workouts.date,
+          exercise: exercises.name,
+          reps: sets.reps,
+          weight: sets.weight,
+        })
+        .from(workouts)
+        .innerJoin(sets, eq(sets.workoutId, workouts.id))
+        .innerJoin(exercises, eq(sets.exerciseId, exercises.id))
+        .where(
+          and(
+            eq(workouts.userId, userId),
+            gte(workouts.date, from),
+            lt(workouts.date, to),
+          ),
+        )
+        .orderBy(asc(workouts.date))
+        .all(),
+      db
+        .select({
+          exercise: exercises.name,
+          reps: sets.reps,
+          weight: sets.weight,
+        })
+        .from(workouts)
+        .innerJoin(sets, eq(sets.workoutId, workouts.id))
+        .innerJoin(exercises, eq(sets.exerciseId, exercises.id))
+        .where(
+          and(
+            eq(workouts.userId, userId),
+            lt(workouts.date, from),
+            gte(sets.reps, 1),
+            gte(sets.weight, 0),
+          ),
+        )
+        .all(),
+      db
+        .select({ date: bodyMetrics.date, kg: bodyMetrics.weightKg })
+        .from(bodyMetrics)
+        .where(
+          and(
+            eq(bodyMetrics.userId, userId),
+            gte(bodyMetrics.date, addUtcDays(from, -365)),
+          ),
+        )
+        .orderBy(asc(bodyMetrics.date))
+        .all(),
+      getCalorieData(userId, fromKey, toKey),
+    ]);
 
   const previousBests: WeeklyReportData["previousBests"] = {};
   for (const row of beforeRows) {
@@ -687,34 +701,12 @@ export async function getWeeklyReportData(
     }
   }
 
-  const weightRows = await db
-    .select({ date: bodyMetrics.date, kg: bodyMetrics.weightKg })
-    .from(bodyMetrics)
-    .where(and(eq(bodyMetrics.userId, userId), gte(bodyMetrics.date, addUtcDays(from, -365))))
-    .orderBy(asc(bodyMetrics.date))
-    .all();
-
-  const startKey = lisbonDateKey(from);
-  const endKey = lisbonDateKey(to);
-  const { entries, goals, days } = await getCalorieData(
-    userId,
-    startKey,
-    endKey,
-  );
-  // Uma linha por consumo; o relatório agrega por dia civil.
-  const calories = caloriesPerDay(
-    entries.map((entry) => ({
-      dateKey: entry.date,
-      kcal: ((entry.snapshot.nutrients.kcal ?? 0) * entry.quantity) / 100,
-    })),
-  );
-
   return {
     fromKey,
     toKey,
     sets: weekRows.map((row) => ({
       workoutId: row.workoutId,
-      dateKey: lisbonDateKey(row.date),
+      dateKey: dateKey(row.date),
       exercise: row.exercise,
       reps: row.reps,
       weight: row.weight,
@@ -722,8 +714,12 @@ export async function getWeeklyReportData(
     previousBests,
     weights: weightRows
       .filter((row) => row.kg != null)
-      .map((row) => ({ dateKey: lisbonDateKey(row.date), kg: row.kg as number })),
-    calories: caloriesPerDay(calories),
+      .map((row) => ({ dateKey: dateKey(row.date), kg: row.kg as number })),
+    // Uma linha por consumo; o relatório agrega por dia civil.
+    calories: entries.map((entry) => ({
+      dateKey: entry.date,
+      kcal: ((entry.snapshot.nutrients.kcal ?? 0) * entry.quantity) / 100,
+    })),
     completedDays: days
       .filter((day) => day.completed)
       .map((day) => day.date),

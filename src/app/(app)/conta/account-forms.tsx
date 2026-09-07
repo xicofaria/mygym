@@ -134,8 +134,9 @@ export function AccountForms({
           Receber o resumo semanal (treinos, recordes e calorias) por email.
         </label>
         <p className="text-xs text-zinc-500 dark:text-zinc-400">
-          Os emails só são enviados quando o servidor tem envio de email
-          configurado e o teu email está confirmado.
+          Desativado por predefinição — só recebes o email se o ativares aqui.
+          Mesmo ativado, o envio depende de o servidor ter email configurado e
+          de o teu endereço estar confirmado.
         </p>
         <Feedback state={reportForm.state} />
         <button type="submit" className="btn-ghost self-start" disabled={reportForm.pending}>

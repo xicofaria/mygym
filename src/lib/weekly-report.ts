@@ -1,5 +1,5 @@
 import { epley1RM, round } from "./format";
-import { goalForDate, type CalorieGoal } from "./nutrition";
+import { goalForDate, withinGoal, type CalorieGoal } from "./nutrition";
 
 export type WeeklySetRow = {
   workoutId: number;
@@ -30,6 +30,7 @@ export type WeeklyReportInput = {
   /** Best 1RM estimate and weight per exercise BEFORE this week. */
   previousBests: Record<string, { epley: number; weight: number }>;
   weights: { dateKey: string; kg: number }[];
+  /** One row per consumption entry; aggregated per civil day by the report. */
   calories: { dateKey: string; kcal: number }[];
   /** Civil days explicitly completed by the user. */
   completedDays: string[];
@@ -95,7 +96,11 @@ export function calculateWeeklyReport(input: WeeklyReportInput): WeeklyReport {
   }
   prs.sort((a, b) => a.exercise.localeCompare(b.exercise));
 
-  const calories = input.calories.filter((row) => inWindow(row.dateKey, input));
+  // Um dia registado é um dia civil com consumo real: várias entradas no mesmo
+  // dia somam-se, e um dia só com produtos de 0 kcal não conta como registo.
+  const calories = caloriesPerDay(
+    input.calories.filter((row) => inWindow(row.dateKey, input)),
+  ).filter((row) => row.kcal > 0);
   const kcalTotal = calories.reduce((sum, row) => sum + row.kcal, 0);
   const kcalRecordedDays = calories.length;
   const completed = new Set(input.completedDays);
@@ -105,9 +110,7 @@ export function calculateWeeklyReport(input: WeeklyReportInput): WeeklyReport {
     const goal = goalForDate(input.goals, row.dateKey);
     if (!goal || !completed.has(row.dateKey)) continue;
     lastGoalKcal = goal.kcal;
-    const margin = (goal.kcal * goal.tolerance) / 100;
-    if (row.kcal >= goal.kcal - margin && row.kcal <= goal.kcal + margin)
-      daysWithinGoal += 1;
+    if (withinGoal(row.kcal, goal)) daysWithinGoal += 1;
   }
 
   const weekWeights = input.weights
