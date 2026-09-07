@@ -108,3 +108,17 @@ Branch `codex/diary-unit-flow`, base `c364e4c` após merge do PR #29.
 - Lint, tipos e build na cópia Linux isolada; revisão mobile dos dois formulários.
 - Sem migração adicional. Mantém snapshots e dados anteriores.
 - Não houve novas chamadas pagas. Não foi reutilizada a chave temporária anterior.
+
+## Embalagem inteira — 2026-09-07
+
+Branch `codex/package-weight-visibility`, base `e50f447` após PR #30.
+
+- 102 testes unitários: peso estruturado distinto da base por 100, desconhecido
+  preservado mesmo quando a explicação menciona uma porção de 280 g.
+- 24 E2E: peso visível no produto, seleção automática de 1 embalagem após guardar
+  e selecionar, 280 g persistidos, ajuste para 300 g, meia embalagem e persistência.
+- Com 50,4 kcal/100 g: 280 g mostram 141,1 kcal; 300 g mostram 151,2 kcal;
+  meia embalagem de 280 g mostra 70,6 kcal. Não cria consumo ao guardar produto.
+- Build de produção usado pelos E2E; revisão visual mobile dos dois formulários.
+- IA simulada, sem chamadas pagas; não comprova leitura real da fotografia.
+- Sem migração ou alterações aos consumos históricos.

@@ -331,8 +331,12 @@ export function CaloriesTracker({
                 onChange={(e) => {
                   setProductId(e.target.value);
                   setPortionOverride(null);
-                  setQuantityMode("weight");
-                  setQuantity("");
+                  const product = data.products.find(
+                    (p) => p.id === Number(e.target.value),
+                  );
+                  const hasPackage = product?.details.packageQuantity != null;
+                  setQuantityMode(hasPackage ? "package" : "weight");
+                  setQuantity(hasPackage ? "1" : "");
                 }}
               >
                 <option value="">Escolher produto</option>
@@ -681,12 +685,14 @@ export function CaloriesTracker({
             key={editor.id ?? "new"}
             initial={editor}
             provider={provider}
-            onSaved={(id) => {
+            onSaved={(id, product) => {
               setEditor(null);
               setProductId(String(id));
               setPortionOverride(null);
-              setQuantityMode("weight");
-              setQuantity("");
+              setQuantityMode(
+                product.details.packageQuantity !== null ? "package" : "weight",
+              );
+              setQuantity(product.details.packageQuantity !== null ? "1" : "");
               setEditing(null);
               setTab("diary");
               router.refresh();
@@ -758,9 +764,15 @@ export function CaloriesTracker({
                           onClick={() => {
                             setProductId(String(p.id));
                             setPortionOverride(null);
-                            setQuantityMode("weight");
+                            setQuantityMode(
+                              p.details.packageQuantity !== null
+                                ? "package"
+                                : "weight",
+                            );
                             setEditing(null);
-                            setQuantity("");
+                            setQuantity(
+                              p.details.packageQuantity !== null ? "1" : "",
+                            );
                             setTab("diary");
                           }}
                         >

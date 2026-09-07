@@ -23,7 +23,7 @@ export function FoodProductForm({
 }: {
   initial?: Partial<FoodProduct>;
   provider: string;
-  onSaved: (id: number) => void;
+  onSaved: (id: number, product: Pick<FoodProduct, "details">) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
@@ -206,7 +206,7 @@ export function FoodProductForm({
           setError(result.error);
           return;
         }
-        if ("id" in result) onSaved(result.id);
+        if ("id" in result) onSaved(result.id, parsed.data);
       } catch {
         setError(
           "Sem ligação. Mantivemos os dados neste formulário; tenta guardar novamente.",
@@ -354,6 +354,23 @@ export function FoodProductForm({
         ))}
       </datalist>
       <h3 className="font-semibold">Tabela nutricional</h3>
+      {details.packageQuantity !== null ? (
+        <p aria-label="Peso da embalagem identificado" className="text-sm">
+          Embalagem: {details.packageQuantity} {unit}
+          {details.packageEstimated
+            ? " — estimativa, confirmar"
+            : " — identificado"}
+          <span className="mt-1 block text-xs text-zinc-500">
+            Guardado para calcular embalagens no diário, onde podes confirmar ou
+            ajustar.
+          </span>
+        </p>
+      ) : source.endsWith("-ai") ? (
+        <p className="text-xs text-zinc-500">
+          Peso da embalagem não identificado. Podes indicá-lo no diário; a base
+          por 100 g/ml não é o peso da embalagem.
+        </p>
+      ) : null}
       <label className="label">
         Valores por
         <select

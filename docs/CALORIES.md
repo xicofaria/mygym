@@ -2,6 +2,13 @@
 
 ## Funcionalidade
 
+O formulário mostra o peso da embalagem identificado pela IA separadamente da
+tabela por 100 g/ml, com indicação de estimativa ou de peso desconhecido.
+Uma porção só sugere o conteúdo total quando há indícios suficientes; não se
+extraem pesos da explicação livre. Ao guardar/escolher um produto com embalagem
+conhecida, o diário prepara 1 embalagem e calcula os gramas e nutrientes totais.
+A quantidade continua ajustável e nada é consumido sem «Registar consumo».
+
 A nova tab **Calorias** tem três áreas:
 
 - **Diário:** data, energia consumida/meta, proteína/hidratos/lípidos, refeições,

@@ -113,6 +113,11 @@ This version has breaking changes — APIs, conventions, and file structure may 
   unit size and estimation flags/keys. Legacy products/snapshots use empty defaults.
   These sizes never replace the per-100 nutrition base. Quantity conversions must
   be positive, finite and <=10000 g/ml. History keeps the original details too.
+- Show recognized package weight and its estimate flag as read-only context in
+  the product form; explicitly show unknown AI package weight. Never extract
+  grams from free-text explanations or confuse a serving with a whole package.
+  Selecting/saving a product with known package weight prepares one whole package
+  in the diary; users can change it and must explicitly save consumption.
 - Product forms do not ask for package/unit weights. Resolve those in the diary;
   unit/package modes are never disabled for missing metadata. Show conversion
   details there; explicit AI unit estimation sends only server-owned product
