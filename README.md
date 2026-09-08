@@ -105,17 +105,27 @@ no ecrã está disponível independentemente do envio de email.
 
 ### IA opcional
 
-Treinos e calorias partilham o fornecedor e a quota diária. A configuração atual
-está nos adaptadores da aplicação; o modelo usado pelo agente de programação
-não altera estas opções.
+O projeto utiliza **GLM 5.3 Flash através do OpenRouter** para fotografias de
+máquinas e alimentos. Treinos e calorias partilham o fornecedor e a quota diária.
+Para reproduzir esta configuração, define no ambiente do servidor:
 
-| Fornecedor | Configuração | Modelo predefinido |
-| --- | --- | --- |
-| OpenAI | `AI_PROVIDER=openai`, `OPENAI_API_KEY`, `OPENAI_VISION_MODEL` opcional | `gpt-4.1-mini` |
-| OpenRouter | `AI_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, `OPENROUTER_VISION_MODEL` opcional | `qwen/qwen3-vl-30b-a3b-instruct` |
+```dotenv
+AI_PROVIDER="openrouter"
+OPENROUTER_VISION_MODEL="z-ai/glm-5.3-flash"
+AI_DAILY_LIMIT="20"
+```
 
-Os adaptadores exigem visão e JSON Schema estrito, exceto o suporte explícito a
-`z-ai/glm-5.3-flash`, que usa modo JSON e validação no servidor.
+Define também `OPENROUTER_API_KEY` como segredo do servidor. O adaptador GLM usa
+modo JSON, validação no servidor e esforço `max`, com timeout de 120 segundos
+no fornecedor.
+
+Os valores de fallback em `src/lib/ai-config.ts` são distintos desta configuração:
+sem `AI_PROVIDER`, o código seleciona OpenAI; sem modelo explícito, usa
+`gpt-4.1-mini` para OpenAI ou `qwen/qwen3-vl-30b-a3b-instruct` para OpenRouter.
+Por isso, define explicitamente as variáveis acima para usar GLM. O
+`.env.example` ainda contém os exemplos genéricos desses fallbacks.
+Outros modelos configurados têm de suportar visão e JSON Schema estrito.
+
 `AI_DAILY_LIMIT` define tentativas por conta e dia de Lisboa: omissão 20,
 intervalo 1–1000. Falhas também consomem tentativas; a quota não é um teto monetário.
 Sem chave, a introdução manual continua disponível.

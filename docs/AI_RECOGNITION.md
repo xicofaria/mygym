@@ -6,23 +6,23 @@ As chaves ficam apenas no servidor: `.env.local` em desenvolvimento ou
 variáveis secretas do alojamento em produção. Nunca usar `NEXT_PUBLIC_`.
 Reiniciar/redeploy após alterações. Sem chave, a seleção manual continua disponível.
 
-### OpenRouter com Qwen (modelo chinês com visão)
+### OpenRouter com GLM 5.3 Flash (configuração utilizada)
 
 ```dotenv
 AI_PROVIDER="openrouter"
 OPENROUTER_API_KEY="a-chave-fica-apenas-no-servidor"
-OPENROUTER_VISION_MODEL="qwen/qwen3-vl-30b-a3b-instruct"
+OPENROUTER_VISION_MODEL="z-ai/glm-5.3-flash"
 AI_DAILY_LIMIT="20"
 ```
 
-O modelo predefinido tem entrada de imagem e endpoints com respostas estruturadas
-no catálogo OpenRouter verificado em 2026-09-05. A disponibilidade depende do
-fornecedor/conta. Outros modelos são configuráveis, mas têm de aceitar imagens
-e JSON Schema; um modelo exclusivamente textual não serve. Exceção explícita:
+O projeto utiliza GLM explicitamente através destas variáveis. O fallback do
+código para OpenRouter, quando `OPENROUTER_VISION_MODEL` está vazio, continua a
+ser `qwen/qwen3-vl-30b-a3b-instruct`; não seleciona GLM automaticamente.
+
 `z-ai/glm-5.3-flash` usa `json_object`, com schema incluído nas instruções e
 validação dos resultados no servidor, tanto para máquinas como para alimentos.
-Esta compatibilidade foi implementada segundo a ficha OpenRouter consultada em
-2026-09-06; testes simulados não garantem latência ou precisão com fotografias reais.
+Outros modelos são configuráveis, mas têm de aceitar imagens e JSON Schema.
+Testes simulados não garantem latência ou precisão com fotografias reais.
 O GLM usa esforço `max` solicitado pelo utilizador: timeout servidor 120 s,
 browser 130 s, `maxDuration=150`, saída até 4000 tokens para máquinas / 8000 para
 alimentos. Outros modelos mantêm 25 s no fornecedor. O estado de espera mostra
@@ -37,7 +37,7 @@ Pede `require_parameters: true` e `data_collection: "deny"` no
 Se não existir endpoint compatível com estas condições, apresenta erro e mantém
 a seleção manual. Não relaxa silenciosamente os requisitos nem muda de modelo.
 
-### OpenAI (alternativa/predefinição)
+### OpenAI (alternativa; fallback sem AI_PROVIDER)
 
 ```dotenv
 AI_PROVIDER="openai"
