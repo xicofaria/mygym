@@ -43,16 +43,9 @@ test("catalogue aliases, editable metadata and favorites persist, isolated per a
   ).toHaveCount(0);
   await partnerContext.close();
 
-  await leg.getByRole("button", { name: "Editar Leg Press" }).click();
-  await leg
-    .getByLabel("Nomes alternativos")
-    .fill("Prensa de pernas, Prensa, Teste catálogo");
-  await leg.getByRole("button", { name: "Guardar detalhes" }).click();
   await expect(
-    leg.getByText("Prensa de pernas, Prensa, Teste catálogo"),
-  ).toBeVisible();
-  await page.getByLabel("Pesquisar exercícios").fill("teste catalogo");
-  await expect(leg).toBeVisible();
+    leg.getByRole("button", { name: "Editar Leg Press" }),
+  ).toHaveCount(0);
   await page.goto("/workouts/new");
   await page.waitForLoadState("networkidle");
   await expect(
@@ -61,12 +54,9 @@ test("catalogue aliases, editable metadata and favorites persist, isolated per a
       .locator('optgroup[label="Favoritos"] option'),
   ).toHaveText(["Leg Press"]);
 
-  // Restore shared fixture metadata and preference.
+  // Restore this account's preference; the common catalogue is read-only.
   await page.goto("/exercises");
   await page.waitForLoadState("networkidle");
-  await leg.getByRole("button", { name: "Editar Leg Press" }).click();
-  await leg.getByLabel("Nomes alternativos").fill("Prensa de pernas, Prensa");
-  await leg.getByRole("button", { name: "Guardar detalhes" }).click();
   await leg
     .getByRole("button", { name: "Remover Leg Press dos favoritos" })
     .click();

@@ -71,6 +71,9 @@ fornecedor e acompanhar despesa/latência. Existe ainda um limite em memória de
 
 ## Experiência
 
+A análise recebe apenas o catálogo base e os exercícios privados da conta.
+Exercícios criados após confirmação ficam privados e só o dono pode editá-los.
+
 1. Em Novo treino ou Editar treino, escolher Tirar fotografia ou Escolher imagem.
 2. Enquadrar a máquina completa e, se possível, a placa. Evitar pessoas.
 3. Rever a imagem. Só Analisar fotografia envia a imagem ao servidor/fornecedor.
@@ -87,7 +90,7 @@ estimativa, não uma probabilidade medida. A IA nunca estima cargas.
 Quando o equipamento não corresponde a nada do catálogo, a mesma análise devolve
 uma proposta (nome, grupo muscular, aliases, equipamento) que aparece como
 «Criar «…»». Confirmar abre um formulário pré-preenchido e editável; só
-«Criar e adicionar à série» escreve no catálogo partilhado das duas contas e o
+«Criar e adicionar à série» escreve no catálogo privado da conta autenticada e o
 exercício entra logo na primeira série vazia. Se a proposta coincidir
 fortemente (≥0.8) com um nome/alias existente, o servidor converte-a num
 candidato do exercício existente em vez de oferecer criação. Equipamento

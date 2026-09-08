@@ -13,6 +13,7 @@ import {
 } from "@/db/schema";
 import type { RoutineDay } from "./routine";
 import { requireUser } from "./auth";
+import { visibleExercises } from "./exercise-access";
 import { epley1RM, lisbonDateKey, round } from "./format";
 import {
   calculateDashboardWeightMetrics,
@@ -33,9 +34,11 @@ import {
 } from "./workout-calendar";
 
 export async function getExerciseCatalog() {
+  const user = await requireUser();
   const catalog = await db
     .select()
     .from(exercises)
+    .where(visibleExercises(user.id))
     .orderBy(asc(exercises.name))
     .all();
   return catalog.map(enrichExercise);
@@ -222,6 +225,7 @@ export async function getLastPerformanceByExercise(
 
 export type ExerciseStat = {
   id: number;
+  userId: number | null;
   name: string;
   muscleGroup: string | null;
   aliases: string;
@@ -275,6 +279,7 @@ export async function getExercisesWithStats(
     const st = stats.get(e.id);
     return {
       id: e.id,
+      userId: e.userId,
       name: e.name,
       muscleGroup: e.muscleGroup,
       aliases: e.aliases,
@@ -309,7 +314,7 @@ export async function getExerciseProgression(
   const exercise = await db
     .select({ id: exercises.id, name: exercises.name })
     .from(exercises)
-    .where(eq(exercises.id, exerciseId))
+    .where(and(eq(exercises.id, exerciseId), visibleExercises(userId)))
     .get();
   if (!exercise) return { exercise: null, points: [] };
 

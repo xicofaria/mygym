@@ -66,7 +66,7 @@ async function main() {
   await db
     .insert(exercises)
     .values(STARTER_EXERCISES.map(enrichExercise))
-    .onConflictDoNothing({ target: exercises.name });
+    .onConflictDoNothing();
   console.log(`  exercises: ${STARTER_EXERCISES.length} in catalog`);
 
   console.log("\nSeed complete. Log in with the credentials from .env.local.");

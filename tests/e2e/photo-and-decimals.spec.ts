@@ -137,8 +137,9 @@ test("photo no match, service error and cancel leave manual selection available"
   await expect(page.getByLabel("Exercício da série 1")).toBeEnabled();
 });
 
-test("photo suggestion creates a shared exercise and adds it to the set", async ({
+test("photo suggestion creates a private exercise and adds it to the set", async ({
   page,
+  browser,
 }) => {
   await login(page);
   const suggestion = {
@@ -195,6 +196,19 @@ test("photo suggestion creates a shared exercise and adds it to the set", async 
     .fill("Pec Deck E2E")
     .catch(() => {});
   await expect(page.getByText("Pec Deck E2E", { exact: true }).first()).toBeVisible();
+
+  const otherContext = await browser.newContext();
+  const other = await otherContext.newPage();
+  await other.goto("/login");
+  await other.getByLabel("Email").fill("e2e-partner@example.com");
+  await other.getByLabel("Palavra-passe").fill("e2e-partner-password-123");
+  await other.getByRole("button", { name: "Iniciar sessão" }).click();
+  await expect(other).toHaveURL(/dashboard/);
+  await other.goto("/exercises");
+  await expect(
+    other.getByRole("article", { name: "Pec Deck E2E", exact: true }),
+  ).toHaveCount(0);
+  await otherContext.close();
 
   await page.goto("/workouts/new");
   await page.waitForLoadState("networkidle");

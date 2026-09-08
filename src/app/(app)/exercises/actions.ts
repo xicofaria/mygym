@@ -5,37 +5,48 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { exercises, exerciseFavorites } from "@/db/schema";
+import { visibleExercises } from "@/lib/exercise-access";
 import { requireUser } from "@/lib/auth";
 import { exerciseInputSchema } from "@/lib/exercise-catalog";
 
 export async function createExercise(input: unknown) {
-  await requireUser();
+  const user = await requireUser();
   const parsed = exerciseInputSchema.safeParse(input);
   if (!parsed.success)
     return { error: "Introduz um nome de exercício válido." };
   const { name, muscleGroup, aliases, equipment } = parsed.data;
 
-  const inserted = await db
-    .insert(exercises)
-    .values({
-      name,
-      muscleGroup: muscleGroup || null,
-      aliases: aliases ?? "",
-      equipment: equipment ?? "",
-    })
-    .onConflictDoNothing({ target: exercises.name })
-    .returning({ id: exercises.id });
-  if (!inserted.length)
-    return { error: "Já existe um exercício com esse nome." };
+  const inserted = await db.transaction(async (tx) => {
+    const duplicate = await tx
+      .select({ id: exercises.id })
+      .from(exercises)
+      .where(and(eq(exercises.name, name), visibleExercises(user.id)))
+      .get();
+    if (duplicate) return null;
+    const [exercise] = await tx
+      .insert(exercises)
+      .values({
+        userId: user.id,
+        name,
+        muscleGroup: muscleGroup || null,
+        aliases: aliases ?? "",
+        equipment: equipment ?? "",
+      })
+      .onConflictDoNothing()
+      .returning({ id: exercises.id });
+    return exercise ?? null;
+  });
+  if (!inserted)
+    return { error: "Já existe um exercício com esse nome no teu catálogo." };
 
   revalidatePath("/exercises");
   revalidatePath("/workouts/new");
-  return { error: null as string | null, id: inserted[0].id };
+  return { error: null as string | null, id: inserted.id };
 }
 
-/** Catalogue is shared; edits never change exercise IDs or existing sets. */
+/** Only the owner may edit a private exercise; common exercises are read-only. */
 export async function updateExercise(id: unknown, input: unknown) {
-  await requireUser();
+  const user = await requireUser();
   const parsedId = z.number().int().positive().safeParse(id);
   const parsed = exerciseInputSchema.safeParse(input);
   if (!parsedId.success || !parsed.success)
@@ -43,10 +54,19 @@ export async function updateExercise(id: unknown, input: unknown) {
   const { name, muscleGroup, aliases, equipment } = parsed.data;
   // A transaction makes the duplicate check and update one write unit.
   const result = await db.transaction(async (tx) => {
+    const owned = await tx
+      .select({ id: exercises.id })
+      .from(exercises)
+      .where(
+        and(eq(exercises.id, parsedId.data), eq(exercises.userId, user.id)),
+      )
+      .get();
+    if (!owned)
+      return { error: "Só podes editar os teus exercícios privados." };
     const duplicate = await tx
       .select({ id: exercises.id })
       .from(exercises)
-      .where(eq(exercises.name, name))
+      .where(and(eq(exercises.name, name), visibleExercises(user.id)))
       .get();
     if (duplicate && duplicate.id !== parsedId.data)
       return { error: "Já existe um exercício com esse nome." };
@@ -58,7 +78,9 @@ export async function updateExercise(id: unknown, input: unknown) {
         aliases: aliases ?? "",
         equipment: equipment ?? "",
       })
-      .where(eq(exercises.id, parsedId.data))
+      .where(
+        and(eq(exercises.id, parsedId.data), eq(exercises.userId, user.id)),
+      )
       .returning({ id: exercises.id });
     return { error: updated.length ? null : "Exercício não encontrado." };
   });
@@ -76,7 +98,7 @@ export async function setExerciseFavorite(input: unknown) {
   const exists = await db
     .select({ id: exercises.id })
     .from(exercises)
-    .where(eq(exercises.id, exerciseId))
+    .where(and(eq(exercises.id, exerciseId), visibleExercises(user.id)))
     .get();
   if (!exists) return { error: "Exercício não encontrado." };
   if (favorite) {

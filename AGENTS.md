@@ -27,7 +27,9 @@
   O layout protegido não protege Route Handlers. Fluxos públicos de autenticação
   validam entradas e aplicam as respetivas proteções sem exigir uma sessão prévia.
 - Cada conta lê e altera os seus dados, identificada pela sessão. `?user=` é ignorado;
-  não existe seletor de parceiro. O catálogo de exercícios é partilhado; favoritos,
+  não existe seletor de parceiro. Exercícios base/legados são comuns e só de leitura;
+  novos exercícios (manuais ou IA) são privados. Filtrar catálogo, IA, favoritos,
+  detalhes e IDs usados em treinos/modelos por base ou dono da sessão. Favoritos,
   quotas de IA, treinos, planos, rotinas, modelos, medidas e calorias são privados.
 - Leituras em `src/lib/queries.ts` e módulos especializados como `calorie-queries.ts`;
   escritas nos `actions.ts` da funcionalidade. Usar transações nas escritas em vários passos.

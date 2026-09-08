@@ -13,6 +13,7 @@ import {
   workoutTemplates,
   workouts,
 } from "@/db/schema";
+import { visibleExercises } from "@/lib/exercise-access";
 import { requireUser } from "@/lib/auth";
 import { deleteOwnedRecord } from "@/lib/owned-resource";
 import { buildWorkoutSetRows, MAX_SETS_PER_WORKOUT } from "@/lib/workout";
@@ -45,12 +46,15 @@ const newWorkoutSchema = z.object({
 
 export type NewWorkoutInput = z.infer<typeof newWorkoutSchema>;
 
-async function validateExercises(entries: NewWorkoutInput["entries"]) {
+async function validateExercises(
+  userId: number,
+  entries: NewWorkoutInput["entries"],
+) {
   const requestedIds = [...new Set(entries.map((entry) => entry.exerciseId))];
   const available = await db
     .select({ id: exercises.id })
     .from(exercises)
-    .where(inArray(exercises.id, requestedIds))
+    .where(and(inArray(exercises.id, requestedIds), visibleExercises(userId)))
     .all();
 
   return available.length === requestedIds.length;
@@ -70,7 +74,7 @@ export async function createWorkout(input: NewWorkoutInput) {
   }
   const { date, notes, entries, plannedWorkoutId } = parsed.data;
 
-  if (!(await validateExercises(entries))) {
+  if (!(await validateExercises(user.id, entries))) {
     return { error: "Um dos exercícios selecionados já não está disponível." };
   }
 
@@ -160,7 +164,7 @@ export async function updateWorkout(id: number, input: NewWorkoutInput) {
   }
 
   const { date, notes, entries } = parsed.data;
-  if (!(await validateExercises(entries))) {
+  if (!(await validateExercises(user.id, entries))) {
     return { error: "Um dos exercícios selecionados já não está disponível." };
   }
 

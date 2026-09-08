@@ -117,6 +117,9 @@ export function ExerciseCatalog({
               >
                 <h2 className="font-semibold">{ex.name}</h2>
                 <p className="text-xs text-zinc-500">
+                  {ex.userId == null ? "Catálogo base" : "Exercício privado"}
+                </p>
+                <p className="text-xs text-zinc-500">
                   {[
                     ex.muscleGroup && formatMuscleGroup(ex.muscleGroup),
                     ex.equipment,
@@ -146,7 +149,7 @@ export function ExerciseCatalog({
                 </button>
               )}
             </div>
-            {isSelf && <AddExercise exercise={ex} />}
+            {isSelf && ex.userId != null && <AddExercise exercise={ex} />}
           </article>
         ))}
       </div>

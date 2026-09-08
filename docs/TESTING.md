@@ -16,6 +16,10 @@
 - Migration 0002 adds catalogue metadata, private favorites and persistent AI
   quotas. Test upgrades from release 0001 with/without a ledger; preserve IDs,
   decimal sets and explicit plan links. Never edit published 0000/0001 hashes.
+- Migration 0008 adds `exercises.user_id` and the per-scope name indexes. Test
+  the upgrade from 0007 with legacy rows: common exercises stay read-only, IDs,
+  decimal sets and template/plan links survive, equal names across accounts are
+  allowed and deleting an account removes only its private exercises.
 - Next/eslint-config-next 16.3.4, postcss 8.5.28 and esbuild >=0.28.2 resolve
   the audited dependency findings. Verify drizzle-kit generation after changing
   its transitive esbuild override; do not downgrade via audit fix --force.

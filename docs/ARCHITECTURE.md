@@ -115,3 +115,15 @@ O relatório no ecrã continua disponível sem subscrição de email.
 - `suppressHydrationWarning` no layout raiz acomoda atributos injetados por extensões.
 - Calorias têm consultas especializadas em `src/lib/calorie-queries.ts`;
   ver [CALORIES.md](CALORIES.md) e os contratos para snapshots e conversões.
+
+## Catálogo e medidas decimais
+
+A migração 0008 acrescenta `exercises.user_id` e índices de nome por âmbito.
+Exercícios base e legados (`user_id = null`) são comuns e só de leitura; adições
+manuais/IA são privadas. `exercise-access.ts` concentra o filtro de visibilidade
+usado nas leituras, no catálogo enviado à IA e nas validações de IDs recebidos.
+A migração garante os exercícios base sem exigir contas de seed.
+
+`body-metric-input.ts` partilha a validação entre formulário e ação: ponto/vírgula,
+limites originais, vazio opcional e rejeição de qualquer campo inválido. Os
+rascunhos mantêm-se durante o pedido e só são limpos após confirmação de gravação.

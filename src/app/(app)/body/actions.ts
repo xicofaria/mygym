@@ -1,55 +1,25 @@
 "use server";
 
-import { z } from "zod";
+import { bodyMetricInputSchema } from "@/lib/body-metric-input";
+import type { z } from "zod";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db } from "@/db";
 import { bodyMetrics } from "@/db/schema";
 import { requireUser } from "@/lib/auth";
 import { deleteOwnedRecord } from "@/lib/owned-resource";
-import {
-  dateFromKey,
-  isCurrentOrPastDateKey,
-  isDateKey,
-} from "@/lib/workout-calendar";
+import { dateFromKey, isCurrentOrPastDateKey } from "@/lib/workout-calendar";
 
-const schema = z.object({
-  date: z.string().refine(isDateKey),
-  weightKg: z.number().positive().max(500).optional(),
-  heightCm: z.number().positive().max(300).optional(),
-  waistCm: z.number().positive().max(300).optional(),
-  chestCm: z.number().positive().max(300).optional(),
-  armCm: z.number().positive().max(150).optional(),
-  thighCm: z.number().positive().max(200).optional(),
-  hipCm: z.number().positive().max(300).optional(),
-  bodyFatPct: z.number().min(0).max(80).optional(),
-  notes: z.string().max(500).optional(),
-});
+export type NewBodyMetricInput = z.infer<typeof bodyMetricInputSchema>;
 
-export type NewBodyMetricInput = z.infer<typeof schema>;
-
-export async function createBodyMetric(input: NewBodyMetricInput) {
+export async function createBodyMetric(input: unknown) {
   const user = await requireUser();
-  const parsed = schema.safeParse(input);
+  const parsed = bodyMetricInputSchema.safeParse(input);
   if (!parsed.success) return { error: "Verifica os dados e tenta novamente." };
   const d = parsed.data;
 
   if (!isCurrentOrPastDateKey(d.date)) {
     return { error: "A medição não pode ter uma data futura ou inválida." };
-  }
-
-  const measurements = [
-    d.weightKg,
-    d.heightCm,
-    d.waistCm,
-    d.chestCm,
-    d.armCm,
-    d.thighCm,
-    d.hipCm,
-    d.bodyFatPct,
-  ];
-  if (!measurements.some((v) => v != null)) {
-    return { error: "Introduz pelo menos uma medida." };
   }
 
   await db.insert(bodyMetrics).values({
