@@ -8,10 +8,10 @@ import {
 } from "drizzle-orm/sqlite-core";
 
 /**
- * Data model for the 2-person gym tracker.
+ * Data model for private accounts with a common exercise catalogue.
  *
- * users          – the two people using the app
- * exercises      – a shared catalog of movements (Bench Press, Squat, ...)
+ * users          – registered accounts
+ * exercises      – read-only common movements and private additions
  * workouts       – one training session for one user on a date
  * sets           – a single set within a workout: exercise × setNumber × reps × weight
  *                  (this is the "Exercise X: 3 series, 12 reps, 24kg" from a paper log)
@@ -55,16 +55,29 @@ export const emailTokens = sqliteTable("email_tokens", {
     .default(sql`(unixepoch())`),
 });
 
-export const exercises = sqliteTable("exercises", {
-  id: integer("id").primaryKey({ autoIncrement: true }),
-  name: text("name").notNull().unique(),
-  muscleGroup: text("muscle_group"),
-  aliases: text("aliases").notNull().default(""),
-  equipment: text("equipment").notNull().default(""),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .notNull()
-    .default(sql`(unixepoch())`),
-});
+export const exercises = sqliteTable(
+  "exercises",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    // Null denotes the read-only common catalogue, including legacy exercises.
+    userId: integer("user_id").references(() => users.id, {
+      onDelete: "cascade",
+    }),
+    name: text("name").notNull(),
+    muscleGroup: text("muscle_group"),
+    aliases: text("aliases").notNull().default(""),
+    equipment: text("equipment").notNull().default(""),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .default(sql`(unixepoch())`),
+  },
+  (table) => [
+    uniqueIndex("exercises_shared_name_unique")
+      .on(table.name)
+      .where(sql`${table.userId} IS NULL`),
+    uniqueIndex("exercises_user_name_unique").on(table.userId, table.name),
+  ],
+);
 
 export const workouts = sqliteTable("workouts", {
   id: integer("id").primaryKey({ autoIncrement: true }),

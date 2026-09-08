@@ -5,8 +5,9 @@ alimentar. Foi concebida para telemóvel e pode ser instalada como PWA.
 A interface está em português europeu: pesos em kg, medidas em cm e quantidades
 alimentares em g ou ml.
 
-O registo é público. Cada conta acede apenas aos seus dados; o catálogo de
-exercícios é partilhado. Não existe seletor de parceiro.
+O registo é público. Cada conta acede apenas aos seus dados. O catálogo base de
+exercícios é comum e só de leitura; exercícios adicionados manualmente ou por IA
+ficam privados da conta que os cria. Não existe seletor de parceiro.
 
 ## Funcionalidades
 
@@ -21,7 +22,8 @@ exercícios é partilhado. Não existe seletor de parceiro.
   propostas de novos exercícios, sempre revistas e confirmadas pela pessoa.
 - **Descanso:** temporizador com pausa e estado conservado no dispositivo ao navegar.
 - **Evolução corporal:** peso, gordura corporal, IMC e perímetros, com gráficos
-  e comparação por período.
+  e comparação por período. Aceita ponto ou vírgula nas medidas decimais, sem
+  descartar campos inválidos.
 - **Calorias:** diário privado, metas definidas pela pessoa, porções em g/ml,
   unidades ou frações de embalagem. O histórico conserva os dados nutricionais
   do produto e as conversões usados no momento do registo.
@@ -69,7 +71,8 @@ npm run dev
 
 Abre `http://localhost:3000` e cria uma conta em `/registo`.
 
-Para carregar o catálogo inicial e duas contas de desenvolvimento, configura
+A migração 0008 garante o catálogo base mesmo sem seed. Para criar duas contas
+de desenvolvimento e repor exercícios base em falta, configura
 `SEED_USER1_*` e `SEED_USER2_*` em `.env.local` e executa `npm run db:seed`.
 Este passo é opcional: o seed também atualiza o nome e a palavra-passe das contas
 com os mesmos emails. Não o uses como mecanismo habitual de gestão de contas;
@@ -180,6 +183,10 @@ A configuração do repositório prepara a aplicação para Vercel e Turso:
    `VERCEL_ENV=production`. Builds locais normais e de preview saltam esse passo.
 
 Executa `npm run db:migrate` ao atualizar instalações geridas fora deste processo.
+A migração 0008 preserva os exercícios antigos como comuns e só de leitura, pois
+não existe registo do seu autor; os novos recebem o dono da sessão. IDs, séries
+e ligações históricas mantêm-se.
+
 Todas as migrações publicadas em `drizzle/` são imutáveis; `db:push` não substitui
 migrações em bases persistentes. O seed não é necessário para abrir o registo público.
 

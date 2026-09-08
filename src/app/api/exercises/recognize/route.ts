@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/db";
+import { visibleExercises } from "@/lib/exercise-access";
 import { exercises } from "@/db/schema";
 import { LoginRateLimiter } from "@/lib/login-rate-limit-core";
 import {
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
         equipment: exercises.equipment,
       })
       .from(exercises)
+      .where(visibleExercises(user.id))
       .orderBy(exercises.name)
       .limit(501)
       .all();

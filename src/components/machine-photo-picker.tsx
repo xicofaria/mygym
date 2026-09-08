@@ -387,7 +387,7 @@ export function MachinePhotoPicker({
         <div className="mt-4 border-t border-indigo-200 pt-3 dark:border-indigo-900">
           <p className="text-sm font-semibold">Criar exercício</p>
           <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            Entra no catálogo partilhado das duas contas. Revê os valores.
+            Fica disponível apenas na tua conta. Revê os valores.
           </p>
           <label className="label mt-2">
             Nome do exercício

@@ -4,16 +4,18 @@ Revisto em 2026-09-08 contra o código atual. Esta lista orienta trabalho futuro
 não significa que as melhorias estejam implementadas ou que tenham sido medidas
 em produção. O comportamento disponível está no [README](../README.md).
 
+Medidas decimais e catálogo base só de leitura com adições privadas foram
+implementados; contratos e migração estão em [DOMAIN_RULES.md](DOMAIN_RULES.md).
+
 ## Próximas alterações
 
 | Prioridade | Melhoria e evidência atual | Critério de conclusão |
 | --- | --- | --- |
-| 1 | **Decimais nas medidas corporais.** `src/components/body-metric-form.tsx` usa `type="number"` e `Number()`, ao contrário da entrada de pesos dos treinos. | Aceitar ponto e vírgula em campos decimais, preservar precisão e campos opcionais vazios, validar limites no servidor e cobrir introdução/persistência em pt-PT. |
-| 2 | **Relatórios com consultas específicas.** `getWeeklyReportData()` chama `getCalorieData()`, que carrega e valida produtos não usados pelo relatório. | Consultar apenas consumos, metas e dias necessários, preservando resultados, isolamento por conta e limites do período; verificar a redução de leituras. |
-| 3 | **Envio semanal recuperável.** O cron envia sequencialmente e não mantém um registo persistente por conta/semana. | Registar estado de envio, coordenar execuções concorrentes e permitir retomar falhas; definir como evitar duplicados perante resposta incerta do fornecedor e testar repetição/interrupção sem emails reais. |
-| 4 | **Exportação pessoal.** A página de privacidade indica que a exportação automática ainda não existe. | Exportar treinos, medidas e diário alimentar em JSON/CSV a partir de `/conta`, apenas da sessão autenticada, com unidades/datas explícitas e snapshots históricos preservados. |
+| 1 | **Relatórios com consultas específicas.** `getWeeklyReportData()` chama `getCalorieData()`, que carrega e valida produtos não usados pelo relatório. | Consultar apenas consumos, metas e dias necessários, preservando resultados, isolamento por conta e limites do período; verificar a redução de leituras. |
+| 2 | **Envio semanal recuperável.** O cron envia sequencialmente e não mantém um registo persistente por conta/semana. | Registar estado de envio, coordenar execuções concorrentes e permitir retomar falhas; definir como evitar duplicados perante resposta incerta do fornecedor e testar repetição/interrupção sem emails reais. |
+| 3 | **Exportação pessoal.** A página de privacidade indica que a exportação automática ainda não existe. | Exportar treinos, medidas e diário alimentar em JSON/CSV a partir de `/conta`, apenas da sessão autenticada, com unidades/datas explícitas e snapshots históricos preservados. |
 
-Começar pelos dois primeiros pontos permite alterações pequenas e independentes.
+A consulta específica dos relatórios é a próxima alteração pequena e independente.
 O envio semanal requer desenho de persistência e uma migração aditiva; a exportação
 requer definir o formato e os limites para contas com histórico extenso.
 

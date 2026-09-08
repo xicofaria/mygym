@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createExercise, updateExercise } from "@/app/(app)/exercises/actions";
 import type { SearchableExercise } from "@/lib/exercise-catalog";
 
-/** Shared catalogue metadata, with stable IDs preserving workout history. */
+/** Private exercise metadata, with stable IDs preserving workout history. */
 export function AddExercise({ exercise }: { exercise?: SearchableExercise }) {
   const router = useRouter();
   const prefix = useId();
@@ -62,7 +62,7 @@ export function AddExercise({ exercise }: { exercise?: SearchableExercise }) {
       className="flex flex-col gap-3 border-t border-black/10 py-4 dark:border-white/10"
     >
       <p className="text-xs text-zinc-500">
-        Catálogo partilhado entre as duas contas.
+        Este exercício fica disponível apenas na tua conta.
       </p>
       {[
         {

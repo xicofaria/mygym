@@ -3,23 +3,16 @@
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { createBodyMetric } from "@/app/(app)/body/actions";
+import {
+  BODY_METRIC_FIELDS as FIELDS,
+  bodyMetricInputSchema,
+} from "@/lib/body-metric-input";
 import { toDateInputValue } from "@/lib/format";
 import {
   readLocalDraft,
   removeLocalDraft,
   writeLocalDraft,
 } from "@/lib/local-draft";
-
-const FIELDS = [
-  { key: "weightKg", label: "Peso (kg)", step: 0.1 },
-  { key: "bodyFatPct", label: "Gordura corporal (%)", step: 0.1 },
-  { key: "waistCm", label: "Cintura (cm)", step: 0.1 },
-  { key: "chestCm", label: "Peito (cm)", step: 0.1 },
-  { key: "armCm", label: "Braço (cm)", step: 0.1 },
-  { key: "thighCm", label: "Coxa (cm)", step: 0.1 },
-  { key: "hipCm", label: "Anca (cm)", step: 0.1 },
-  { key: "heightCm", label: "Altura (cm)", step: 0.1 },
-] as const;
 
 type FieldKey = (typeof FIELDS)[number]["key"];
 type BodyMetricDraft = {
@@ -49,11 +42,6 @@ function isBodyMetricDraft(value: unknown): value is BodyMetricDraft {
       (field) => typeof candidate.values?.[field.key] === "string",
     )
   );
-}
-
-function num(s: string): number | undefined {
-  const n = Number(s);
-  return s.trim() !== "" && Number.isFinite(n) ? n : undefined;
 }
 
 export function BodyMetricForm({ userId }: { userId: number }) {
@@ -120,32 +108,34 @@ export function BodyMetricForm({ userId }: { userId: number }) {
     e.preventDefault();
     setError(null);
 
-    const input: Record<string, number | string | undefined> = { date };
-    let any = false;
-    for (const f of FIELDS) {
-      const v = num(values[f.key]);
-      if (v != null) any = true;
-      input[f.key] = v;
-    }
-    if (!any) {
-      setError("Introduz pelo menos uma medida.");
+    const parsed = bodyMetricInputSchema.safeParse({ date, ...values, notes });
+    if (!parsed.success) {
+      const issue = parsed.error.issues[0];
+      const field = FIELDS.find((f) => f.key === issue.path[0]);
+      setError(
+        field
+          ? `Verifica ${field.label.toLocaleLowerCase("pt-PT")}. Usa ponto ou vírgula e respeita o limite de ${field.max}.`
+          : issue.path.length === 0
+            ? issue.message
+            : "Verifica a data e as notas da medição.",
+      );
       return;
     }
-    input.notes = notes || undefined;
 
     const draft = { date, notes, values };
     submittingRef.current = true;
-    removeLocalDraft(localStorage, draftKey);
+    writeLocalDraft(localStorage, draftKey, draft);
 
     start(async () => {
       try {
-        const res = await createBodyMetric(input as never);
+        const res = await createBodyMetric(parsed.data);
         if (res?.error) {
           submittingRef.current = false;
           writeLocalDraft(localStorage, draftKey, draft);
           setError(res.error);
           return;
         }
+        removeLocalDraft(localStorage, draftKey);
         submittingRef.current = false;
         resetForm();
         router.refresh();
@@ -166,6 +156,7 @@ export function BodyMetricForm({ userId }: { userId: number }) {
           Data
         </label>
         <input
+          disabled={pending}
           id="body-metric-date"
           type="date"
           className="input"
@@ -186,11 +177,10 @@ export function BodyMetricForm({ userId }: { userId: number }) {
               {f.label}
             </label>
             <input
+              disabled={pending}
               id={`body-metric-${f.key}`}
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0}
-              step={f.step}
               className="input"
               value={values[f.key]}
               onChange={(e) => {
@@ -208,6 +198,8 @@ export function BodyMetricForm({ userId }: { userId: number }) {
           Notas (opcional)
         </label>
         <input
+          disabled={pending}
+          maxLength={500}
           id="body-metric-notes"
           className="input"
           value={notes}
@@ -219,7 +211,10 @@ export function BodyMetricForm({ userId }: { userId: number }) {
       </div>
 
       {error && (
-        <p className="text-sm font-medium text-red-600 dark:text-red-400">
+        <p
+          role="alert"
+          className="text-sm font-medium text-red-600 dark:text-red-400"
+        >
           {error}
         </p>
       )}
@@ -236,6 +231,7 @@ export function BodyMetricForm({ userId }: { userId: number }) {
         </button>
         <button
           type="button"
+          disabled={pending}
           className="btn-ghost"
           onClick={() => {
             removeLocalDraft(localStorage, draftKey);

@@ -4,6 +4,26 @@ Regras de implementação por área, extraídas do AGENTS.md para consulta selet
 Ler as secções relevantes antes de alterar a funcionalidade; as regras gerais
 estão em [AGENTS.md](../AGENTS.md).
 
+## Exercise ownership
+
+- Migration 0008 adds nullable `exercises.user_id`: null is the read-only common
+  catalogue; new manual/AI exercises derive their owner from the signed session.
+- Legacy exercises have no recorded creator and remain common/read-only; preserve
+  their IDs, metadata, decimal sets and plan/template links. Seed missing defaults
+  once in the migration without overwriting existing metadata.
+- Only the owner can edit a private exercise. Allow identical names across owners;
+  reject duplicates within the caller's visible catalogue.
+- Apply `visibleExercises` to catalogue/detail reads, AI catalogue queries and all
+  caller-supplied exercise IDs in favorites, workouts and templates. Never trust
+  UI hiding or a caller-supplied owner. Account deletion cascades private exercises.
+
+## Body metric input
+
+- Use `bodyMetricInputSchema` in the client and Server Action: comma/dot decimals,
+  unchanged precision, optional blanks absent, nonempty invalid fields rejected.
+- Preserve positive/max limits; body fat alone permits explicit zero. Keep text
+  inputs with `inputMode="decimal"` and the user-scoped draft until persistence succeeds.
+
 ## Workout input
 
 - Weights are decimal kg (`real` in SQLite). Accept both `2.8` and `2,8` using

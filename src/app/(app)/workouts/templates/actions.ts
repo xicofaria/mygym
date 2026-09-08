@@ -10,6 +10,7 @@ import {
   workoutTemplateExercises,
   workoutTemplates,
 } from "@/db/schema";
+import { visibleExercises } from "@/lib/exercise-access";
 import { requireUser } from "@/lib/auth";
 import { deleteOwnedRecord } from "@/lib/owned-resource";
 
@@ -32,7 +33,7 @@ export async function createTemplate(input: NewTemplateInput) {
   const available = await db
     .select({ id: exercises.id })
     .from(exercises)
-    .where(inArray(exercises.id, requestedIds))
+    .where(and(inArray(exercises.id, requestedIds), visibleExercises(user.id)))
     .all();
   if (available.length !== requestedIds.length) {
     return { error: "Um dos exercícios selecionados já não está disponível." };
