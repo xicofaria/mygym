@@ -1,187 +1,190 @@
-# 🏋️ Gym Tracker
+# Gym Tracker
 
-A progress tracker born for **two people**, now with public registration. No more scribbling
-"Bench Press: 3×12 @ 24kg" in a notebook — log your workouts, save reusable
-routines, track your bodyweight and measurements, and watch your progress on
-charts over time. Installable straight to your phone's home screen.
+Aplicação para registar treinos, acompanhar medidas corporais e manter um diário
+alimentar. Foi concebida para telemóvel e pode ser instalada como PWA.
+A interface está em português europeu: pesos em kg, medidas em cm e quantidades
+alimentares em g ou ml.
 
-UI is in **European Portuguese (pt-PT)**. Weights and measurements are
-**metric-only (kg / cm)**.
+O registo é público. Cada conta acede apenas aos seus dados; o catálogo de
+exercícios é partilhado. Não existe seletor de parceiro.
 
-## Features
+## Funcionalidades
 
-- **Weekly report** — workouts, volume, personal records beaten and calories vs goal,
-  on screen always and by email only if you opt in on your account page
-- **Calorie tracker** — a private food diary with user-defined calorie goals,
-  meal portions, full nutrition, product photos and day/week/month overviews.
-  Manual entry, reviewed label/food AI and Open Food Facts barcode/store lookup.
-  Historical nutrition snapshots and goals stay stable when products change.
-  See [calorie tracker setup and limitations](docs/CALORIES.md).
+- **Treinos:** registar, editar e repetir sessões, duplicar séries, consultar a
+  última prestação e usar modelos reutilizáveis. Aceita pesos como `2,8` ou
+  `2.8` kg, sem arredondar para incrementos fixos.
+- **Planeamento:** calendário mensal, mapa de atividade, planos por dia e rotina
+  semanal. Um plano fica concluído quando é associado explicitamente a um treino.
+- **Exercícios:** pesquisa por nome, sinónimos, equipamento e grupo muscular;
+  favoritos privados, histórico, volume e estimativa de 1RM.
+- **Fotografias de máquinas:** análise opcional por IA, sugestões do catálogo e
+  propostas de novos exercícios, sempre revistas e confirmadas pela pessoa.
+- **Descanso:** temporizador com pausa e estado conservado no dispositivo ao navegar.
+- **Evolução corporal:** peso, gordura corporal, IMC e perímetros, com gráficos
+  e comparação por período.
+- **Calorias:** diário privado, metas definidas pela pessoa, porções em g/ml,
+  unidades ou frações de embalagem. O histórico conserva os dados nutricionais
+  do produto e as conversões usados no momento do registo.
+- **Produtos alimentares:** criação manual, fotografias privadas, leitura de
+  rótulos ou estimativas identificadas por IA e pesquisa no Open Food Facts.
+  A quantidade consumida exige confirmação manual.
+- **Relatórios:** resumo semanal em `/relatorios`; envio por email opcional,
+  ativado pela pessoa em `/conta`.
+- **Contas:** registo, edição de nome/email/palavra-passe, eliminação da conta e
+  recuperação/verificação por email quando o serviço está configurado.
+- **Rede instável:** página offline e rascunhos locais de treinos e medidas.
+  Os rascunhos só contam como registos depois de guardados no servidor;
+  páginas privadas e fotografias não são colocadas na cache do service worker.
 
-- **Workout logging** — pick an exercise, log sets × reps × weight, add notes
-- **Decimal weights** — enter `2.8` or `2,8` kg, including smaller increments;
-  incomplete sets are flagged before saving instead of silently discarded
-- **Identify equipment from a photo** — take a photo or choose an image,
-  preview it, then let AI suggest existing catalogue exercises for confirmation.
-  Optional server-side OpenAI or OpenRouter configuration (including Qwen vision);
-  manual selection always works, with a persistent daily AI quota per account
-- **Searchable catalogue** — Portuguese aliases, equipment, editable metadata,
-  private favorites and recent exercises
-- **Compact workout entry** — consecutive sets grouped by exercise, with a
-  pauseable rest timer that survives navigation on the same device
-- **Fast repeat and editing** — repeat the previous session with its values,
-  duplicate individual sets, see the last performance, and correct saved workouts
-- **Reusable workout templates** — save a routine (e.g. "Treino de Pernas")
-  and start a new session from it instead of picking exercises from scratch
-- **Exercise progression** — per-exercise history with top weight, estimated
-  1RM, and volume charts over time
-- **Body progress** — track bodyweight, body fat %, BMI and tape measurements
-  (waist, chest, arms, thighs, hips), with a summary of how much each one
-  changed over a chosen period (30 days, 3 months, 1 year or all time),
-  per-measure trend charts, and a history table showing each entry's change
-- **Workout calendar** — a 52-week activity heatmap links each training day
-  to its filtered workout history, and a monthly calendar on the workouts page
-  navigates and filters sessions by day
-- **Workout planning** — schedule a workout on a future day by picking what it
-  trains (peito, dorsal, pernas, bíceps… or anything you type), optionally
-  starting from a template, then register it from the calendar when it's done
-- **Weekly routine** — set your split once (Monday: peito, tríceps, ombros;
-  Tuesday: dorsal, bíceps; …) and fill a whole month with one tap; it only
-  adds days that are still free, so you can re-run it safely
-- **Two-person, shared view** — see your own progress or switch to your
-  training partner's via a simple toggle
-- **Installable PWA** — add it to your phone's home screen like a native app
-- **Resilient with poor signal** — an offline fallback and connection warning
-  keep the app understandable, while workout and measurement drafts survive a
-  dropped connection on the current device
+## Tecnologias
 
-## Stack
+Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4, Drizzle ORM e
+libSQL/SQLite. Desenvolvimento com base local; produção preparada para Turso
+e Vercel. Gráficos com Recharts, sessões JWT com `jose` e palavras-passe com
+`bcryptjs`. As versões instaláveis estão fixadas no `package-lock.json`.
 
-- **Next.js 16** (App Router) + **React 19** + **TypeScript**
-- **Tailwind CSS v4**
-- **Drizzle ORM** on **libSQL/SQLite** — a local `dev.db` file in development,
-  **Turso** in production (same driver, no code changes between environments)
-- **Recharts** for the progress graphs
-- Lightweight cookie-session auth (signed JWT via `jose`, passwords hashed
-  with `bcryptjs`) — no external auth provider
+## Preparação local
 
-## Getting started
+Usa Node.js 22 e npm, como no [workflow de CI](.github/workflows/ci.yml).
+Os scripts de base de dados usam `process.loadEnvFile` para carregar o ambiente.
 
 ```bash
-npm install
-
-# 1. Set up your local environment
+npm ci
 cp .env.example .env.local
-# then edit .env.local: set a SESSION_SECRET; accounts are created at /registo (the seed script still provisions the two original accounts)
-
-# 2. Apply the versioned migrations and seed both accounts + exercise catalog
-npm run db:migrate
-npm run db:seed
-
-# 3. Run it
-npm run dev                     # http://localhost:3000
 ```
 
-Log in with the credentials you set in `.env.local` (`SEED_USER1_*` /
-`SEED_USER2_*`). Change them there and re-run `npm run db:seed` to update.
+Em `.env.local`, mantém `DATABASE_URL="file:./dev.db"` para a base local e define
+um `SESSION_SECRET` aleatório com pelo menos 32 caracteres. Podes gerar um com:
 
-## Scripts
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
 
-### Optional AI setup
+Aplica as migrações e inicia a aplicação:
 
-Choose a provider in `.env.local` or your host's secret environment settings:
+```bash
+npm run db:migrate
+npm run dev
+```
 
-- OpenAI: `AI_PROVIDER=openai`, `OPENAI_API_KEY`, optional
-  `OPENAI_VISION_MODEL` (default `gpt-4.1-mini`).
-- OpenRouter: `AI_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, optional
-  `OPENROUTER_VISION_MODEL` (default `qwen/qwen3-vl-30b-a3b-instruct`).
-  The model and serving endpoint must support images and strict JSON Schema.
-  Unit/package conversion is resolved in the calorie diary, without mandatory
-  weight fields when creating a product; missing unit weights can be estimated explicitly.
-  `z-ai/glm-5.3-flash` is explicitly supported via JSON mode with server-side
-  schema validation (for both food and machine photos).
-- `AI_DAILY_LIMIT=20`: attempts per account/Lisbon day, shared across instances.
-  Provider failures consume attempts too; set a credit limit with the provider.
+Abre `http://localhost:3000` e cria uma conta em `/registo`.
 
-Run `npm run db:migrate` before starting this version: migration 0002 adds
-catalogue metadata, favorites and daily quota counters without replacing sets.
-Back up real databases first. Restart/redeploy after changing environment.
-Never use `NEXT_PUBLIC_` for keys. Without a key, manual entry still works.
+Para carregar o catálogo inicial e duas contas de desenvolvimento, configura
+`SEED_USER1_*` e `SEED_USER2_*` em `.env.local` e executa `npm run db:seed`.
+Este passo é opcional: o seed também atualiza o nome e a palavra-passe das contas
+com os mesmos emails. Não o uses como mecanismo habitual de gestão de contas;
+essa gestão está em `/conta`. Substitui as credenciais de exemplo antes de usar o seed.
 
-See [`docs/AI_RECOGNITION.md`](docs/AI_RECOGNITION.md) for supported photos,
-privacy, limits and the live validation checklist. Prioritised improvements
-are tracked in [`docs/IMPROVEMENTS.md`](docs/IMPROVEMENTS.md).
+## Configuração
 
-### Commands
+Usa [.env.example](.env.example) como referência. Guarda segredos em `.env.local`
+ou no ambiente do servidor, nunca no repositório nem em variáveis `NEXT_PUBLIC_`.
 
-| Command                              | What it does                                    |
-| ------------------------------------- | ------------------------------------------------ |
-| `npm run dev`                         | Dev server                                       |
-| `npm run build`                       | Production build; applies prod schema on Vercel  |
-| `npm run start`                       | Serve the production build                       |
-| `npm run lint`                        | ESLint                                           |
-| `npm run typecheck`                   | TypeScript validation                            |
-| `npm test`                            | Unit tests                                       |
-| `npm run test:e2e`                    | Playwright browser workflow                      |
-| `npm run check`                       | Lint + types + unit tests + production build     |
-| `npm run db:migrate`                  | Verify and apply pending SQL migrations           |
-| `npm run db:generate`                 | Generate a versioned migration after schema edits |
-| `npm run db:push`                     | Sync a disposable development database only       |
-| `npm run db:seed`                     | Upsert the two users + starter exercise catalog  |
-| `npm run db:reset`                    | Wipe `dev.db`, migrate it, and re-seed            |
-| `npm run db:studio`                   | Drizzle Studio — browse the database in a GUI    |
-| `npm run backup:verify -- backup.sql` | Restore and integrity-check a dump temporarily   |
+### Email e contas
 
-## Deploying (Vercel + Turso)
+Configura as três variáveis em conjunto:
 
-A plain SQLite file doesn't persist on serverless hosts, so production uses
-**Turso** (libSQL — SQLite-compatible, generous free tier) instead of a file:
+| Variável | Finalidade |
+| --- | --- |
+| `RESEND_API_KEY` | Chave do serviço de email |
+| `EMAIL_FROM` | Remetente configurado no serviço |
+| `APP_URL` | URL pública da aplicação, usada nos links dos emails |
 
-1. Create a [Turso](https://turso.tech) database and grab its URL + auth token.
-2. On Vercel (or your host of choice), set the environment variables:
-   - `DATABASE_URL` — your `libsql://<db>.turso.io` URL
-   - `DATABASE_AUTH_TOKEN` — the Turso auth token
-   - `SESSION_SECRET` — a fresh secret, **different from your local one**
-     (generate with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
-3. In Vercel, enable **Automatically expose System Environment Variables** and
-   keep the default package build command (`npm run build`).
-4. Deploy. After a successful compile, the build verifies the migration ledger
-   and applies pending versioned migrations before Vercel activates it; preview
-   and ordinary local builds skip this step.
-5. Seed it: `npm run db:seed` (with real names/emails/passwords — **not** the
-   `changeme123` defaults).
+Sem esta configuração completa, o registo funciona sem verificação, a recuperação
+indica indisponibilidade e o cron não envia relatórios. Com email ativo, o acesso
+exige verificação; uma alteração de endereço só é aplicada depois de confirmar o
+novo email. Sem email ativo, a alteração é imediata após validação da palavra-passe.
 
-The manual `Database schema` GitHub workflow is an emergency recovery path for
-`main`, not part of the normal deployment sequence.
+O email semanal exige também `CRON_SECRET` e uma conta verificada que tenha
+ativado a preferência em `/conta`; começa desativado. O [vercel.json](vercel.json)
+agenda `/api/cron/weekly-report` para segunda-feira às 08:00 UTC. O relatório
+no ecrã está disponível independentemente do envio de email.
 
-## Next steps
+`REGISTRATION_MAX_ATTEMPTS` permite ajustar o limite de registos por IP em
+15 minutos: omissão 10, intervalo permitido 1–1000.
 
-Ideas for where to take this next, roughly in order of usefulness:
+### IA opcional
 
-- [x] **Replace the default credentials and deploy with Vercel + Turso.**
-- [x] **Fast workout logging** — repeat the previous workout, show the latest
-      exercise performance, duplicate sets, and edit saved sessions.
-- [x] **Automated quality and security gates** — CI, Playwright, CodeQL,
-      dependency review, secret scanning, npm audit, and Dependabot.
-- [x] **Training-day calendar / heatmap** — a GitHub-contributions-style grid
-      on the dashboard shows consistency and opens the workouts from each day.
-- [x] **Monthly calendar with workout planning** — a month view on the
-      workouts page filters sessions by day and schedules future workouts
-      from templates, marking them done once the session is logged.
-- [x] **Poor-network resilience** — a service worker provides a public offline
-      fallback without caching authenticated pages, and workout/body forms keep
-      local drafts until they can be submitted online.
-- [ ] **Password reset / account settings page** — right now, changing an
-      email or password means editing `.env.local` and re-running
-      `npm run db:seed`.
+Treinos e calorias partilham o fornecedor e a quota diária. A configuração atual
+está nos adaptadores da aplicação; o modelo usado pelo agente de programação
+não altera estas opções.
 
-## Notes
+| Fornecedor | Configuração | Modelo predefinido |
+| --- | --- | --- |
+| OpenAI | `AI_PROVIDER=openai`, `OPENAI_API_KEY`, `OPENAI_VISION_MODEL` opcional | `gpt-4.1-mini` |
+| OpenRouter | `AI_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, `OPENROUTER_VISION_MODEL` opcional | `qwen/qwen3-vl-30b-a3b-instruct` |
 
-This is a personal project for private use by two people, not a general-audience
-product — there's no sign-up flow, and accounts are provisioned by editing
-`.env.local` and running `npm run db:seed`. See `CLAUDE.md` for architecture
-notes if you're extending it with an AI coding assistant. See
-[`docs/DEVSECOPS.md`](docs/DEVSECOPS.md), [`SECURITY.md`](SECURITY.md), and
-[`CONTRIBUTING.md`](CONTRIBUTING.md) for delivery and security guidance. The
-tested Turso recovery runbook is in
-[`docs/BACKUP_RESTORE.md`](docs/BACKUP_RESTORE.md).
+Os adaptadores exigem visão e JSON Schema estrito, exceto o suporte explícito a
+`z-ai/glm-5.3-flash`, que usa modo JSON e validação no servidor.
+`AI_DAILY_LIMIT` define tentativas por conta e dia de Lisboa: omissão 20,
+intervalo 1–1000. Falhas também consomem tentativas; a quota não é um teto monetário.
+Sem chave, a introdução manual continua disponível.
+
+Fotografias de máquinas não são guardadas pela aplicação. Produtos alimentares
+podem conservar miniaturas JPEG privadas. As estimativas exigem revisão e os
+fornecedores têm as suas próprias políticas de retenção.
+
+Consulta [fotografias de máquinas](docs/AI_RECOGNITION.md) e
+[calorias](docs/CALORIES.md) para limites, privacidade e comportamento dos modelos.
+Open Food Facts é uma fonte colaborativa, com atribuição, que pode estar
+incompleta ou indisponível; os filtros por loja não são catálogos completos.
+
+## Comandos e testes
+
+| Comando | Função |
+| --- | --- |
+| `npm run dev` | Servidor de desenvolvimento |
+| `npm run build` | Build de produção e execução de `postbuild` |
+| `npm run start` | Servir o build |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | Verificação TypeScript |
+| `npm test` | Testes unitários |
+| `npm run check` | Lint, tipos, testes unitários e build |
+| `npm run test:e2e` | Testes de browser Playwright |
+| `npm run db:migrate` | Verificar o histórico e aplicar migrações pendentes |
+| `npm run db:generate` | Gerar uma migração após alterar o schema |
+| `npm run db:seed` | Carregar exercícios e criar/atualizar duas contas configuradas |
+| `npm run db:studio` | Explorar a base com Drizzle Studio |
+| `npm run db:push` | Sincronizar apenas uma base descartável de prototipagem |
+| `npm run db:reset` | Apagar `dev.db`, migrar e executar o seed; apenas para desenvolvimento local |
+| `npm run backup:verify -- backup.sql` | Restaurar e verificar um dump numa base temporária |
+
+Antes do primeiro E2E, instala Chromium com `npx playwright install chromium`.
+O Playwright recria `e2e.db`, limpa as credenciais de base remota e as chaves de IA,
+e constrói a aplicação para os testes. Não valida a precisão real dos modelos.
+
+As verificações exigidas por tipo de alteração estão em
+[CONTRIBUTING.md](CONTRIBUTING.md) e [TESTING.md](docs/TESTING.md).
+Resultados correntes ficam no PR/CI; não é necessário manter um diário de testes.
+
+## Publicação e base de dados
+
+A configuração do repositório prepara a aplicação para Vercel e Turso:
+
+1. Define `DATABASE_URL` com o URL `libsql://` de produção,
+   `DATABASE_AUTH_TOKEN` e um `SESSION_SECRET` próprio de produção.
+2. Configura email, cron e IA conforme as funcionalidades pretendidas.
+3. Mantém `npm run build` como comando de build e disponibiliza os marcadores
+   de ambiente Vercel ao processo.
+4. O `postbuild` aplica migrações verificadas apenas quando `VERCEL=1` e
+   `VERCEL_ENV=production`. Builds locais normais e de preview saltam esse passo.
+
+Executa `npm run db:migrate` ao atualizar instalações geridas fora deste processo.
+Todas as migrações publicadas em `drizzle/` são imutáveis; `db:push` não substitui
+migrações em bases persistentes. O seed não é necessário para abrir o registo público.
+
+Um build local com marcadores e credenciais de produção pode alterar essa base.
+Consulta [DevSecOps](docs/DEVSECOPS.md) para o processo de entrega e o workflow de
+recuperação, e [backup/restauro](docs/BACKUP_RESTORE.md) antes de intervir em dados reais.
+
+## Documentação
+
+- [Contribuir](CONTRIBUTING.md) e [segurança](SECURITY.md).
+- [Arquitetura](docs/ARCHITECTURE.md) e [contratos das funcionalidades](docs/DOMAIN_RULES.md).
+- [Calorias](docs/CALORIES.md) e [reconhecimento de máquinas](docs/AI_RECOGNITION.md).
+- [Regras dos agentes](AGENTS.md) e [manutenção das instruções](docs/AGENT_GUIDANCE.md).
+- [Melhorias pendentes](docs/IMPROVEMENTS.md), com prioridades e critérios de conclusão.
+
+As experiências e validações de setembro de 2026 estão no
+[arquivo histórico](docs/archive/VALIDATION_2026-09.md); não representam o estado
+atual do CI nem instruções para executar testes.

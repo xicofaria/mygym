@@ -1,3 +1,11 @@
+# Arquivo de validação — setembro de 2026
+
+Registos históricos preservados das entregas de 5–7 de setembro de 2026.
+Resultados, pendências e contagens referem-se às revisões indicadas, não ao
+estado atual do código. Este arquivo não exige atualização a cada alteração.
+Para executar testes, consultar [TESTING.md](../TESTING.md); resultados atuais
+devem acompanhar o PR e as execuções de CI.
+
 # Validação — 2026-09-05
 
 Base: `f4c0496b7e3367c4a8831d04ffdbe335543a9bef` (main).
@@ -51,7 +59,7 @@ Base: `66b3ded` (main, após merge do PR #27). Branch: `codex/calorie-tracker`.
 Os testes simulados não medem a precisão da IA. A consulta real ao Open Food Facts
 devolveu HTTP 503; a integração dispõe de fallback manual, mas a consulta real
 com sucesso continua por validar. Não foram utilizados valores fictícios como
-se fossem produtos reais de lojas. Ver [Calorias](CALORIES.md) para fontes,
+se fossem produtos reais de lojas. Ver [Calorias](../CALORIES.md) para fontes,
 licenças, configuração e limitações. Nenhum deploy ou migração de produção foi executado.
 
 ## Nutrição, porções e GLM — 2026-09-06
