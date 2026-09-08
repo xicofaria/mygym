@@ -2,8 +2,7 @@
 
 ## Supported version
 
-The `main` branch is the only supported version of this private-use
-application.
+The `main` branch is the only supported version of this application with public registration and private account data.
 
 ## Reporting a vulnerability
 

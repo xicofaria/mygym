@@ -90,7 +90,7 @@ Two consequences worth knowing before changing this:
 `public/sw.js` caches only the public `/offline` response and immutable
 `/_next/static/` assets. It deliberately bypasses authenticated HTML, RSC/API
 responses, Server Actions, non-GET requests and cross-origin resources. Do not
-expand that cache to user-specific pages: both people can use the same installed
+expand that cache to user-specific pages: multiple accounts can use the same installed
 PWA and a shared HTML cache would leak one person's history to the other.
 
 Workout and body-measurement forms persist drafts in device-local storage. A

@@ -77,7 +77,7 @@ A resolução no catálogo não consome quota de IA e limita a pesquisa ao orça
 restante da análise (alvo de ~125 s, antes dos 130 s do browser e dos 150 s da
 rota); uma indisponibilidade devolve `candidates: []` sem falhar a análise.
 
-Experiências reais autorizadas (setembro de 2026, descritas em VALIDATION.md):
+Experiências reais autorizadas (setembro de 2026, descritas em [arquivo de validação](archive/VALIDATION_2026-09.md)):
 a chamada combinada (identificação + rótulo) não degradou a identificação —
 nenhum código de barras inventado, marca correta em todas as fotos de teste,
 estimativas sempre marcadas. As estimativas a partir de fotos frontais variaram
@@ -126,7 +126,7 @@ produto guardado sem revisão.
   com validação Zod no servidor. A [ficha OpenRouter](https://openrouter.ai/z-ai/glm-5.3-flash)
   consultada em 2026-09-06 anuncia visão e JSON sem enforcement de JSON Schema.
   Os outros modelos mantêm o contrato estrito anterior. Os testes automáticos não
-  usam chaves; houve um teste real separado, autorizado, descrito em VALIDATION.md.
+  usam chaves; houve um teste real separado, autorizado, descrito em [arquivo de validação](archive/VALIDATION_2026-09.md).
 - O GLM usa `reasoning.effort=max`, orçamento de saída de 8000 tokens para alimentos
   e timeout de 120 s. O browser aguarda até 130 s e a rota permite 150 s.
   O estado de espera tem tempo decorrido, animação respeitando movimento reduzido
