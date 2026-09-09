@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { preparePhoto } from "@/lib/prepare-photo";
 import { AIThinking } from "./ai-thinking";
+import { AIPhotoPrompt } from "./ai-photo-prompt";
 import {
   recognitionSchema,
   type ExerciseSuggestion,
@@ -42,8 +43,6 @@ export function MachinePhotoPicker({
     aliases: "",
     equipment: "",
   });
-  const camera = useRef<HTMLInputElement>(null);
-  const library = useRef<HTMLInputElement>(null);
   const request = useRef<AbortController | null>(null);
   const generation = useRef(0);
   const previewUrl = useRef("");
@@ -56,6 +55,15 @@ export function MachinePhotoPicker({
     },
     [],
   );
+
+  function cancelAnalysis() {
+    generation.current++;
+    request.current?.abort();
+    setBusy(false);
+    setNotice(
+      "Análise cancelada. A fotografia foi mantida; uma chamada já enviada pode ser cobrada.",
+    );
+  }
 
   function clear() {
     generation.current++;
@@ -199,76 +207,19 @@ export function MachinePhotoPicker({
     }
   }
   return (
-    <section
-      aria-label="Identificação por fotografia"
-      className="rounded-2xl border border-indigo-200 bg-indigo-50/60 p-4 dark:border-indigo-900 dark:bg-indigo-950/30"
+    <AIPhotoPrompt
+      regionLabel="Identificação por fotografia"
+      title="Não sabes o nome da máquina?"
+      description="Fotografa o equipamento completo. A IA sugere exercícios do teu catálogo e tu confirmas."
+      cameraLabel="Fotografar máquina"
+      libraryLabel="Escolher fotografia da máquina"
+      hasPhoto={Boolean(photo && preview)}
+      disabled={busy || disabled}
+      onFile={(file) => void choose(file)}
     >
-      <div className="mb-3 flex items-start gap-3">
-        <svg
-          aria-hidden="true"
-          className="mt-0.5 h-6 w-6 shrink-0 text-indigo-600 dark:text-indigo-400"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-        >
-          <path d="M8 5l1-2h6l1 2h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z" />
-          <circle cx="12" cy="12" r="4" />
-        </svg>
-        <div>
-          <h2 className="text-sm font-semibold">
-            Não sabes o nome da máquina?
-          </h2>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            Fotografa o equipamento completo. A IA sugere exercícios do teu
-            catálogo e tu confirmas.
-          </p>
-        </div>
-      </div>
-      <input
-        ref={camera}
-        aria-label="Fotografar máquina"
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-        capture="environment"
-        className="hidden"
-        onChange={(e) => {
-          void choose(e.target.files?.[0]);
-          e.target.value = "";
-        }}
-      />
-      <input
-        ref={library}
-        aria-label="Escolher fotografia da máquina"
-        type="file"
-        accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-        className="hidden"
-        onChange={(e) => {
-          void choose(e.target.files?.[0]);
-          e.target.value = "";
-        }}
-      />
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          className="btn-ghost"
-          disabled={busy || disabled}
-          onClick={() => camera.current?.click()}
-        >
-          Tirar fotografia
-        </button>
-        <button
-          type="button"
-          className="btn-ghost"
-          disabled={busy || disabled}
-          onClick={() => library.current?.click()}
-        >
-          Escolher imagem
-        </button>
-      </div>
       {photo && preview && (
         <div className="mt-4 flex flex-col gap-3">
-          {busy && <AIThinking onCancel={clear} />}
+          {busy && <AIThinking onCancel={cancelAnalysis} />}
           {/* Local object URL; never send a private image through an optimizer. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
@@ -281,20 +232,27 @@ export function MachinePhotoPicker({
             {provider === "openrouter"
               ? "ao OpenRouter e ao fornecedor que executar o modelo"
               : "à OpenAI"}
-            . Evita incluir pessoas. A aplicação não guarda a fotografia.
+            , com os nomes do teu catálogo de exercícios para a IA escolher.
+            Evita incluir pessoas. A aplicação não guarda a fotografia.
           </p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              className="btn-primary"
+              className="btn-primary min-h-12"
               disabled={busy || disabled}
               onClick={() => void identify()}
             >
               {busy ? "A analisar…" : "Analisar fotografia"}
             </button>
-            <button type="button" className="btn-ghost" onClick={clear}>
-              {busy ? "Cancelar" : "Remover fotografia"}
-            </button>
+            {!busy && (
+              <button
+                type="button"
+                className="btn-ghost min-h-12"
+                onClick={clear}
+              >
+                Remover fotografia
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -331,13 +289,15 @@ export function MachinePhotoPicker({
             {result.candidates.map((candidate) => {
               const name = exercises.find(
                 (ex) => ex.id === candidate.exerciseId,
-              )!.name;
+              )?.name;
+              // O catálogo pode mudar entre a análise e este render.
+              if (!name) return null;
               return (
                 <button
                   key={candidate.exerciseId}
                   type="button"
                   disabled={disabled}
-                  className="btn-ghost justify-between text-left"
+                  className="btn-ghost min-h-12 justify-between text-left"
                   onClick={() => {
                     onSelect(candidate.exerciseId);
                     clear();
@@ -364,7 +324,7 @@ export function MachinePhotoPicker({
             <button
               type="button"
               disabled={disabled || saving}
-              className="btn-ghost mt-2 justify-between text-left"
+              className="btn-ghost mt-2 min-h-12 justify-between text-left"
               onClick={() => {
                 if (result.suggestion) startCreating(result.suggestion);
               }}
@@ -469,6 +429,6 @@ export function MachinePhotoPicker({
           )}
         </div>
       )}
-    </section>
+    </AIPhotoPrompt>
   );
 }

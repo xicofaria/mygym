@@ -14,6 +14,7 @@ import {
 import { parseWeight } from "@/lib/decimal";
 import { preparePhoto } from "@/lib/prepare-photo";
 import { AIThinking } from "./ai-thinking";
+import { AIPhotoPrompt } from "./ai-photo-prompt";
 
 type ProductCandidate = Omit<FoodProduct, "id" | "hasPhoto">;
 
@@ -24,7 +25,7 @@ export function FoodProductForm({
   onCancel,
 }: {
   initial?: Partial<FoodProduct>;
-  provider: string;
+  provider: "openai" | "openrouter";
   onSaved: (id: number, product: Pick<FoodProduct, "details">) => void;
   onCancel: () => void;
 }) {
@@ -57,8 +58,6 @@ export function FoodProductForm({
   const [pending, start] = useTransition();
   const generation = useRef(0);
   const request = useRef<AbortController | null>(null);
-  const cameraInput = useRef<HTMLInputElement>(null);
-  const libraryInput = useRef<HTMLInputElement>(null);
   useEffect(
     () => () => {
       generation.current++;
@@ -74,6 +73,13 @@ export function FoodProductForm({
     setBusy(true);
     setError("");
     setNotice("");
+    // Uma fotografia nova invalida a análise anterior: manter candidatos,
+    // proveniência ou a revisão já feita gravaria valores de outra imagem.
+    setCandidates([]);
+    setChosen(null);
+    setConfirmed(false);
+    setAnalyzing(false);
+    setPhotoExpanded(true);
     try {
       const prepared = await preparePhoto(file);
       const thumb = await preparePhoto(file, {
@@ -102,13 +108,12 @@ export function FoodProductForm({
     }
   }
   async function analyze() {
-    if (!blob) return;
+    if (!blob || busy || pending) return;
     const current = ++generation.current;
     const controller = new AbortController();
     request.current = controller;
     setBusy(true);
     setAnalyzing(true);
-    setPhotoExpanded(false);
     setError("");
     setConfirmed(false);
     setCandidates([]);
@@ -295,75 +300,54 @@ export function FoodProductForm({
       <h2 className="text-lg font-semibold">
         {initial?.id ? "Editar produto" : "Adicionar produto"}
       </h2>
-      <details
-        className="border-b border-black/10 pb-4 dark:border-white/10"
-        open={photoExpanded}
-        onToggle={(e) => setPhotoExpanded(e.currentTarget.open)}
+      <AIPhotoPrompt
+        headingLevel={3}
+        regionLabel="Preenchimento por fotografia"
+        title="Não sabes os valores nutricionais?"
+        description="Fotografa o rótulo do produto. A IA preenche a tabela nutricional e tu confirmas antes de guardar."
+        cameraLabel="Fotografar alimento"
+        libraryLabel="Escolher fotografia do alimento"
+        hasPhoto={Boolean(preview)}
+        disabled={busy || pending}
+        onFile={(file) => void choose(file)}
       >
-        <summary className="mb-3 min-h-8 cursor-pointer text-sm font-medium">
-          {photoExpanded
-            ? "Fotografia do produto ou rótulo"
-            : "Fotografia e análise · ver ou alterar"}
-        </summary>
-        <input
-          ref={cameraInput}
-          aria-label="Fotografar alimento"
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-          capture="environment"
-          className="hidden"
-          disabled={busy || pending}
-          onChange={(e) => {
-            void choose(e.target.files?.[0]);
-            e.target.value = "";
-          }}
-        />
-        <input
-          ref={libraryInput}
-          aria-label="Escolher fotografia do alimento"
-          type="file"
-          accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
-          className="hidden"
-          disabled={busy || pending}
-          onChange={(e) => {
-            void choose(e.target.files?.[0]);
-            e.target.value = "";
-          }}
-        />
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="btn-ghost min-h-12 flex-1"
-            disabled={busy || pending}
-            onClick={() => cameraInput.current?.click()}
-          >
-            {preview ? "Tirar outra fotografia" : "Tirar fotografia"}
-          </button>
-          <button
-            type="button"
-            className="btn-ghost min-h-12 flex-1"
-            disabled={busy || pending}
-            onClick={() => libraryInput.current?.click()}
-          >
-            {preview ? "Escolher outra imagem" : "Escolher imagem"}
-          </button>
-        </div>
-        <p className="mt-2 text-xs text-zinc-500">
-          Fotografa o rótulo para maior precisão, ou escolhe uma imagem da
-          galeria.
+        <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
+          O rótulo dá os valores mais fiáveis. Podes ignorar a IA e preencher a
+          tabela à mão nos campos abaixo.
         </p>
-        {preview && (
+        {preview && !photoExpanded && (
+          <div className="mt-3 flex items-center gap-3">
+            <img
+              src={preview}
+              alt="Miniatura do produto"
+              className="h-12 w-12 shrink-0 rounded-lg bg-black/5 object-contain dark:bg-white/5"
+              referrerPolicy="no-referrer"
+            />
+            <p className="min-w-0 flex-1 text-xs text-zinc-600 dark:text-zinc-400">
+              Fotografia guardada com o produto.
+            </p>
+            <button
+              type="button"
+              className="btn-ghost shrink-0"
+              disabled={pending}
+              onClick={() => setPhotoExpanded(true)}
+            >
+              Ver ou analisar
+            </button>
+          </div>
+        )}
+        {preview && photoExpanded && (
           <img
             src={preview}
             alt="Fotografia do produto"
-            className="my-3 h-40 w-full rounded-lg object-contain"
+            className="mt-3 max-h-56 w-full rounded-xl bg-black/5 object-contain dark:bg-white/5"
             referrerPolicy="no-referrer"
           />
         )}
-        {(preview || blob) && (
+        {photoExpanded && (preview || blob) && (
           <button
             type="button"
-            className="btn-ghost"
+            className="btn-ghost mt-3 min-h-12"
             disabled={pending}
             onClick={() => {
               generation.current++;
@@ -378,9 +362,9 @@ export function FoodProductForm({
             Remover fotografia
           </button>
         )}
-        {blob && (
-          <>
-            <label className="label mt-2">
+        {blob && photoExpanded && (
+          <div className="mt-3 border-t border-indigo-200 pt-3 dark:border-indigo-900">
+            <label className="label">
               Tipo de análise
               <select
                 className="input"
@@ -394,25 +378,34 @@ export function FoodProductForm({
                 <option value="label">Só valores legíveis do rótulo</option>
               </select>
             </label>
-            <p className="my-2 text-xs text-zinc-500">
-              Ao analisar, a fotografia segue para{" "}
+            <p className="my-2 text-xs text-zinc-600 dark:text-zinc-400">
+              Ao analisar, envias esta imagem{" "}
               {provider === "openrouter"
-                ? "OpenRouter e o fornecedor do modelo"
-                : "OpenAI"}
-              . Evita pessoas. A foto reduzida será guardada no teu catálogo
-              apenas ao guardar o produto.
+                ? "ao OpenRouter e ao fornecedor que executar o modelo"
+                : "à OpenAI"}
+              , e o nome, marca e código de barras identificados seguem para o
+              Open Food Facts à procura de correspondências. Evita incluir
+              pessoas. A foto reduzida só fica no teu catálogo quando guardares
+              o produto.
             </p>
             <button
               type="button"
-              className="btn-primary"
+              className="btn-primary min-h-12 w-full"
               disabled={busy || pending}
               onClick={() => void analyze()}
             >
-              {busy ? "A preparar/analisar…" : "Analisar alimento"}
+              {busy ? "A analisar…" : "Analisar alimento"}
             </button>
-          </>
+          </div>
         )}
-      </details>
+        <div aria-live="polite" aria-atomic="true">
+          {busy && !analyzing && (
+            <p className="mt-3 text-sm text-indigo-700 dark:text-indigo-300">
+              A preparar fotografia…
+            </p>
+          )}
+        </div>
+      </AIPhotoPrompt>
       {analyzing && <AIThinking food onCancel={cancelAnalysis} />}
       {notice && (
         <p

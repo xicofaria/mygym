@@ -27,6 +27,8 @@ O GLM usa esforço `max` solicitado pelo utilizador: timeout servidor 120 s,
 browser 130 s, `maxDuration=150`, saída até 4000 tokens para máquinas / 8000 para
 alimentos. Outros modelos mantêm 25 s no fornecedor. O estado de espera mostra
 tempo real decorrido, sem percentagens fictícias; cancelar não garante estorno.
+Cancelar aborta o pedido mas conserva a fotografia e diz que uma chamada já
+enviada pode ser cobrada; só «Remover fotografia» descarta a imagem.
 Confirmar [duração suportada pela Vercel](https://vercel.com/docs/functions/configuring-functions/duration)
 no projeto (Fluid Compute ou plano compatível).
 
@@ -74,7 +76,10 @@ fornecedor e acompanhar despesa/latência. Existe ainda um limite em memória de
 A análise recebe apenas o catálogo base e os exercícios privados da conta.
 Exercícios criados após confirmação ficam privados e só o dono pode editá-los.
 
-1. Em Novo treino ou Editar treino, escolher Tirar fotografia ou Escolher imagem.
+1. Em Novo treino ou Editar treino, o cartão **Não sabes o nome da máquina?**
+   oferece Tirar fotografia ou Escolher imagem. O cartão é o componente
+   partilhado `AIPhotoPrompt` (`src/components/ai-photo-prompt.tsx`), também
+   usado na criação de produtos alimentares.
 2. Enquadrar a máquina completa e, se possível, a placa. Evitar pessoas.
 3. Rever a imagem. Só Analisar fotografia envia a imagem ao servidor/fornecedor.
 4. Rever até três exercícios existentes, ou uma indicação de ausência de correspondência.
@@ -127,7 +132,8 @@ validar com equipamento real. Os testes automáticos continuam sem chaves.
   contagem por conta/dia. Object URLs são revogados e respostas usam no-store.
 - Envia apenas fotografia e catálogo (ID/nome/grupo/sinónimos/equipamento), não
   histórico de treino, preferências ou dados da conta.
-- O texto antes do envio identifica OpenAI ou OpenRouter + fornecedor executor.
+- O texto antes do envio identifica OpenAI ou OpenRouter + fornecedor executor,
+  e diz que seguem também os nomes do catálogo da conta, não só a imagem.
   Estas opções de API não garantem, por si só, ausência de retenção operacional.
   Rever as políticas da conta OpenRouter/fornecedor e de
   [dados da API OpenAI](https://developers.openai.com/api/docs/guides/your-data).

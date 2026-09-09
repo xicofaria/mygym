@@ -18,7 +18,7 @@ export function DiaryPortion({
   unit: "g" | "ml";
   initialQuantity: number | null;
   initialEstimated: boolean;
-  provider: string;
+  provider: "openai" | "openrouter";
   onChange: (value: { unitQuantity: number; estimated: boolean }) => void;
 }) {
   const [value, setValue] = useState(initialQuantity?.toString() ?? "");

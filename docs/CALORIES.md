@@ -45,13 +45,25 @@ identificados. Não confundir zero com ausência de informação.
 Reutiliza `AI_PROVIDER`, as chaves/modelos OpenAI ou OpenRouter e a quota diária
 partilhada com identificação de máquinas. Não requer outra chave.
 
-1. Criar produto e tirar/escolher fotografia.
+1. Criar produto. O formulário abre com o cartão **Não sabes os valores
+   nutricionais?**, o mesmo componente (`AIPhotoPrompt`) usado na identificação
+   de máquinas, com os botões Tirar fotografia e Escolher imagem.
 2. Usar **Preencher com IA (permite estimativas)** (predefinido) ou **Só valores legíveis do rótulo**.
 3. Rever o aviso do fornecedor e carregar em Analisar alimento.
 4. Se surgirem correspondências do Open Food Facts, escolher **Usar** numa da
    lista ou **Nenhum destes — manter a análise IA**.
 5. Rever os campos sugeridos, corrigir se necessário e confirmar a caixa de revisão.
 6. Guardar o produto e indicar no diário a quantidade efetivamente consumida.
+
+Depois de analisar, o cartão recolhe para uma miniatura com **Ver ou analisar**,
+para que a tabela nutricional fique visível sem passar pela imagem. Ignorar o
+cartão e preencher os campos à mão é sempre um caminho válido.
+
+Escolher uma fotografia nova descarta a análise anterior — correspondências,
+proveniência e a caixa de revisão — para que nunca se guarde a tabela de uma
+imagem com a fotografia de outra. O aviso antes de analisar identifica o
+fornecedor de IA e diz que nome, marca e código de barras seguem para o
+Open Food Facts.
 
 O modo rótulo pede apenas dados legíveis e admite ausência de correspondência.
 Se a foto só mostrar a frente da embalagem, pode pedir uma foto da tabela.
