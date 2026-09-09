@@ -91,7 +91,7 @@ test("280 g package suggestion is visible, persists and converts whole and half 
   );
   packageQuantity = 280;
   await page
-    .getByText("Fotografia e análise · ver ou alterar", { exact: true })
+    .getByRole("button", { name: "Ver ou analisar", exact: true })
     .click();
   await page.getByRole("button", { name: "Analisar alimento" }).click();
   await expect(page.getByLabel("Peso da embalagem identificado")).toContainText(
@@ -384,6 +384,7 @@ test("one photo picker fills nutrition and estimated portions; units and half pa
   await expect(page.getByLabel("Proteína por 100")).toHaveValue("25");
   await expect(page.getByLabel("Fibra por 100")).toHaveValue("8");
   await expect(page.getByAltText("Fotografia do produto")).toBeHidden();
+  await expect(page.getByAltText("Miniatura do produto")).toBeVisible();
   await expect(
     page.getByLabel("Conteúdo da embalagem", { exact: true }),
   ).toHaveCount(0);
@@ -814,7 +815,7 @@ test("photo analysis offers OFF matches that must be explicitly chosen or dismis
   ).toHaveValue("Análise IA E2E");
   await expect(page.getByLabel("Energia (kcal) por 100")).toHaveValue("500");
   await page
-    .getByText("Fotografia e análise · ver ou alterar", { exact: true })
+    .getByRole("button", { name: "Ver ou analisar", exact: true })
     .click();
   await page.getByRole("button", { name: "Analisar alimento" }).click();
   await expect(matches).toBeVisible();
@@ -828,7 +829,7 @@ test("photo analysis offers OFF matches that must be explicitly chosen or dismis
     page.getByText("Estimativa — confirmar", { exact: true }),
   ).toHaveCount(0);
   await page
-    .getByText("Fotografia e análise · ver ou alterar", { exact: true })
+    .getByRole("button", { name: "Ver ou analisar", exact: true })
     .click();
   await page.getByRole("button", { name: "Remover fotografia" }).click();
   await page.getByRole("checkbox").check();

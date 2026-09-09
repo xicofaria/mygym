@@ -34,6 +34,16 @@ Timestamps are stored as unix seconds and surfaced as JS `Date`s; foreign keys
 cascade on delete (libSQL enforces FKs). `next.config.ts` lists
 `@libsql/client` in `serverExternalPackages` so its native binding isn't bundled.
 
+**Entrada de IA.** `src/components/ai-photo-prompt.tsx` (`'use client'`) é o
+único cartão que inicia um fluxo de IA por fotografia. Rende o ícone, a pergunta,
+a explicação de quem confirma o resultado e os dois inputs de ficheiro (câmara
+traseira e galeria), e entrega o `File` já escolhido via `onFile`; a preparação
+da imagem, a chamada e os estados ficam em quem o usa —
+`machine-photo-picker.tsx` e `food-product-form.tsx`. Um terceiro fluxo de IA
+deve reutilizar este cartão em vez de repetir a marcação, para que a IA se leia
+sempre como o mesmo atalho opcional. O indicador de espera partilhado é
+`ai-thinking.tsx`.
+
 **Charts.** `src/components/progress-chart.tsx` is the only Recharts surface
 (`'use client'`); server pages pass plain `{ date, … }[]` arrays into it. Its
 `unit` prop is just the chart's display suffix (e.g. `"kg"`, `" cm"`) — not

@@ -42,7 +42,7 @@ export function CaloriesTracker({
   date: string;
   today: string;
   period: "day" | "week" | "month";
-  provider: string;
+  provider: "openai" | "openrouter";
 }) {
   const router = useRouter();
   const [tab, setTab] = useState("diary");

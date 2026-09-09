@@ -20,9 +20,11 @@
   the upgrade from 0007 with legacy rows: common exercises stay read-only, IDs,
   decimal sets and template/plan links survive, equal names across accounts are
   allowed and deleting an account removes only its private exercises.
-- Next/eslint-config-next 16.3.4, postcss 8.5.28 and esbuild >=0.28.2 resolve
-  the audited dependency findings. Verify drizzle-kit generation after changing
-  its transitive esbuild override; do not downgrade via audit fix --force.
+- Next/eslint-config-next 16.3.4, postcss 8.5.28, esbuild >=0.28.2 and sharp
+  0.35.4 resolve the audited dependency findings; the sharp override tracks the
+  libheif advisories reached through Next's optional image optimizer. Verify
+  drizzle-kit generation after changing its transitive esbuild override; do not
+  downgrade via audit fix --force.
 
 Para alterações apenas de documentação, verificar os links locais, os comandos
 referidos e `git diff --check`; não criar testes que apenas repetem o texto.
