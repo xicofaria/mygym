@@ -44,10 +44,11 @@ function isBodyMetricDraft(value: unknown): value is BodyMetricDraft {
   );
 }
 
-export function BodyMetricForm({ userId }: { userId: number }) {
+export function BodyMetricForm({ userId, initiallyOpen = false, onSaved }: { userId: number; initiallyOpen?: boolean; onSaved?: () => void }) {
   const router = useRouter();
   const draftKey = `gym-tracker:body-metric-draft:user-${userId}`;
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(initiallyOpen);
+  const [otherMeasuresOpen, setOtherMeasuresOpen] = useState(false);
   const [date, setDate] = useState(toDateInputValue());
   const [values, setValues] = useState<Record<FieldKey, string>>(emptyValues);
   const [notes, setNotes] = useState("");
@@ -83,6 +84,7 @@ export function BodyMetricForm({ userId }: { userId: number }) {
         setOpen(true);
         setDirty(true);
         setRestoredDraft(true);
+        setOtherMeasuresOpen(FIELDS.some(f => f.key !== "weightKg" && draft.values[f.key].trim() !== ""));
       }
       setDraftReady(true);
     });
@@ -112,6 +114,7 @@ export function BodyMetricForm({ userId }: { userId: number }) {
     if (!parsed.success) {
       const issue = parsed.error.issues[0];
       const field = FIELDS.find((f) => f.key === issue.path[0]);
+      if (field && field.key !== "weightKg") setOtherMeasuresOpen(true);
       setError(
         field
           ? `Verifica ${field.label.toLocaleLowerCase("pt-PT")}. Usa ponto ou vírgula e respeita o limite de ${field.max}.`
@@ -138,12 +141,15 @@ export function BodyMetricForm({ userId }: { userId: number }) {
         removeLocalDraft(localStorage, draftKey);
         submittingRef.current = false;
         resetForm();
+        onSaved?.();
         router.refresh();
       } catch {
         submittingRef.current = false;
-        writeLocalDraft(localStorage, draftKey, draft);
+        const saved = writeLocalDraft(localStorage, draftKey, draft);
         setError(
-          "Sem ligação ao servidor. O rascunho ficou guardado neste dispositivo.",
+          saved
+            ? "Sem ligação ao servidor. O rascunho ficou guardado neste dispositivo."
+            : "Sem ligação ao servidor. Não foi possível guardar o rascunho neste dispositivo. Mantém este formulário aberto e tenta novamente.",
         );
       }
     });
@@ -170,8 +176,9 @@ export function BodyMetricForm({ userId }: { userId: number }) {
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        {FIELDS.map((f) => (
+      <p className="text-sm text-zinc-500 dark:text-zinc-400">Podes guardar só o peso. As outras medidas são opcionais.</p>
+      {[true, false].map((weightOnly) => {
+        const fields = FIELDS.filter(f => (f.key === "weightKg") === weightOnly).map((f) => (
           <div key={f.key}>
             <label className="label" htmlFor={`body-metric-${f.key}`}>
               {f.label}
@@ -190,8 +197,15 @@ export function BodyMetricForm({ userId }: { userId: number }) {
               placeholder="—"
             />
           </div>
-        ))}
-      </div>
+        ));
+        return weightOnly ? <div key="weight">{fields}</div> : (
+          <details key="other" open={otherMeasuresOpen} onToggle={e => setOtherMeasuresOpen(e.currentTarget.open)}>
+            <summary className="cursor-pointer py-2 text-sm font-medium">Outras medidas (opcional)</summary>
+            <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">Preenche apenas o que mediste. Usa sempre o mesmo método e local de medição para poderes comparar.</p>
+            <div className="grid grid-cols-2 gap-3">{fields}</div>
+          </details>
+        );
+      })}
 
       <div>
         <label className="label" htmlFor="body-metric-notes">

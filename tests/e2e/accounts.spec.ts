@@ -1,3 +1,4 @@
+import { chooseExercise } from "./exercise-selection";
 import { expect, test, type Page } from "@playwright/test";
 
 const OWNER = {
@@ -171,6 +172,7 @@ test("eliminar conta apaga dados e impede novo login", async ({ page }) => {
   await expect(page).toHaveURL(/\/dashboard$/);
 
   await page.goto("/workouts/new");
+  await chooseExercise(page);
   await page.getByLabel("Repetições da série 1").fill("10");
   await page.getByLabel("Peso (kg) da série 1").fill("50");
   await page.getByRole("button", { name: "Guardar treino" }).click();

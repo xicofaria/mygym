@@ -19,8 +19,9 @@ export default async function OfflinePage() {
         </p>
         <h1 className="text-2xl font-bold tracking-tight">Está sem ligação</h1>
         <p className="mt-3 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
-          Não foi possível contactar o servidor. Os formulários guardam um
-          rascunho apenas neste dispositivo para não perderes o que preencheste.
+          Não foi possível contactar o servidor. Os treinos e as medidas podem
+          ter um rascunho neste dispositivo, se a gravação local tiver sido
+          possível. Os formulários de alimentação não têm rascunhos persistentes.
         </p>
         <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
           Quando a ligação regressar, volta à app e envia o rascunho.

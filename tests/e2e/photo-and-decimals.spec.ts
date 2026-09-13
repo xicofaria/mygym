@@ -1,3 +1,4 @@
+import { chooseExercise } from "./exercise-selection";
 import { expect, test, type Page } from "@playwright/test";
 
 async function login(page: Page) {
@@ -38,6 +39,7 @@ test("decimal weights survive save, edit and repeat; incomplete sets are not dro
   await login(page);
   const notes = `Peso decimal ${Date.now()}`;
   await page.getByPlaceholder("Como correu?").fill(notes);
+  await chooseExercise(page);
   await page.getByLabel("Repetições da série 1").fill("10");
   await page.getByLabel("Peso (kg) da série 1").fill("2,8");
   await page.getByRole("button", { name: "+ Adicionar série" }).click();
@@ -70,6 +72,7 @@ test("photo suggests catalog exercise, requires confirmation and preserves fille
 }) => {
   await login(page);
   await page.setViewportSize({ width: 390, height: 844 });
+  await chooseExercise(page);
   await page.getByLabel("Repetições da série 1").fill("12");
   await page.getByLabel("Peso (kg) da série 1").fill("2,8");
   const id = Number(
@@ -184,6 +187,7 @@ test("photo suggestion creates a private exercise and adds it to the set", async
       .getAttribute("value"),
   );
   await expect(select).toHaveValue(String(createdId));
+  await chooseExercise(page);
   await page.getByLabel("Repetições da série 1").fill("10");
   await page.getByLabel("Peso (kg) da série 1").fill("40");
   await page

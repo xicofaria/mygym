@@ -50,6 +50,7 @@ export function ExercisePicker({
           setSearch("");
         }}
       >
+        <option value={0} disabled>Escolher exercício</option>
         {selected && !matching.some((ex) => ex.id === value) && (
           <option value={value}>{selected.name} (selecionado)</option>
         )}

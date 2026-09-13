@@ -1,6 +1,6 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- private endpoints and attributed product photos */
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { getCalorieData } from "@/lib/calorie-queries";
 import {
@@ -37,12 +37,14 @@ export function CaloriesTracker({
   today,
   period,
   provider,
+  openGoal = false,
 }: {
   data: Awaited<ReturnType<typeof getCalorieData>>;
   date: string;
   today: string;
   period: "day" | "week" | "month";
   provider: "openai" | "openrouter";
+  openGoal?: boolean;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState("diary");
@@ -68,6 +70,8 @@ export function CaloriesTracker({
   } | null>(null);
   const [goalInput, setGoalInput] = useState("");
   const [tolerance, setTolerance] = useState("10");
+  const goalDetails = useRef<HTMLDetailsElement>(null);
+  const goalField = useRef<HTMLInputElement>(null);
   const entries = data.entries.filter((e) => e.date === date);
   const goal = goalForDate(data.goals, date);
   const currentGoal = goalForDate(data.goals, today);
@@ -200,7 +204,6 @@ export function CaloriesTracker({
             className={`min-h-11 flex-1 border-b-2 text-sm font-medium transition-colors ${tab === value ? "border-indigo-600 text-indigo-600 dark:text-indigo-400" : "border-transparent text-zinc-500"}`}
             onClick={() => {
               setTab(value);
-              setEditor(null);
               setError("");
             }}
           >
@@ -264,10 +267,14 @@ export function CaloriesTracker({
                 </p>
               </>
             ) : (
-              <p className="text-sm text-zinc-500">
-                Define uma meta em baixo. Não propomos uma ingestão
-                personalizada.
-              </p>
+              <div className="flex flex-col items-start gap-2">
+                <p className="text-sm text-zinc-500">Ainda não definiste uma meta. Podes continuar a registar alimentos.</p>
+                <button type="button" className="btn-ghost" onClick={() => {
+                  if (goalDetails.current) goalDetails.current.open = true;
+                  goalField.current?.focus();
+                  goalField.current?.scrollIntoView({ block: "center" });
+                }}>Definir a minha meta</button>
+              </div>
             )}
             <div className="mt-4 grid grid-cols-3 gap-3">
               {(["protein", "carbs", "fat"] as const).map((key) => (
@@ -500,7 +507,7 @@ export function CaloriesTracker({
               className="btn-ghost"
               onClick={() => {
                 setTab("products");
-                setEditor({});
+                setEditor((current) => current ?? {});
               }}
             >
               + Criar produto / fotografia
@@ -628,7 +635,7 @@ export function CaloriesTracker({
               meta.
             </p>
           </section>
-          <details className="border-t border-black/10 pt-4 dark:border-white/10">
+          <details id="calorie-goal" ref={goalDetails} open={openGoal || undefined} className="border-t border-black/10 pt-4 dark:border-white/10">
             <summary className="cursor-pointer font-semibold">
               Definir meta diária
             </summary>
@@ -654,6 +661,8 @@ export function CaloriesTracker({
               <label className="label">
                 Meta (kcal)
                 <input
+                  ref={goalField}
+                  autoFocus={openGoal}
                   className="input"
                   inputMode="decimal"
                   required
@@ -679,8 +688,9 @@ export function CaloriesTracker({
           </details>
         </>
       )}
-      {tab === "products" &&
-        (editor ? (
+      {(tab === "products" || editor) && (
+        <div hidden={tab !== "products"}>
+        {editor ? (
           <FoodProductForm
             key={editor.id ?? "new"}
             initial={editor}
@@ -890,7 +900,9 @@ export function CaloriesTracker({
               ))}
             </section>
           </>
-        ))}
+        )}
+        </div>
+      )}
       {tab === "overview" && (
         <>
           <div className="flex gap-2">

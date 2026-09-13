@@ -58,6 +58,29 @@ export function FoodProductForm({
   const [pending, start] = useTransition();
   const generation = useRef(0);
   const request = useRef<AbortController | null>(null);
+  const dirty = useRef(false);
+  useEffect(() => {
+    const unload = (event: BeforeUnloadEvent) => {
+      if (!dirty.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    const navigate = (event: MouseEvent) => {
+      if (!dirty.current || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const link = (event.target as Element).closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!link || link.target === "_blank" || link.hasAttribute("download") || link.href === location.href) return;
+      if (!window.confirm("Sair e descartar as alterações deste produto?")) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    window.addEventListener("beforeunload", unload);
+    document.addEventListener("click", navigate, true);
+    return () => {
+      window.removeEventListener("beforeunload", unload);
+      document.removeEventListener("click", navigate, true);
+    };
+  }, []);
   useEffect(
     () => () => {
       generation.current++;
@@ -68,6 +91,7 @@ export function FoodProductForm({
 
   async function choose(file?: File) {
     if (!file) return;
+    dirty.current = true;
     const current = ++generation.current;
     request.current?.abort();
     setBusy(true);
@@ -276,7 +300,10 @@ export function FoodProductForm({
           setError(result.error);
           return;
         }
-        if ("id" in result) onSaved(result.id, parsed.data);
+        if ("id" in result) {
+          dirty.current = false;
+          onSaved(result.id, parsed.data);
+        }
       } catch {
         setError(
           "Sem ligação. Mantivemos os dados neste formulário; tenta guardar novamente.",
@@ -294,6 +321,7 @@ export function FoodProductForm({
   return (
     <form
       onSubmit={save}
+      onChangeCapture={() => { dirty.current = true; }}
       className="flex flex-col gap-4"
       aria-label="Produto alimentar"
     >
@@ -350,6 +378,7 @@ export function FoodProductForm({
             className="btn-ghost mt-3 min-h-12"
             disabled={pending}
             onClick={() => {
+              dirty.current = true;
               generation.current++;
               request.current?.abort();
               setPhoto(null);
@@ -610,7 +639,12 @@ export function FoodProductForm({
         <button className="btn-primary flex-1" disabled={pending || busy}>
           {pending ? "A guardar…" : "Guardar produto"}
         </button>
-        <button type="button" className="btn-ghost" onClick={onCancel}>
+        <button type="button" className="btn-ghost" disabled={pending || busy} onClick={() => {
+          if (!dirty.current || window.confirm("Descartar as alterações deste produto?")) {
+            dirty.current = false;
+            onCancel();
+          }
+        }}>
           Cancelar
         </button>
       </div>

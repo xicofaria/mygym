@@ -35,7 +35,9 @@ export function WorkoutCard({
       <ul className="flex flex-col gap-2.5">
         {workout.groups.map((g) => (
           <li key={g.exerciseId}>
-            <div className="text-sm font-medium">{g.exerciseName}</div>
+            <Link href={`/exercises/${g.exerciseId}`} className="inline-block py-1 text-sm font-medium text-indigo-600 underline decoration-indigo-300 underline-offset-4 dark:text-indigo-400">
+              {g.exerciseName}<span className="sr-only"> — ver evolução</span>
+            </Link>
             <div className="mt-0.5 flex flex-wrap gap-x-2 gap-y-1 text-sm text-zinc-500 dark:text-zinc-400">
               {g.sets.map((s, i) => (
                 <span key={i}>

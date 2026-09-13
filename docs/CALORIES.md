@@ -223,5 +223,11 @@ no projeto aplica migrações no deploy Vercel de produção; esta tarefa não f
   iPhone/Android/PWA e disponibilidade do Open Food Facts no alojamento.
 
 O formulário mantém os campos se uma gravação falhar enquanto estiver aberto.
+O editor de produto também se mantém montado ao alternar Diário/Produtos/Evolução;
+tocar novamente em Produtos não o fecha. Cancelar alterações e navegar por um
+link para outra página pedem confirmação de descarte; recarregar usa o aviso
+nativo do browser quando há alterações. Estes avisos não garantem recuperação
+se o sistema terminar o browser. Uma gravação bem-sucedida limpa a marca de edição.
+O resumo sem meta tem «Definir a minha meta», que abre e foca a configuração.
 Esta versão não promete fila de gravação offline nem rascunhos nutricionais
 persistentes depois de fechar/navegar: não confundir com os rascunhos de treino.

@@ -1,3 +1,4 @@
+import { chooseExercise } from "./exercise-selection";
 import { expect, test, type Page } from "@playwright/test";
 
 const reps = (page: Page) => page.getByLabel("Repetições da série 1");
@@ -8,6 +9,7 @@ const weight = (page: Page) => page.getByLabel("Peso (kg) da série 1");
 // submit the form natively and skip the server action — from surfacing
 // later as a confusing URL mismatch.
 async function fillSet(page: Page, repsValue: string, weightValue?: string) {
+  await chooseExercise(page);
   await page.waitForLoadState("networkidle");
   await reps(page).fill(repsValue);
   await expect(reps(page)).toHaveValue(repsValue);

@@ -1,3 +1,4 @@
+import { chooseExercise } from "./exercise-selection";
 import { expect, test } from "@playwright/test";
 
 async function login(page: import("@playwright/test").Page) {
@@ -22,6 +23,7 @@ test("relatório semanal mostra a semana vazia e a semana com treino", async ({
 
   // Cria um treino hoje e vê-o na semana atual.
   await page.goto("/workouts/new");
+  await chooseExercise(page);
   await page.getByLabel("Repetições da série 1").fill("10");
   await page.getByLabel("Peso (kg) da série 1").fill("50");
   await page.getByRole("button", { name: "Guardar treino" }).click();

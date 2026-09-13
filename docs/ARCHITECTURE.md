@@ -105,6 +105,22 @@ anything. Editing `/workouts/routine` saves per weekday as you toggle chips
 
 ## Contas e relatórios
 
+**Configuração inicial.** `users.onboarding_completed` (migração 0009) começa a
+`true` para contas existentes; o registo público cria novas contas com `false`.
+O dashboard apresenta `GettingStarted` até a pessoa concluir ou adiar o passo.
+`completeOnboarding` obtém a conta da sessão e altera apenas essa preferência.
+Guardar peso é uma ação independente, com validação/rascunho do formulário de
+medidas; adiar não exige dados corporais. Configurar alimentação abre
+`/calories?setup=goal`, que apenas apresenta/foca o formulário: não escreve uma
+meta nem aceita um dono fornecido no URL. A verificação de email continua intacta.
+
+**Feedback e preservação.** O catálogo reutiliza `getLastPerformanceByExercise`
+para separar a última sessão do máximo histórico. Os nomes em `WorkoutCard`
+ligam aos gráficos existentes. Peso corporal no dashboard tem variação neutra.
+`WorkoutForm` mantém o rascunho durante a submissão e bloqueia os controlos com
+um fieldset; só limpa após sucesso. O seletor vazio usa ID 0, que nunca é aceite
+como exercício persistido. `DeleteButton` aguarda a ação e trata falhas locais.
+
 O registo público está em `/registo`; nome, email, palavra-passe, eliminação RGPD
 e preferência de relatório semanal estão em `/conta`. A verificação de email e
 recuperação de palavra-passe ativam-se com `RESEND_API_KEY`, `EMAIL_FROM` e `APP_URL`.

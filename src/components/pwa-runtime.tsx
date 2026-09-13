@@ -86,7 +86,7 @@ export function PwaRuntime() {
       className="pointer-events-none fixed right-3 top-3 z-50 max-w-[calc(100vw-1.5rem)] rounded-full bg-amber-100 px-3 py-1.5 text-xs font-semibold text-amber-900 shadow-sm dark:bg-amber-950 dark:text-amber-100"
       role="status"
     >
-      Sem ligação — os rascunhos ficam guardados neste dispositivo.
+      Sem ligação ao servidor.
     </div>
   );
 }

@@ -234,6 +234,7 @@ export type ExerciseStat = {
   bestWeight: number | null;
   best1RM: number | null;
   lastPerformed: Date | null;
+  lastPerformance: string | null;
 };
 
 /** The full catalog, annotated with this user's stats for each movement. */
@@ -241,6 +242,7 @@ export async function getExercisesWithStats(
   userId: number,
 ): Promise<ExerciseStat[]> {
   const catalog = await getExerciseCatalog();
+  const lastPerformance = await getLastPerformanceByExercise(userId);
   const userSets = await db
     .select({
       exerciseId: sets.exerciseId,
@@ -288,6 +290,7 @@ export async function getExercisesWithStats(
       bestWeight: st ? round(st.bestWeight) : null,
       best1RM: st ? round(st.best1RM) : null,
       lastPerformed: st?.last ?? null,
+      lastPerformance: lastPerformance[e.id]?.summary ?? null,
     };
   });
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
+import { unstable_rethrow } from "next/navigation";
 
 /**
  * Small trash button that calls a bound server action after a confirm().
@@ -16,14 +17,28 @@ export function DeleteButton({
   confirmText?: string;
 }) {
   const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
 
   return (
+    <span className="inline-flex flex-col items-end gap-1">
     <button
       type="button"
       aria-label="Eliminar"
       disabled={pending}
       onClick={() => {
-        if (window.confirm(confirmText)) start(() => void action(id));
+        if (!window.confirm(confirmText)) return;
+        setError(null);
+        start(async () => {
+          try {
+            const result = await action(id);
+            if (result && typeof result === "object" && "error" in result && typeof result.error === "string") {
+              setError(result.error);
+            }
+          } catch (cause) {
+            unstable_rethrow(cause);
+            setError("Não foi possível eliminar. Tenta novamente.");
+          }
+        });
       }}
       className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-red-500/10 hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"
     >
@@ -39,5 +54,8 @@ export function DeleteButton({
         <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13M10 11v6M14 11v6" />
       </svg>
     </button>
+    {pending && <span role="status" className="text-xs">A eliminar…</span>}
+    {error && <span role="alert" className="max-w-52 text-xs text-red-600 dark:text-red-400">{error}</span>}
+    </span>
   );
 }

@@ -11,13 +11,21 @@ ficam privados da conta que os cria. Não existe seletor de parceiro.
 
 ## Funcionalidades
 
+- **Primeiro acesso:** novas contas recebem configuração opcional de peso e
+  alimentação no Início. «Agora não» fica guardado por conta; as contas existentes
+  mantêm o acesso habitual. Em Corpo, basta o peso; outras medidas são opcionais.
+
 - **Treinos:** registar, editar e repetir sessões, duplicar séries, consultar a
   última prestação e usar modelos reutilizáveis. Aceita pesos como `2,8` ou
   `2.8` kg, sem arredondar para incrementos fixos.
+  Novos exercícios exigem seleção explícita. O rascunho é conservado até à
+  confirmação do servidor e os campos ficam bloqueados durante a gravação.
+  Os nomes dos exercícios no histórico ligam diretamente aos gráficos.
 - **Planeamento:** calendário mensal, mapa de atividade, planos por dia e rotina
   semanal. Um plano fica concluído quando é associado explicitamente a um treino.
 - **Exercícios:** pesquisa por nome, sinónimos, equipamento e grupo muscular;
   favoritos privados, histórico, volume e estimativa de 1RM.
+  A última sessão mostra as séries dessa sessão, separadas da carga máxima histórica.
 - **Fotografias de máquinas:** análise opcional por IA, sugestões do catálogo e
   propostas de novos exercícios, sempre revistas e confirmadas pela pessoa.
 - **Descanso:** temporizador com pausa e estado conservado no dispositivo ao navegar.
@@ -201,6 +209,7 @@ recuperação, e [backup/restauro](docs/BACKUP_RESTORE.md) antes de intervir em 
 - [Calorias](docs/CALORIES.md) e [reconhecimento de máquinas](docs/AI_RECOGNITION.md).
 - [Regras dos agentes](AGENTS.md) e [manutenção das instruções](docs/AGENT_GUIDANCE.md).
 - [Melhorias pendentes](docs/IMPROVEMENTS.md), com prioridades e critérios de conclusão.
+- [Avaliação UX em Kanban](docs/ux-audit/index.html), com prioridades, evidências e screenshots locais; [método e limitações](docs/ux-audit/README.md).
 
 As experiências e validações de setembro de 2026 estão no
 [arquivo histórico](docs/archive/VALIDATION_2026-09.md); não representam o estado

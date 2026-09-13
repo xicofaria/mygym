@@ -5,6 +5,7 @@ import { EmptyState, PageHeader, StatCard } from "@/components/ui";
 import { WorkoutCard } from "@/components/workout-card";
 import { ProgressChart } from "@/components/progress-chart";
 import { WorkoutCalendar } from "@/components/workout-calendar";
+import { GettingStarted } from "@/components/getting-started";
 
 export default async function DashboardPage() {
   const me = await requireUser();
@@ -12,14 +13,10 @@ export default async function DashboardPage() {
 
   const weightSub =
     data.weightChange == null ? (
-      "ainda sem alterações"
+      data.latestWeight == null ? <Link href="/body" className="underline">Registar peso inicial</Link> : "ainda sem alterações"
     ) : (
       <span
-        className={
-          data.weightChange <= 0
-            ? "text-emerald-600 dark:text-emerald-400"
-            : "text-amber-600 dark:text-amber-400"
-        }
+        className="text-zinc-700 dark:text-zinc-300"
       >
         {data.weightChange > 0 ? "+" : ""}
         {data.weightChange} kg desde a última
@@ -37,6 +34,8 @@ export default async function DashboardPage() {
           </Link>
         }
       />
+
+      {!me.onboardingCompleted && <GettingStarted userId={me.id} hasWeight={data.latestWeight != null} />}
 
       <div className="grid grid-cols-2 gap-3">
         <StatCard label="Treinos esta semana" value={data.workoutsThisWeek} />
