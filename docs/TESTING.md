@@ -41,3 +41,16 @@ o CI conserva os resultados automáticos. Não é necessário atualizar um diár
 de validação por alteração. Experiências reais que expliquem limites do produto
 podem ser documentadas no guia da funcionalidade. Os registos anteriores estão
 no [arquivo de setembro de 2026](archive/VALIDATION_2026-09.md).
+
+## Compatibilidade das atualizações Dependabot — setembro de 2026
+
+O PR #46 integra as atualizações compatíveis dos grupos #47/#48 e CodeQL
+4.38.0 (#49/#50, init/analyze no mesmo SHA). React/React DOM ficam em 19.3.0;
+Playwright em 1.63.0. O intervalo Zod proposto (`^4.6.2`) resolve 4.6.5 no lockfile.
+
+TypeScript 7.0.2 e ESLint 10.10.0 foram adiados: o lint falha explicitamente
+com TypeScript 7 em `typescript-eslint`; `eslint-plugin-import@2.32.0`, usado
+pelo Next, só declara peers até ESLint 9. Manter TypeScript 6.0.3 e ESLint 9.39.5
+até existir uma combinação suportada; não usar `--force` ou `--legacy-peer-deps`
+para ocultar estas incompatibilidades. ESLint 9 já tem aviso de fim de suporte
+no registry, pelo que esta exceção deve ser revista na próxima atualização do tooling.
