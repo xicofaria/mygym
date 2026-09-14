@@ -7,7 +7,7 @@ import { CaloriesTracker } from "@/components/calories-tracker";
 export default async function CaloriesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; period?: string }>;
+  searchParams: Promise<{ date?: string; period?: string; setup?: string }>;
 }) {
   const user = await requireUser();
   const params = await searchParams;
@@ -26,6 +26,7 @@ export default async function CaloriesPage({
       date={date}
       today={today}
       period={period}
+      openGoal={params.setup === "goal"}
       provider={
         process.env.AI_PROVIDER === "openrouter" ? "openrouter" : "openai"
       }

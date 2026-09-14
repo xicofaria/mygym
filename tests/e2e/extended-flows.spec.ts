@@ -1,3 +1,4 @@
+import { chooseExercise } from "./exercise-selection";
 import { expect, test, type Page } from "@playwright/test";
 
 const OWNER = {
@@ -23,6 +24,7 @@ async function login(
 async function createWorkout(page: Page, notes: string) {
   await page.goto("/workouts/new");
   await page.waitForLoadState("networkidle");
+  await chooseExercise(page);
   await page.getByLabel("Repetições da série 1").fill("8");
   await page.getByLabel("Peso (kg) da série 1").fill("42.5");
   await page.getByPlaceholder("Como correu?").fill(notes);
@@ -60,6 +62,7 @@ test("uma medição corporal pode ser criada, isolada e eliminada", async ({
   await login(page, OWNER);
   await page.goto("/body");
   await page.getByRole("button", { name: "+ Adicionar medição" }).click();
+  await page.getByText("Outras medidas (opcional)", { exact: true }).click();
 
   const form = page.locator("form").filter({ hasText: "Gordura corporal (%)" });
   await form.getByLabel("Data").fill(date);
@@ -247,6 +250,7 @@ test("o rascunho de treino sobrevive a uma perda de ligação", async ({
     page.getByRole("status").filter({ hasText: "Sem ligação" }),
   ).toHaveCount(0);
 
+  await chooseExercise(page);
   await page.getByLabel("Repetições da série 1").fill("9");
   await page.getByLabel("Peso (kg) da série 1").fill("35");
   await page.getByPlaceholder("Como correu?").fill(notes);
@@ -265,6 +269,7 @@ test("o rascunho de treino sobrevive a uma perda de ligação", async ({
   await expect(
     page.getByRole("status").filter({ hasText: "Sem ligação" }),
   ).toContainText("Sem ligação");
+  await chooseExercise(page);
   await page.getByLabel("Repetições da série 1").fill("11");
   await expect
     .poll(() =>
@@ -318,6 +323,7 @@ test("um rascunho do formulário em branco não substitui uma data pedida no URL
   await page.waitForLoadState("networkidle");
 
   // Typing here saves a draft for the blank form.
+  await chooseExercise(page);
   await page.getByLabel("Repetições da série 1").fill("5");
   await expect
     .poll(() =>
@@ -338,6 +344,7 @@ test("um rascunho do formulário em branco não substitui uma data pedida no URL
   await expect(page.getByLabel("Repetições da série 1")).toHaveValue("");
 
   // That form keeps its own draft, so offline recovery still works per URL.
+  await chooseExercise(page);
   await page.getByLabel("Repetições da série 1").fill("9");
   await page.goto(`/workouts/new?date=${planned}`);
   await page.waitForLoadState("networkidle");

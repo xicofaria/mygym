@@ -31,6 +31,7 @@ export default async function NewWorkoutPage({
     repeat?: string | string[];
     date?: string | string[];
     plan?: string | string[];
+    session?: string;
   }>;
 }) {
   const user = await requireUser();
@@ -42,6 +43,7 @@ export default async function NewWorkoutPage({
     repeat,
     date: dateParam,
     plan: planParam,
+    session,
   } = await searchParams;
   const templateId = readPositiveInteger(templateParam);
   const plannedWorkoutId = readPositiveInteger(planParam);
@@ -114,6 +116,7 @@ export default async function NewWorkoutPage({
     linkedPlan ? `plan:${linkedPlan.id}` : null,
     activeTemplate ? `tpl:${activeTemplate.id}` : null,
     repeatedWorkout ? "repeat" : null,
+    typeof session === "string" && /^[a-f0-9-]{36}$/.test(session) ? `session:${session}` : null,
   ]
     .filter(Boolean)
     .join("|");
@@ -122,14 +125,6 @@ export default async function NewWorkoutPage({
     <div className="flex flex-col gap-4">
       <PageHeader
         title={repeatedWorkout ? "Repetir último treino" : "Registar treino"}
-        action={
-          <Link
-            href={initialDate ? `/workouts?date=${initialDate}` : "/workouts"}
-            className="btn-ghost"
-          >
-            Cancelar
-          </Link>
-        }
       />
 
       {templates.length > 0 && (
@@ -174,11 +169,7 @@ export default async function NewWorkoutPage({
       )}
 
       <WorkoutForm
-        key={
-          repeatedWorkout
-            ? `repeat-${repeatedWorkout.id}`
-            : `${linkedPlan?.id ?? "free"}-${activeTemplate?.id ?? "blank"}`
-        }
+        key={`${draftScope}-${repeatedWorkout?.id ?? "new"}`}
         userId={user.id}
         favoriteIds={favoriteIds}
         aiProvider={aiProvider}

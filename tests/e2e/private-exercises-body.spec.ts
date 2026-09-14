@@ -1,3 +1,4 @@
+import { chooseExercise } from "./exercise-selection";
 import { createClient } from "@libsql/client";
 import { expect, test, type Page, type Request } from "@playwright/test";
 
@@ -106,6 +107,7 @@ test("private catalogue isolates edits, direct IDs and equal names between accou
   await page
     .getByLabel("Exercício da série 1", { exact: true })
     .selectOption(String(id));
+  await chooseExercise(page);
   await page.getByLabel("Repetições da série 1").fill("12");
   await page.getByLabel("Peso (kg) da série 1").fill("2,8");
   const workoutPromise = page.waitForRequest(actionRequest);
@@ -146,6 +148,7 @@ test("body decimals preserve precision, reject malformed optional fields and kee
   await login(page);
   await page.goto("/body");
   await page.getByRole("button", { name: "+ Adicionar medição" }).click();
+  await page.getByText("Outras medidas (opcional)", { exact: true }).click();
   const form = page
     .locator("form")
     .filter({ has: page.getByLabel("Gordura corporal (%)") });

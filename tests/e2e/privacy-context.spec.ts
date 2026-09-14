@@ -1,3 +1,4 @@
+import { chooseExercise } from "./exercise-selection";
 import { expect, test, type Page } from "@playwright/test";
 
 const OWNER = {
@@ -130,6 +131,7 @@ test("rascunhos locais pertencem apenas à conta autenticada", async ({
     )
     .toBe(0);
 
+  await chooseExercise(page);
   await page.getByLabel("Repetições da série 1").fill("8");
   await page.getByLabel("Peso (kg) da série 1").fill("42.5");
   await page.getByPlaceholder("Como correu?").fill(workoutNotes);

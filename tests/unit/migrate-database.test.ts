@@ -171,6 +171,24 @@ async function readLedger(client: Client) {
   );
 }
 
+test("onboarding migration preserves existing accounts and permits explicit new-account opt-in", async () => {
+  await withTemporaryDatabase(async ({ url }) => {
+    const client = createClient({ url });
+    try {
+      for (let index = 0; index <= 8; index++) await client.migrate(migrationStatements(index));
+      await client.execute("INSERT INTO users (id, email, name, password_hash) VALUES (1, 'existing@example.test', 'Existing', 'hash')");
+      await migrateDatabase({ url, migrationsFolder: MIGRATIONS_FOLDER });
+      const existing = (await client.execute("SELECT name, onboarding_completed FROM users WHERE id = 1")).rows[0];
+      assert.equal(existing.name, "Existing");
+      assert.equal(Number(existing.onboarding_completed), 1);
+      await client.execute("INSERT INTO users (id, email, name, password_hash, onboarding_completed) VALUES (2, 'new@example.test', 'New', 'hash', 0)");
+      assert.equal(Number((await client.execute("SELECT onboarding_completed FROM users WHERE id = 2")).rows[0].onboarding_completed), 0);
+    } finally {
+      client.close();
+    }
+  });
+});
+
 test("nutrition portions migration preserves pre-0004 products and snapshots", async () => {
   await withTemporaryDatabase(async ({ url }) => {
     const client = createClient({ url });

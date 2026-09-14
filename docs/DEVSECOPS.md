@@ -97,6 +97,13 @@ Workout and body-measurement forms persist drafts in device-local storage. A
 draft is convenience recovery, not a confirmed write: it only becomes part of
 the database after the authenticated Server Action succeeds.
 
+Worker updates wait for an explicit Atualizar agora confirmation. Mais tarde
+keeps the current document; activation by another tab never forces its reload.
+Known pending form operations block the update action. Unsaved food data still
+has no persistent draft: the confirmation warns about reload and its native
+beforeunload guard remains active. This does not add private HTML caching or
+offline editing after navigation/reload.
+
 ## Production controls outside GitHub
 
 The deployment platform should provide:

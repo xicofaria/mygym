@@ -52,12 +52,37 @@ export function FoodProductForm({
   const [notice, setNotice] = useState("");
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const formRef = useRef<HTMLFormElement>(null);
   const [busy, setBusy] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [photoExpanded, setPhotoExpanded] = useState(true);
   const [pending, start] = useTransition();
   const generation = useRef(0);
   const request = useRef<AbortController | null>(null);
+  const dirty = useRef(false);
+  useEffect(() => {
+    const unload = (event: BeforeUnloadEvent) => {
+      if (!dirty.current) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    const navigate = (event: MouseEvent) => {
+      if (!dirty.current || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      const link = (event.target as Element).closest?.("a[href]") as HTMLAnchorElement | null;
+      if (!link || link.target === "_blank" || link.hasAttribute("download") || link.href === location.href) return;
+      if (!window.confirm("Sair e descartar as alterações deste produto?")) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    };
+    window.addEventListener("beforeunload", unload);
+    document.addEventListener("click", navigate, true);
+    return () => {
+      window.removeEventListener("beforeunload", unload);
+      document.removeEventListener("click", navigate, true);
+    };
+  }, []);
   useEffect(
     () => () => {
       generation.current++;
@@ -68,6 +93,7 @@ export function FoodProductForm({
 
   async function choose(file?: File) {
     if (!file) return;
+    dirty.current = true;
     const current = ++generation.current;
     request.current?.abort();
     setBusy(true);
@@ -232,6 +258,7 @@ export function FoodProductForm({
   function save(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    setFieldErrors({});
     const nutrients = { ...emptyNutrients };
     for (const key of nutrientKeys)
       nutrients[key] = (
@@ -256,9 +283,22 @@ export function FoodProductForm({
           : (chosen?.imageUrl ?? initial?.imageUrl ?? ""),
     });
     if (!parsed.success) {
-      setError(
-        "Preenche as kcal e verifica os valores por 100 g/ml. Campos desconhecidos podem ficar vazios.",
-      );
+      const errors: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const key = issue.path[0] === "nutrients" ? String(issue.path[1]) : String(issue.path[0]);
+        if (nutrientKeys.includes(key as typeof nutrientKeys[number])) {
+          errors[key] = `${nutrientLabels[key as typeof nutrientKeys[number]]}: indica um valor entre 0 e ${key === "kcal" ? "1000 kcal" : "100 g"} por 100 ${unit}. Usa ponto ou vírgula.${key !== "kcal" ? " Se desconhecido, deixa vazio." : ""}`;
+        } else if (key === "name") errors.name = "Indica o nome do alimento (1 a 120 caracteres).";
+        else if (key === "brand") errors.brand = "A marca / loja pode ter até 80 caracteres.";
+      }
+      setFieldErrors(errors);
+      setError(Object.keys(errors).length ? "Corrige os campos assinalados antes de guardar." : "Não foi possível validar este produto. Revê a origem e os dados sugeridos.");
+      const first = Object.keys(errors)[0];
+      if (first) requestAnimationFrame(() => {
+        const input = formRef.current?.querySelector<HTMLInputElement>(`[name="${first}"]`);
+        input?.focus();
+        input?.scrollIntoView({ block: "center" });
+      });
       return;
     }
     if (source !== "manual" && !confirmed) {
@@ -276,7 +316,10 @@ export function FoodProductForm({
           setError(result.error);
           return;
         }
-        if ("id" in result) onSaved(result.id, parsed.data);
+        if ("id" in result) {
+          dirty.current = false;
+          onSaved(result.id, parsed.data);
+        }
       } catch {
         setError(
           "Sem ligação. Mantivemos os dados neste formulário; tenta guardar novamente.",
@@ -293,7 +336,11 @@ export function FoodProductForm({
           : initial?.imageUrl));
   return (
     <form
+      ref={formRef}
+      aria-busy={pending || busy}
+      noValidate
       onSubmit={save}
+      onChangeCapture={() => { dirty.current = true; }}
       className="flex flex-col gap-4"
       aria-label="Produto alimentar"
     >
@@ -350,6 +397,7 @@ export function FoodProductForm({
             className="btn-ghost mt-3 min-h-12"
             disabled={pending}
             onClick={() => {
+              dirty.current = true;
               generation.current++;
               request.current?.abort();
               setPhoto(null);
@@ -491,16 +539,23 @@ export function FoodProductForm({
       <label className="label">
         Nome do alimento
         <input
+          name="name"
+          aria-invalid={Boolean(fieldErrors.name)}
+          aria-describedby={fieldErrors.name ? "food-error-name" : undefined}
           className="input"
           required
           maxLength={120}
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
+        {fieldErrors.name && <span id="food-error-name" className="text-xs text-red-600 dark:text-red-400">{fieldErrors.name}</span>}
       </label>
       <label className="label">
         Marca / loja
         <input
+          name="brand"
+          aria-invalid={Boolean(fieldErrors.brand)}
+          aria-describedby={fieldErrors.brand ? "food-error-brand" : undefined}
           className="input"
           maxLength={80}
           value={brand}
@@ -508,6 +563,7 @@ export function FoodProductForm({
           placeholder="Ex.: Continente, Pingo Doce, Mercadona"
           list="food-store-suggestions"
         />
+        {fieldErrors.brand && <span id="food-error-brand" className="text-xs text-red-600 dark:text-red-400">{fieldErrors.brand}</span>}
       </label>
       <datalist id="food-store-suggestions">
         {foodStores.map(([id, label]) => (
@@ -555,6 +611,9 @@ export function FoodProductForm({
             {key !== "kcal" && " (g)"}
             <input
               aria-label={`${nutrientLabels[key]} por 100`}
+              name={key}
+              aria-invalid={Boolean(fieldErrors[key])}
+              aria-describedby={fieldErrors[key] ? `food-error-${key}` : undefined}
               className="input"
               inputMode="decimal"
               maxLength={12}
@@ -563,6 +622,7 @@ export function FoodProductForm({
               value={values[key]}
               onChange={(e) => setValues({ ...values, [key]: e.target.value })}
             />
+            {fieldErrors[key] && <span id={`food-error-${key}`} className="text-xs text-red-600 dark:text-red-400">{fieldErrors[key]}</span>}
             {details.nutrientEstimates.includes(key) && (
               <span className="text-xs text-amber-700 dark:text-amber-300">
                 Estimativa — confirmar
@@ -610,7 +670,12 @@ export function FoodProductForm({
         <button className="btn-primary flex-1" disabled={pending || busy}>
           {pending ? "A guardar…" : "Guardar produto"}
         </button>
-        <button type="button" className="btn-ghost" onClick={onCancel}>
+        <button type="button" className="btn-ghost" disabled={pending || busy} onClick={() => {
+          if (!dirty.current || window.confirm("Descartar as alterações deste produto?")) {
+            dirty.current = false;
+            onCancel();
+          }
+        }}>
           Cancelar
         </button>
       </div>

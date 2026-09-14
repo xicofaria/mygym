@@ -91,7 +91,7 @@ export async function register(
   const passwordHash = await hashPassword(parsed.data.password);
   const inserted = await db
     .insert(users)
-    .values({ name: parsed.data.name, email, passwordHash })
+    .values({ name: parsed.data.name, email, passwordHash, onboardingCompleted: false })
     .returning({ id: users.id, tokenVersion: users.tokenVersion });
   const created = inserted[0];
   if (!created) {
