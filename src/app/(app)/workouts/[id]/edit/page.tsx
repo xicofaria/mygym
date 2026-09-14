@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/ui";
 import { WorkoutForm } from "@/components/workout-form";
@@ -35,11 +34,6 @@ export default async function EditWorkoutPage({
       <PageHeader
         title="Editar treino"
         subtitle="Corrige as séries sem perder o restante histórico."
-        action={
-          <Link href="/workouts" className="btn-ghost">
-            Cancelar
-          </Link>
-        }
       />
 
       <WorkoutForm

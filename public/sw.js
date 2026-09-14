@@ -55,6 +55,7 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("message", (event) => {
+  // Activation is requested explicitly by a client after user confirmation.
   if (event.origin !== self.location.origin) return;
 
   if (event.data?.type === "SKIP_WAITING") {

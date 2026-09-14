@@ -6,6 +6,7 @@ import { WorkoutCard } from "@/components/workout-card";
 import { ProgressChart } from "@/components/progress-chart";
 import { WorkoutCalendar } from "@/components/workout-calendar";
 import { GettingStarted } from "@/components/getting-started";
+import { ResumeWorkout } from "@/components/resume-workout";
 
 export default async function DashboardPage() {
   const me = await requireUser();
@@ -35,6 +36,7 @@ export default async function DashboardPage() {
         }
       />
 
+      <ResumeWorkout userId={me.id} />
       {!me.onboardingCompleted && <GettingStarted userId={me.id} hasWeight={data.latestWeight != null} />}
 
       <div className="grid grid-cols-2 gap-3">

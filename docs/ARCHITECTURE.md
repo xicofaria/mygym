@@ -121,6 +121,13 @@ ligam aos gráficos existentes. Peso corporal no dashboard tem variação neutra
 um fieldset; só limpa após sucesso. O seletor vazio usa ID 0, que nunca é aceite
 como exercício persistido. `DeleteButton` aguarda a ação e trata falhas locais.
 
+`ResumeWorkout` lista no Início os rascunhos locais da conta autenticada;
+`workout-draft.ts` valida a estrutura e deriva apenas rotas internas conhecidas.
+O contexto original mantém-se na retoma. «Começar um treino hoje» usa `?session=`
+(identificador local, não sessão de autenticação) para não substituir o rascunho
+anterior. As autorizações de planos, exercícios e treinos continuam no servidor.
+Voltar e descartar têm ações distintas em treino e medidas.
+
 O registo público está em `/registo`; nome, email, palavra-passe, eliminação RGPD
 e preferência de relatório semanal estão em `/conta`. A verificação de email e
 recuperação de palavra-passe ativam-se com `RESEND_API_KEY`, `EMAIL_FROM` e `APP_URL`.

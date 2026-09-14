@@ -36,6 +36,11 @@ estão em [AGENTS.md](../AGENTS.md).
   only after confirmed persistence; images must never enter local drafts.
 - Disable all set/date/exercise editing during submission. A new blank exercise
   uses an explicit unselected placeholder, never the first catalogue entry.
+- Returning from workout/body forms explicitly keeps the local draft; discarding
+  modified input requires confirmation. Do not claim preservation when storage fails.
+- Dashboard recovery lists only the session user's local keys, preserving their
+  date/template/plan/repeat context. Resuming another date requires a choice;
+  starting today uses a separate local session scope and never deletes the old draft.
 - Group only consecutive sets of the same exercise; never reorder supersets.
   A group selector updates that block; duplication preserves decimal strings.
 - Rest timer uses a user-scoped absolute deadline in localStorage and never

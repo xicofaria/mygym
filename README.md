@@ -43,6 +43,9 @@ ficam privados da conta que os cria. Não existe seletor de parceiro.
 - **Contas:** registo, edição de nome/email/palavra-passe, eliminação da conta e
   recuperação/verificação por email quando o serviço está configurado.
 - **Rede instável:** página offline e rascunhos locais de treinos e medidas.
+  O Início permite retomar treinos com a data e o contexto originais; começar
+  hoje conserva o rascunho anterior. Voltar e descartar são ações distintas.
+  Atualizações da PWA pedem confirmação e podem ser adiadas sem reload.
   Os rascunhos só contam como registos depois de guardados no servidor;
   páginas privadas e fotografias não são colocadas na cache do service worker.
 

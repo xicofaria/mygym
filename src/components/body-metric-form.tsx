@@ -101,7 +101,7 @@ export function BodyMetricForm({ userId, initiallyOpen = false, onSaved }: { use
   if (!open) {
     return (
       <button onClick={() => setOpen(true)} className="btn-primary w-full">
-        + Adicionar medição
+        {dirty ? "Continuar medição" : "+ Adicionar medição"}
       </button>
     );
   }
@@ -156,7 +156,7 @@ export function BodyMetricForm({ userId, initiallyOpen = false, onSaved }: { use
   }
 
   return (
-    <form onSubmit={submit} className="card flex flex-col gap-3">
+    <form onSubmit={submit} aria-busy={pending} className="card flex flex-col gap-3">
       <div>
         <label className="label" htmlFor="body-metric-date">
           Data
@@ -239,7 +239,7 @@ export function BodyMetricForm({ userId, initiallyOpen = false, onSaved }: { use
         </p>
       )}
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button type="submit" className="btn-primary flex-1" disabled={pending}>
           {pending ? "A guardar…" : "Guardar"}
         </button>
@@ -248,11 +248,26 @@ export function BodyMetricForm({ userId, initiallyOpen = false, onSaved }: { use
           disabled={pending}
           className="btn-ghost"
           onClick={() => {
+            if (dirty && !writeLocalDraft(localStorage, draftKey, { date, notes, values })) {
+              setError("Não foi possível guardar o rascunho. Mantém o formulário aberto ou escolhe descartar alterações.");
+              return;
+            }
+            setOpen(false);
+          }}
+        >
+          Voltar — manter rascunho
+        </button>
+        <button
+          type="button"
+          disabled={pending}
+          className="btn-ghost"
+          onClick={() => {
+            if (dirty && !window.confirm("Descartar as alterações desta medição? O rascunho será removido deste dispositivo.")) return;
             removeLocalDraft(localStorage, draftKey);
             resetForm();
           }}
         >
-          Cancelar
+          Descartar alterações
         </button>
       </div>
     </form>

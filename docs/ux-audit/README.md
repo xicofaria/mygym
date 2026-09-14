@@ -15,7 +15,10 @@ Público confirmado: utilizadores de ginásio iniciantes e intermédios que quer
 acompanhar progressão no treino e cumprimento de metas alimentares próprias.
 Os gráficos existentes, acessíveis através dos exercícios, são preservados.
 Durante a avaliação não foram implementadas correções na aplicação. A fase
-seguinte propõe 13 correções no PR; consultar [âmbito da implementação](IMPLEMENTATION.md).
+seguinte propõe 18 correções em dois lotes no PR #46; consultar [âmbito da implementação](IMPLEMENTATION.md).
+Os cartões UX-06 e UX-25 incluem capturas após a correção, separadas da evidência
+original. Foram obtidas em Chromium a 390 × 844 com dados fictícios na base E2E;
+não são mockups nem dados de produção.
 
 Contexto confirmado: treino 3–5 vezes por semana e alimentação diária, em
 telemóvel com interrupções e rede instável. Objetivo de retenção à 6.ª–8.ª semana.

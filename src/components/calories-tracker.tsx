@@ -1,6 +1,6 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- private endpoints and attributed product photos */
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { getCalorieData } from "@/lib/calorie-queries";
 import {
@@ -72,6 +72,20 @@ export function CaloriesTracker({
   const [tolerance, setTolerance] = useState("10");
   const goalDetails = useRef<HTMLDetailsElement>(null);
   const goalField = useRef<HTMLInputElement>(null);
+  const entryHeading = useRef<HTMLHeadingElement>(null);
+  const editOrigin = useRef<HTMLButtonElement | null>(null);
+  const restoreEntryFocus = useRef(false);
+  useEffect(() => {
+    if (!editing || tab !== "diary") return;
+    entryHeading.current?.focus();
+    entryHeading.current?.scrollIntoView({ block: "center" });
+  }, [editing, tab]);
+  useEffect(() => {
+    if (pending || editing || tab !== "diary" || !restoreEntryFocus.current) return;
+    restoreEntryFocus.current = false;
+    editOrigin.current?.focus();
+    editOrigin.current?.scrollIntoView({ block: "center" });
+  }, [editing, pending, tab]);
   const entries = data.entries.filter((e) => e.date === date);
   const goal = goalForDate(data.goals, date);
   const currentGoal = goalForDate(data.goals, today);
@@ -177,6 +191,7 @@ export function CaloriesTracker({
     }
   }
   const resetEntry = () => {
+    if (editing) restoreEntryFocus.current = true;
     setPortionOverride(null);
     setQuantityMode("weight");
     setEditing(null);
@@ -184,7 +199,7 @@ export function CaloriesTracker({
     setProductId("");
   };
   return (
-    <div className="flex flex-col gap-5">
+    <div aria-busy={pending} className="flex flex-col gap-5">
       <header>
         <h1 className="text-2xl font-bold">Calorias</h1>
         <p className="text-sm text-zinc-500">
@@ -293,7 +308,7 @@ export function CaloriesTracker({
             )}
           </section>
           <form
-            aria-label="Adicionar ao diário"
+            aria-label={editing ? `Editar consumo: ${editing.snapshot.name}` : "Adicionar ao diário"}
             className="flex flex-col gap-3"
             onSubmit={(e) => {
               e.preventDefault();
@@ -325,8 +340,8 @@ export function CaloriesTracker({
               );
             }}
           >
-            <h2 className="font-semibold">
-              {editing ? "Editar consumo" : "Adicionar ao diário"}
+            <h2 ref={entryHeading} tabIndex={-1} className="font-semibold focus-visible:outline-2 focus-visible:outline-indigo-500">
+              {editing ? `Editar consumo: ${editing.snapshot.name}` : "Adicionar ao diário"}
             </h2>
             <label className="label">
               Alimento
@@ -498,7 +513,7 @@ export function CaloriesTracker({
               {editing ? "Guardar consumo" : "Registar consumo"}
             </button>
             {editing && (
-              <button type="button" className="btn-ghost" onClick={resetEntry}>
+              <button type="button" className="btn-ghost" disabled={pending} onClick={resetEntry}>
                 Cancelar edição
               </button>
             )}
@@ -593,7 +608,9 @@ export function CaloriesTracker({
                         <button
                           type="button"
                           className="btn-ghost"
-                          onClick={() => {
+                          disabled={pending}
+                          onClick={(event) => {
+                            editOrigin.current = event.currentTarget;
                             setEditing(entry);
                             setPortionOverride(null);
                             setQuantityMode("weight");

@@ -231,3 +231,8 @@ se o sistema terminar o browser. Uma gravação bem-sucedida limpa a marca de ed
 O resumo sem meta tem «Definir a minha meta», que abre e foca a configuração.
 Esta versão não promete fila de gravação offline nem rascunhos nutricionais
 persistentes depois de fechar/navegar: não confundir com os rascunhos de treino.
+
+A validação de produtos identifica cada nutriente inválido junto do campo,
+explica os limites do schema e foca o primeiro erro, sem limpar os outros valores.
+Editar um consumo foca o título «Editar consumo: [alimento]»; guardar ou cancelar
+devolve o foco ao consumo de origem. Falhar a gravação mantém o formulário aberto.
