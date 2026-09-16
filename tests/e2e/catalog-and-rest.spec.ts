@@ -1,3 +1,4 @@
+import { chooseExercise } from "./exercise-selection";
 import { expect, test, type Page } from "@playwright/test";
 
 async function login(page: Page, partner = false) {
@@ -72,6 +73,7 @@ test("grouped sets preserve values and rest timer survives navigation on mobile"
   await login(page);
   await page.goto("/workouts/new");
   await page.waitForLoadState("networkidle");
+  await chooseExercise(page);
   await page.getByLabel("Repetições da série 1").fill("12");
   await page.getByLabel("Peso (kg) da série 1").fill("2,8");
   await page.getByRole("button", { name: "+ Série neste exercício" }).click();

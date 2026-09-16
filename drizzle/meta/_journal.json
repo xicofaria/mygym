@@ -64,6 +64,13 @@
       "when": 1788891897594,
       "tag": "0008_legal_skullbuster",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1789320185091,
+      "tag": "0009_natural_shooting_star",
+      "breakpoints": true
     }
   ]
 }

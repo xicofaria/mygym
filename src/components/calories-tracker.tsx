@@ -1,6 +1,6 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- private endpoints and attributed product photos */
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { getCalorieData } from "@/lib/calorie-queries";
 import {
@@ -37,12 +37,14 @@ export function CaloriesTracker({
   today,
   period,
   provider,
+  openGoal = false,
 }: {
   data: Awaited<ReturnType<typeof getCalorieData>>;
   date: string;
   today: string;
   period: "day" | "week" | "month";
   provider: "openai" | "openrouter";
+  openGoal?: boolean;
 }) {
   const router = useRouter();
   const [tab, setTab] = useState("diary");
@@ -68,6 +70,22 @@ export function CaloriesTracker({
   } | null>(null);
   const [goalInput, setGoalInput] = useState("");
   const [tolerance, setTolerance] = useState("10");
+  const goalDetails = useRef<HTMLDetailsElement>(null);
+  const goalField = useRef<HTMLInputElement>(null);
+  const entryHeading = useRef<HTMLHeadingElement>(null);
+  const editOrigin = useRef<HTMLButtonElement | null>(null);
+  const restoreEntryFocus = useRef(false);
+  useEffect(() => {
+    if (!editing || tab !== "diary") return;
+    entryHeading.current?.focus();
+    entryHeading.current?.scrollIntoView({ block: "center" });
+  }, [editing, tab]);
+  useEffect(() => {
+    if (pending || editing || tab !== "diary" || !restoreEntryFocus.current) return;
+    restoreEntryFocus.current = false;
+    editOrigin.current?.focus();
+    editOrigin.current?.scrollIntoView({ block: "center" });
+  }, [editing, pending, tab]);
   const entries = data.entries.filter((e) => e.date === date);
   const goal = goalForDate(data.goals, date);
   const currentGoal = goalForDate(data.goals, today);
@@ -173,6 +191,7 @@ export function CaloriesTracker({
     }
   }
   const resetEntry = () => {
+    if (editing) restoreEntryFocus.current = true;
     setPortionOverride(null);
     setQuantityMode("weight");
     setEditing(null);
@@ -180,7 +199,7 @@ export function CaloriesTracker({
     setProductId("");
   };
   return (
-    <div className="flex flex-col gap-5">
+    <div aria-busy={pending} className="flex flex-col gap-5">
       <header>
         <h1 className="text-2xl font-bold">Calorias</h1>
         <p className="text-sm text-zinc-500">
@@ -200,7 +219,6 @@ export function CaloriesTracker({
             className={`min-h-11 flex-1 border-b-2 text-sm font-medium transition-colors ${tab === value ? "border-indigo-600 text-indigo-600 dark:text-indigo-400" : "border-transparent text-zinc-500"}`}
             onClick={() => {
               setTab(value);
-              setEditor(null);
               setError("");
             }}
           >
@@ -264,10 +282,14 @@ export function CaloriesTracker({
                 </p>
               </>
             ) : (
-              <p className="text-sm text-zinc-500">
-                Define uma meta em baixo. Não propomos uma ingestão
-                personalizada.
-              </p>
+              <div className="flex flex-col items-start gap-2">
+                <p className="text-sm text-zinc-500">Ainda não definiste uma meta. Podes continuar a registar alimentos.</p>
+                <button type="button" className="btn-ghost" onClick={() => {
+                  if (goalDetails.current) goalDetails.current.open = true;
+                  goalField.current?.focus();
+                  goalField.current?.scrollIntoView({ block: "center" });
+                }}>Definir a minha meta</button>
+              </div>
             )}
             <div className="mt-4 grid grid-cols-3 gap-3">
               {(["protein", "carbs", "fat"] as const).map((key) => (
@@ -286,7 +308,7 @@ export function CaloriesTracker({
             )}
           </section>
           <form
-            aria-label="Adicionar ao diário"
+            aria-label={editing ? `Editar consumo: ${editing.snapshot.name}` : "Adicionar ao diário"}
             className="flex flex-col gap-3"
             onSubmit={(e) => {
               e.preventDefault();
@@ -318,8 +340,8 @@ export function CaloriesTracker({
               );
             }}
           >
-            <h2 className="font-semibold">
-              {editing ? "Editar consumo" : "Adicionar ao diário"}
+            <h2 ref={entryHeading} tabIndex={-1} className="font-semibold focus-visible:outline-2 focus-visible:outline-indigo-500">
+              {editing ? `Editar consumo: ${editing.snapshot.name}` : "Adicionar ao diário"}
             </h2>
             <label className="label">
               Alimento
@@ -491,7 +513,7 @@ export function CaloriesTracker({
               {editing ? "Guardar consumo" : "Registar consumo"}
             </button>
             {editing && (
-              <button type="button" className="btn-ghost" onClick={resetEntry}>
+              <button type="button" className="btn-ghost" disabled={pending} onClick={resetEntry}>
                 Cancelar edição
               </button>
             )}
@@ -500,7 +522,7 @@ export function CaloriesTracker({
               className="btn-ghost"
               onClick={() => {
                 setTab("products");
-                setEditor({});
+                setEditor((current) => current ?? {});
               }}
             >
               + Criar produto / fotografia
@@ -586,7 +608,9 @@ export function CaloriesTracker({
                         <button
                           type="button"
                           className="btn-ghost"
-                          onClick={() => {
+                          disabled={pending}
+                          onClick={(event) => {
+                            editOrigin.current = event.currentTarget;
                             setEditing(entry);
                             setPortionOverride(null);
                             setQuantityMode("weight");
@@ -628,7 +652,7 @@ export function CaloriesTracker({
               meta.
             </p>
           </section>
-          <details className="border-t border-black/10 pt-4 dark:border-white/10">
+          <details id="calorie-goal" ref={goalDetails} open={openGoal || undefined} className="border-t border-black/10 pt-4 dark:border-white/10">
             <summary className="cursor-pointer font-semibold">
               Definir meta diária
             </summary>
@@ -654,6 +678,8 @@ export function CaloriesTracker({
               <label className="label">
                 Meta (kcal)
                 <input
+                  ref={goalField}
+                  autoFocus={openGoal}
                   className="input"
                   inputMode="decimal"
                   required
@@ -679,8 +705,9 @@ export function CaloriesTracker({
           </details>
         </>
       )}
-      {tab === "products" &&
-        (editor ? (
+      {(tab === "products" || editor) && (
+        <div hidden={tab !== "products"}>
+        {editor ? (
           <FoodProductForm
             key={editor.id ?? "new"}
             initial={editor}
@@ -890,7 +917,9 @@ export function CaloriesTracker({
               ))}
             </section>
           </>
-        ))}
+        )}
+        </div>
+      )}
       {tab === "overview" && (
         <>
           <div className="flex gap-2">

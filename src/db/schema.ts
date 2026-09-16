@@ -29,6 +29,9 @@ export const users = sqliteTable("users", {
   passwordHash: text("password_hash").notNull(),
   emailVerifiedAt: integer("email_verified_at", { mode: "timestamp" }),
   tokenVersion: integer("token_version").notNull().default(0),
+  // Existing accounts skip onboarding; public registration opts new users in.
+  onboardingCompleted: integer("onboarding_completed", { mode: "boolean" })
+    .notNull().default(true),
   /** Opt-in: the weekly email is only sent to accounts that ask for it. */
   weeklyReportEnabled: integer("weekly_report_enabled", { mode: "boolean" })
     .notNull()

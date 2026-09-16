@@ -31,7 +31,7 @@ export function ProgressChart({
   minimal?: boolean;
 }) {
   return (
-    <div style={{ height }} className="w-full">
+    <div style={{ height }} className="progress-chart w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart
           data={data}
@@ -54,7 +54,7 @@ export function ProgressChart({
           <XAxis
             dataKey={xKey}
             hide={minimal}
-            tick={{ fontSize: 11, fill: "#a1a1aa" }}
+            tick={{ fontSize: 11, fill: "var(--chart-tick)" }}
             tickLine={false}
             axisLine={false}
             tickFormatter={(v: string) => fmtShortDate(v)}
@@ -63,7 +63,7 @@ export function ProgressChart({
           <YAxis
             hide={minimal}
             width={44}
-            tick={{ fontSize: 11, fill: "#a1a1aa" }}
+            tick={{ fontSize: 11, fill: "var(--chart-tick)" }}
             tickLine={false}
             axisLine={false}
             domain={["dataMin - 2", "dataMax + 2"]}

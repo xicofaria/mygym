@@ -34,6 +34,13 @@ estão em [AGENTS.md](../AGENTS.md).
   Keep server limits (1–1000 integer reps, 0–2000 kg, max 500 sets).
 - Local drafts are namespaced by authenticated user and form scope. Clear
   only after confirmed persistence; images must never enter local drafts.
+- Disable all set/date/exercise editing during submission. A new blank exercise
+  uses an explicit unselected placeholder, never the first catalogue entry.
+- Returning from workout/body forms explicitly keeps the local draft; discarding
+  modified input requires confirmation. Do not claim preservation when storage fails.
+- Dashboard recovery lists only the session user's local keys, preserving their
+  date/template/plan/repeat context. Resuming another date requires a choice;
+  starting today uses a separate local session scope and never deletes the old draft.
 - Group only consecutive sets of the same exercise; never reorder supersets.
   A group selector updates that block; duplication preserves decimal strings.
 - Rest timer uses a user-scoped absolute deadline in localStorage and never
@@ -90,6 +97,8 @@ estão em [AGENTS.md](../AGENTS.md).
   deletions reopen the affected day. No calorie recommendations or deficit rewards.
 - New tables: food_products, food_entries, calorie_goals, food_days (migration
   0003). Keep published 0000–0002 immutable.
+- Switching calorie tabs retains an open product editor. Warn before discarding
+  unsaved edits on cancellation/link navigation; do not claim persistent food drafts.
 - Product photos are an explicit exception to transient workout photos: private
   JPEG thumbnails, up to 160 KB decoded, served via authenticated no-store
   `/api/calories/photos/[id]`. Never send all photo blobs in page props, cache

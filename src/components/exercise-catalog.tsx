@@ -132,9 +132,12 @@ export function ExerciseCatalog({
                 )}
                 <p className="mt-1 text-xs text-zinc-500">
                   {ex.lastPerformed
-                    ? `Última: ${fmtShortDate(ex.lastPerformed)} · ${ex.bestWeight} kg`
+                    ? `Última sessão: ${fmtShortDate(ex.lastPerformed)} · ${ex.lastPerformance}`
                     : "Ainda não treinado"}
                 </p>
+                {ex.bestWeight != null && (
+                  <p className="text-xs text-zinc-500">Carga máxima registada: {ex.bestWeight} kg</p>
+                )}
               </Link>
               {isSelf && (
                 <button

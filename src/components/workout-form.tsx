@@ -15,11 +15,11 @@ import { MachinePhotoPicker } from "@/components/machine-photo-picker";
 import { ExercisePicker } from "@/components/exercise-picker";
 import { RestTimer } from "@/components/rest-timer";
 import type { SearchableExercise } from "@/lib/exercise-catalog";
+import { isWorkoutDraft } from "@/lib/workout-draft";
 
 type Ex = SearchableExercise;
 type Row = { exerciseId: number; reps: string; weight: string };
 type InitialRow = { exerciseId: number; reps?: number; weight?: number };
-type WorkoutDraft = { date: string; notes: string; rows: Row[] };
 
 const WORKOUT_DRAFT_PREFIX = "gym-tracker:workout-draft:";
 const NAMESPACED_WORKOUT_DRAFT = /^gym-tracker:workout-draft:user-\d+:/;
@@ -42,25 +42,6 @@ function removeLegacyWorkoutDrafts(storage: Storage, currentLegacyKey: string) {
     // A direct removal still works in some modes that block enumeration.
     removeLocalDraft(storage, currentLegacyKey);
   }
-}
-
-function isWorkoutDraft(value: unknown): value is WorkoutDraft {
-  if (typeof value !== "object" || value === null) return false;
-  const candidate = value as Partial<WorkoutDraft>;
-  return (
-    typeof candidate.date === "string" &&
-    typeof candidate.notes === "string" &&
-    Array.isArray(candidate.rows) &&
-    candidate.rows.length > 0 &&
-    candidate.rows.every(
-      (row) =>
-        typeof row === "object" &&
-        row !== null &&
-        typeof row.exerciseId === "number" &&
-        typeof row.reps === "string" &&
-        typeof row.weight === "string",
-    )
-  );
 }
 
 export function WorkoutForm({
@@ -92,7 +73,8 @@ export function WorkoutForm({
   aiProvider?: "openai" | "openrouter";
 }) {
   const router = useRouter();
-  const firstId = exercises[0]?.id ?? 0;
+  // Zero is a placeholder, never a catalogue choice or a valid persisted ID.
+  const firstId = 0;
   const [extraExercises, setExtraExercises] = useState<Ex[]>([]);
   const allExercises = useMemo(() => {
     const known = new Set(exercises.map((ex) => ex.id));
@@ -114,6 +96,8 @@ export function WorkoutForm({
   const [draftReady, setDraftReady] = useState(false);
   const [restoredDraft, setRestoredDraft] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [needsResumeChoice, setNeedsResumeChoice] = useState(false);
   const submittingRef = useRef(false);
   const legacyDraftKey =
     `${WORKOUT_DRAFT_PREFIX}${workoutId ?? "new"}` +
@@ -137,18 +121,21 @@ export function WorkoutForm({
         setRows(draft.rows);
         setRestoredDraft(true);
         setDirty(true);
+        setDraftSaved(true);
+        setNeedsResumeChoice(workoutId == null && draft.date !== toDateInputValue());
       }
       setDraftReady(true);
     });
     return () => {
       cancelled = true;
     };
-  }, [draftKey, legacyDraftKey]);
+  }, [draftKey, legacyDraftKey, workoutId]);
 
   useEffect(() => {
-    if (!draftReady || !dirty || submittingRef.current) return;
-    writeLocalDraft(localStorage, draftKey, { date, notes, rows });
-  }, [date, dirty, draftKey, draftReady, notes, rows]);
+    if (!draftReady || !dirty || needsResumeChoice || submittingRef.current) return;
+    const saved = writeLocalDraft(localStorage, draftKey, { date, notes, rows });
+    queueMicrotask(() => setDraftSaved(saved));
+  }, [date, dirty, draftKey, draftReady, needsResumeChoice, notes, rows]);
 
   function update(i: number, patch: Partial<Row>) {
     setDirty(true);
@@ -179,6 +166,7 @@ export function WorkoutForm({
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (submittingRef.current || needsResumeChoice) return;
     setError(null);
     const entries = rows.map((r) => ({
       exerciseId: Number(r.exerciseId),
@@ -207,14 +195,16 @@ export function WorkoutForm({
     );
     if (invalidIndex !== -1) {
       setError(
-        `Verifica a série ${invalidIndex + 1}: indica 1 a 1000 repetições e um peso entre 0 e 2000 kg.`,
+        !allExercises.some((ex) => ex.id === entries[invalidIndex].exerciseId)
+          ? `Escolhe o exercício da série ${invalidIndex + 1}.`
+          : `Verifica a série ${invalidIndex + 1}: indica 1 a 1000 repetições e um peso entre 0 e 2000 kg.`,
       );
       return;
     }
 
     const draft = { date, notes, rows };
     submittingRef.current = true;
-    removeLocalDraft(localStorage, draftKey);
+    setDraftSaved(writeLocalDraft(localStorage, draftKey, draft));
 
     start(async () => {
       try {
@@ -235,21 +225,24 @@ export function WorkoutForm({
             : await updateWorkout(workoutId, input);
         if (res?.error) {
           submittingRef.current = false;
-          writeLocalDraft(localStorage, draftKey, draft);
+          setDraftSaved(writeLocalDraft(localStorage, draftKey, draft));
           setError(res.error);
           return;
         }
-        // A passive draft effect may have raced with the first removal while
-        // the action was in flight. Clear once more after the server confirms
-        // the write, then navigate from the client.
+        // Clear only after the server confirms the write.
         removeLocalDraft(localStorage, draftKey);
+        setDirty(false);
+        setDraftSaved(false);
         submittingRef.current = false;
         router.push("/workouts");
       } catch {
         submittingRef.current = false;
-        writeLocalDraft(localStorage, draftKey, draft);
+        const saved = writeLocalDraft(localStorage, draftKey, draft);
+        setDraftSaved(saved);
         setError(
-          "Sem ligação ao servidor. O rascunho ficou guardado neste dispositivo.",
+          saved
+            ? "Sem ligação ao servidor. O rascunho ficou guardado neste dispositivo."
+            : "Sem ligação ao servidor. Não foi possível guardar o rascunho neste dispositivo. Mantém este formulário aberto e tenta novamente.",
         );
       }
     });
@@ -279,7 +272,14 @@ export function WorkoutForm({
   };
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4">
+    <form onSubmit={submit} aria-busy={pending} className="flex flex-col gap-4">
+      {needsResumeChoice && <section aria-label="Retomar rascunho" className="card flex flex-col gap-3">
+        <h2 className="font-semibold">Tens um treino de {date.split("-").reverse().join("/")} por guardar</h2>
+        <p className="text-sm">Continuar mantém a data original. Começar hoje conserva este rascunho para retomares no Início.</p>
+        <button type="button" className="btn-primary" onClick={() => setNeedsResumeChoice(false)}>Continuar este treino</button>
+        <button type="button" className="btn-ghost" onClick={() => router.push(`/workouts/new?session=${crypto.randomUUID()}`)}>Começar um treino hoje</button>
+      </section>}
+      <fieldset disabled={pending || needsResumeChoice || !draftReady} className="contents">
       <div className="card grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="workout-date">
@@ -459,9 +459,7 @@ export function WorkoutForm({
           onClick={() => {
             setDirty(true);
             // Start a new block without altering any existing set.
-            const exerciseId =
-              allExercises.find((ex) => ex.id !== rows.at(-1)?.exerciseId)?.id ??
-              firstId;
+            const exerciseId = 0;
             setRows((current) => [
               ...current,
               { exerciseId, reps: "", weight: "" },
@@ -489,6 +487,14 @@ export function WorkoutForm({
         </p>
       )}
 
+      {dirty && !pending && !error && (
+        <p role="status" className="text-xs text-zinc-500 dark:text-zinc-400">
+          {draftSaved
+            ? "Rascunho guardado neste dispositivo. Falta guardar o treino no servidor."
+            : "Não foi possível guardar o rascunho neste dispositivo. Mantém o formulário aberto até guardar o treino."}
+        </p>
+      )}
+
       <button
         type="submit"
         className="btn-primary sticky bottom-24 w-full shadow-lg"
@@ -500,6 +506,20 @@ export function WorkoutForm({
             ? "Guardar treino"
             : "Guardar alterações"}
       </button>
+      <button type="button" className="btn-ghost" onClick={() => {
+        if (dirty && !writeLocalDraft(localStorage, draftKey, { date, notes, rows })) {
+          setError("Não foi possível guardar o rascunho. Mantém o formulário aberto ou escolhe descartar alterações.");
+          return;
+        }
+        router.push("/workouts");
+      }}>Voltar — manter rascunho</button>
+      <button type="button" className="btn-ghost" onClick={() => {
+        if (dirty && !window.confirm("Descartar as alterações deste treino? O rascunho será removido deste dispositivo.")) return;
+        removeLocalDraft(localStorage, draftKey);
+        setDirty(false);
+        router.push("/workouts");
+      }}>Descartar alterações</button>
+      </fieldset>
     </form>
   );
 }
