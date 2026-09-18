@@ -12,7 +12,6 @@ export function ProductCatalogue({
   catalogueButtonRef,
   barcodeFieldRef,
   onOpenProduct,
-  onBarcode,
   onConsume,
   onArchive,
   onError,
@@ -26,13 +25,11 @@ export function ProductCatalogue({
     trigger: HTMLElement,
     manual?: boolean,
   ) => void;
-  onBarcode: () => void;
   onConsume: (product: FoodProduct) => void;
   onArchive: (product: FoodProduct) => void;
   onError: (message: string) => void;
 }) {
   const [search, setSearch] = useState("");
-  const [addMethods, setAddMethods] = useState(false);
   const filtered = products.filter((p) =>
     (p.name + " " + p.brand)
       .toLocaleLowerCase("pt")
@@ -44,40 +41,10 @@ export function ProductCatalogue({
         type="button"
         ref={catalogueButtonRef}
         className="btn-primary self-start"
-        aria-expanded={addMethods}
-        onClick={() => setAddMethods(!addMethods)}
+        onClick={(event) => onOpenProduct({}, event.currentTarget, true)}
       >
         + Novo produto
       </button>
-      {addMethods && (
-        <section
-          aria-label="Como adicionar produto"
-          className="flex flex-col gap-2 rounded-xl border border-black/10 p-3 dark:border-white/10"
-        >
-          <h2 className="font-semibold">Como queres adicionar?</h2>
-          <button
-            className="btn-ghost"
-            onClick={(event) => onOpenProduct({}, event.currentTarget, true)}
-          >
-            Preencher manualmente
-          </button>
-          <button
-            className="btn-ghost"
-            onClick={(event) => onOpenProduct({}, event.currentTarget)}
-          >
-            Fotografar rótulo / alimento
-          </button>
-          <button
-            className="btn-ghost"
-            onClick={() => {
-              setAddMethods(false);
-              onBarcode();
-            }}
-          >
-            Introduzir código de barras
-          </button>
-        </section>
-      )}
       {products.length > 0 && (
         <label className="label">
           Pesquisar no meu catálogo
