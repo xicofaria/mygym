@@ -12,6 +12,9 @@ import {
   nutritionTotal,
   periodDates,
   productSchema,
+  productInputSchema,
+  nutritionInputSchema,
+  nutrientsAtReference,
   scaleNutrition,
   type FoodEntry,
 } from "../../src/lib/nutrition";
@@ -28,6 +31,34 @@ const snapshot = productSchema.parse({
   source: "manual",
   sourceUrl: "",
   imageUrl: "",
+});
+test("reference quantities normalize once, keep unknowns and restore the selected basis", () => {
+  for (const [quantity, kcal, expected, unit, kind] of [
+    [125, 95, 76, "g", "package"],
+    [30, 120, 400, "g", "serving"],
+    [250, 150, 60, "ml", "custom"],
+  ] as const) {
+    const reference = { kind, quantity, unit, origin: "manual" };
+    const result = productInputSchema.parse({ ...snapshot, unit, nutritionInput: { reference, nutrients: { ...emptyNutrients, kcal, fat: 0 } } });
+    assert.equal(result.nutrients.kcal, expected);
+    assert.equal(result.nutrients.fat, 0);
+    assert.equal(result.nutrients.protein, null);
+    assert.equal(nutrientsAtReference(result.nutrients, quantity).kcal, kcal);
+    assert.deepEqual(productInputSchema.parse(result), result);
+    assert.deepEqual(snapshot.details, emptyProductDetails);
+    if (kind === "package") assert.equal(result.details.packageQuantity, quantity);
+  }
+});
+test("reference validation rejects invalid mass, unit mismatches and invalid normalized nutrients", () => {
+  const reference = { kind: "serving", quantity: 250, unit: "g", origin: "manual" };
+  const nutrients = { ...emptyNutrients, kcal: 500, protein: 125 };
+  assert.equal(nutritionInputSchema.safeParse({ reference, nutrients }).success, true);
+  for (const quantity of [0, -1, NaN, Infinity, 10001, null])
+    assert.equal(nutritionInputSchema.safeParse({ reference: { ...reference, quantity }, nutrients }).success, false);
+  assert.equal(nutritionInputSchema.safeParse({ reference: { ...reference, kind: "standard" }, nutrients }).success, false);
+  assert.equal(nutritionInputSchema.safeParse({ reference: { ...reference, quantity: 10 }, nutrients }).success, false);
+  assert.equal(productInputSchema.safeParse({ ...snapshot, unit: "ml", nutritionInput: { reference, nutrients } }).success, false);
+  assert.equal(productInputSchema.safeParse(snapshot).success, true);
 });
 test("diary computes canonical grams from units and preserves nutritional history", () => {
   const result = applyDiaryPortion(snapshot, 999, {

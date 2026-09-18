@@ -56,6 +56,40 @@ export const foodStores = [
   ["aldi", "Aldi"],
 ] as const;
 const portionAmount = z.number().finite().positive().max(10000).nullable();
+export const nutritionReferenceSchema = z.object({
+  kind: z.enum(["standard", "serving", "package", "custom"]),
+  quantity: z.number().finite().positive().max(10000),
+  unit: z.enum(["g", "ml"]),
+  origin: z.enum(["manual", "label", "assumed"]),
+});
+export type NutritionReference = z.infer<typeof nutritionReferenceSchema>;
+export const referenceNutrientsSchema = nutrientsSchema.extend({
+  kcal: z.number().finite().min(0).max(100000),
+  ...Object.fromEntries(
+    nutrientKeys.filter((key) => key !== "kcal").map((key) => [key, z.number().finite().min(0).max(10000).nullable()]),
+  ) as Record<Exclude<typeof nutrientKeys[number], "kcal">, z.ZodNullable<z.ZodNumber>>,
+});
+export const nutritionInputSchema = z.object({
+  reference: nutritionReferenceSchema,
+  nutrients: referenceNutrientsSchema,
+}).superRefine(({ reference, nutrients }, ctx) => {
+  if (reference.kind === "standard" && reference.quantity !== 100)
+    ctx.addIssue({ code: "custom", path: ["reference", "quantity"], message: "A base padrão é 100 g/ml." });
+  const normalized = nutrientsSchema.safeParse(nutrientsPer100(nutrients, reference.quantity));
+  if (!normalized.success)
+    for (const issue of normalized.error.issues)
+      ctx.addIssue({ code: "custom", path: ["nutrients", ...issue.path], message: issue.message });
+});
+export function nutrientsPer100(nutrients: Nutrients, quantity: number): Nutrients {
+  return Object.fromEntries(nutrientKeys.map((key) => [key,
+    nutrients[key] === null ? null : nutrients[key] * (100 / quantity),
+  ])) as Nutrients;
+}
+export function nutrientsAtReference(nutrients: Nutrients, quantity: number): Nutrients {
+  return Object.fromEntries(nutrientKeys.map((key) => [key,
+    nutrients[key] === null ? null : nutrients[key] * (quantity / 100),
+  ])) as Nutrients;
+}
 export const unitSuggestionSchema = z.object({
   quantity: portionAmount,
   unit: z.enum(["g", "ml"]),
@@ -63,6 +97,7 @@ export const unitSuggestionSchema = z.object({
   explanation: z.string().max(1000),
 });
 export const productDetailsSchema = z.object({
+  nutritionReference: nutritionReferenceSchema.optional(),
   packageQuantity: portionAmount,
   pieceQuantity: portionAmount,
   packageEstimated: z.boolean(),
@@ -101,6 +136,25 @@ export const productSchema = z.object({
       .max(500)
       .refine((url) => /^https:\/\/images\.openfoodfacts\.org\//.test(url)),
   ]),
+});
+// An explicit raw-input envelope avoids confusing canonical imports/snapshots
+// with the numbers transcribed from a label. Normalize only at this boundary.
+export const productInputSchema = productSchema.extend({
+  nutritionInput: nutritionInputSchema.optional(),
+}).transform(({ nutritionInput, ...product }, ctx) => {
+  const reference = nutritionInput?.reference ?? product.details.nutritionReference;
+  if (reference && (reference.unit !== product.unit || (reference.kind === "standard" && reference.quantity !== 100))) {
+    ctx.addIssue({ code: "custom", path: ["nutritionInput", "reference"], message: "Confirma a unidade e a base nutricional." });
+    return z.NEVER;
+  }
+  if (!nutritionInput) return product;
+  return {
+    ...product,
+    nutrients: nutrientsPer100(nutritionInput.nutrients, nutritionInput.reference.quantity),
+    details: { ...product.details, nutritionReference: nutritionInput.reference,
+      ...(nutritionInput.reference.kind === "package" ? { packageQuantity: nutritionInput.reference.quantity, packageEstimated: nutritionInput.reference.origin === "assumed" } : {}),
+    },
+  };
 });
 export type FoodProduct = z.infer<typeof productSchema> & {
   id: number;

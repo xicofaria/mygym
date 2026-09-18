@@ -1,22 +1,43 @@
 "use client";
-/* eslint-disable @next/next/no-img-element -- private JPEG endpoints and attributed external product images */
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { saveFoodProduct } from "@/app/(app)/calories/actions";
 import {
   emptyNutrients,
   emptyProductDetails,
   foodStores,
   nutrientKeys,
-  nutrientLabels,
   productSchema,
+  productInputSchema,
+  nutrientsAtReference,
+  type NutritionReference,
   type FoodProduct,
 } from "@/lib/nutrition";
 import { parseWeight } from "@/lib/decimal";
-import { preparePhoto } from "@/lib/prepare-photo";
-import { AIThinking } from "./ai-thinking";
-import { AIPhotoPrompt } from "./ai-photo-prompt";
+import { useAction } from "@/lib/use-action";
+import { NutritionTable } from "./calories/nutrition-table";
+import {
+  nutrientsFromFields,
+  productFieldErrors,
+} from "./calories/product-input";
+import { ProductCandidates } from "./calories/product-candidates";
+import { ProductPhotoSection } from "./calories/product-photo-section";
+import { useUnsavedGuard } from "./calories/use-unsaved-guard";
+import {
+  usePhotoAnalysis,
+  type AnalyzedProduct,
+  type ProductCandidate,
+} from "./calories/use-photo-analysis";
 
-type ProductCandidate = Omit<FoodProduct, "id" | "hasPhoto">;
+// Normalizing to 100 g/ml leaves float noise (0.104 becomes 0.10400000000000001),
+// so the fields show a decimal the person could have typed themselves.
+const showNutrient = (value: number) => String(Math.round(value * 1e4) / 1e4);
+
+const standardReference = (unit: "g" | "ml"): NutritionReference => ({
+  kind: "standard",
+  quantity: 100,
+  unit,
+  origin: "manual",
+});
 
 export function FoodProductForm({
   initial,
@@ -32,6 +53,10 @@ export function FoodProductForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [brand, setBrand] = useState(initial?.brand ?? "");
   const [unit, setUnit] = useState<"g" | "ml">(initial?.unit ?? "g");
+  const [reference, setReference] = useState<NutritionReference>(
+    initial?.details?.nutritionReference ?? standardReference(initial?.unit ?? "g"),
+  );
+  const [nutritionChanged, setNutritionChanged] = useState(false);
   const [details, setDetails] = useState(
     initial?.details ?? emptyProductDetails,
   );
@@ -39,178 +64,63 @@ export function FoodProductForm({
     Object.fromEntries(
       nutrientKeys.map((k) => [
         k,
-        initial?.nutrients?.[k] == null ? "" : String(initial.nutrients[k]),
+        initial?.nutrients?.[k] == null
+          ? ""
+          : showNutrient(
+              nutrientsAtReference(initial.nutrients, reference.quantity)[k]!,
+            ),
       ]),
     ),
   );
   const [source, setSource] = useState(initial?.source ?? "manual");
   const [candidates, setCandidates] = useState<ProductCandidate[]>([]);
   const [chosen, setChosen] = useState<ProductCandidate | null>(null);
-  const [photo, setPhoto] = useState<string | null | undefined>(undefined);
-  const [blob, setBlob] = useState<Blob | null>(null);
-  const [mode, setMode] = useState("estimate");
   const [notice, setNotice] = useState("");
   const [confirmed, setConfirmed] = useState(false);
-  const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const formRef = useRef<HTMLFormElement>(null);
-  const [busy, setBusy] = useState(false);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [photoExpanded, setPhotoExpanded] = useState(true);
-  const [pending, start] = useTransition();
-  const generation = useRef(0);
-  const request = useRef<AbortController | null>(null);
-  const dirty = useRef(false);
-  useEffect(() => {
-    const unload = (event: BeforeUnloadEvent) => {
-      if (!dirty.current) return;
-      event.preventDefault();
-      event.returnValue = "";
-    };
-    const navigate = (event: MouseEvent) => {
-      if (!dirty.current || event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-      const link = (event.target as Element).closest?.("a[href]") as HTMLAnchorElement | null;
-      if (!link || link.target === "_blank" || link.hasAttribute("download") || link.href === location.href) return;
-      if (!window.confirm("Sair e descartar as alterações deste produto?")) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    };
-    window.addEventListener("beforeunload", unload);
-    document.addEventListener("click", navigate, true);
-    return () => {
-      window.removeEventListener("beforeunload", unload);
-      document.removeEventListener("click", navigate, true);
-    };
-  }, []);
-  useEffect(
-    () => () => {
-      generation.current++;
-      request.current?.abort();
-    },
-    [],
+  const dirtyRef = useRef(false);
+  const { pending, error, setError, run } = useAction(
+    "Sem ligação. Mantivemos os dados neste formulário; tenta guardar novamente.",
   );
+  useUnsavedGuard(dirtyRef, "Sair e descartar as alterações deste produto?");
 
-  async function choose(file?: File) {
-    if (!file) return;
-    dirty.current = true;
-    const current = ++generation.current;
-    request.current?.abort();
-    setBusy(true);
-    setError("");
-    setNotice("");
-    // Uma fotografia nova invalida a análise anterior: manter candidatos,
-    // proveniência ou a revisão já feita gravaria valores de outra imagem.
-    setCandidates([]);
-    setChosen(null);
-    setConfirmed(false);
-    setAnalyzing(false);
-    setPhotoExpanded(true);
-    try {
-      const prepared = await preparePhoto(file);
-      const thumb = await preparePhoto(file, {
-        maxSide: 512,
-        maxBytes: 140000,
-      });
-      const data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(String(reader.result));
-        reader.onerror = () =>
-          reject(new Error("Não foi possível ler a foto."));
-        reader.readAsDataURL(thumb);
-      });
-      if (current !== generation.current) return;
-      setBlob(prepared);
-      setPhoto(data);
-    } catch (e) {
-      if (current === generation.current)
-        setError(
-          e instanceof Error
-            ? e.message
-            : "Escolhe uma imagem JPEG, PNG, WebP ou HEIC até 20 MB.",
-        );
-    } finally {
-      if (current === generation.current) setBusy(false);
-    }
-  }
-  async function analyze() {
-    if (!blob || busy || pending) return;
-    const current = ++generation.current;
-    const controller = new AbortController();
-    request.current = controller;
-    setBusy(true);
-    setAnalyzing(true);
-    setError("");
-    setConfirmed(false);
-    setCandidates([]);
-    setChosen(null);
-    try {
-      const response = await fetch("/api/calories/recognize", {
-        method: "POST",
-        body: blob,
-        headers: { "Content-Type": "image/jpeg", "x-food-mode": mode },
-        signal: AbortSignal.any([
-          controller.signal,
-          AbortSignal.timeout(130000),
+  function applyAnalysis(data: AnalyzedProduct) {
+    setName(data.name);
+    setBrand(data.brand);
+    setUnit(data.unit);
+    setDetails(data.details);
+    const next =
+      data.details.nutritionReference ?? standardReference(data.unit);
+    setReference(next);
+    setNutritionChanged(true);
+    setSource(data.source);
+    setValues(
+      Object.fromEntries(
+        nutrientKeys.map((k) => [
+          k,
+          data.nutrients[k] === null
+            ? ""
+            : showNutrient(nutrientsAtReference(data.nutrients, next.quantity)[k]!),
         ]),
-      });
-      const body = await response.json();
-      if (current !== generation.current) return;
-      if (!response.ok) throw new Error(body.error || "Análise indisponível.");
-      setNotice(
-        typeof body.explanation === "string"
-          ? body.explanation
-          : "Confirma os valores.",
-      );
-      setCandidates(
-        Array.isArray(body.candidates) ? body.candidates.slice(0, 3) : [],
-      );
-      if (!body.product) {
-        setPhotoExpanded(true);
-        return;
-      }
-      const data = productSchema.parse({
-        ...body.product,
-        source: mode === "label" ? "label-ai" : "estimate-ai",
-        sourceUrl: "",
-        imageUrl: "",
-      });
-      setName(data.name);
-      setBrand(data.brand);
-      setUnit(data.unit);
-      setDetails(data.details);
-      setSource(data.source);
-      setPhotoExpanded(false);
-      setValues(
-        Object.fromEntries(
-          nutrientKeys.map((k) => [
-            k,
-            data.nutrients[k] === null ? "" : String(data.nutrients[k]),
-          ]),
-        ),
-      );
-    } catch (e) {
-      if (current === generation.current) {
-        setPhotoExpanded(true);
-        setError(e instanceof Error ? e.message : "Não foi possível analisar.");
-      }
-    } finally {
-      if (current === generation.current) {
-        setBusy(false);
-        setAnalyzing(false);
-      }
-    }
-  }
-  function cancelAnalysis() {
-    generation.current++;
-    request.current?.abort();
-    setBusy(false);
-    setAnalyzing(false);
-    setPhotoExpanded(true);
-    setNotice(
-      "Análise cancelada. A fotografia e os campos foram mantidos; uma chamada já enviada pode ser cobrada.",
+      ),
     );
   }
+  const photoAnalysis = usePhotoAnalysis({
+    pending,
+    dirtyRef,
+    onError: setError,
+    onNotice: setNotice,
+    onCandidates: setCandidates,
+    onInvalidate: () => {
+      setCandidates([]);
+      setChosen(null);
+      setConfirmed(false);
+    },
+    onProduct: applyAnalysis,
+  });
+  const { photo, busy } = photoAnalysis;
+
   function applyCandidate(candidate: ProductCandidate) {
     const parsed = productSchema.safeParse({
       name: candidate.name,
@@ -232,6 +142,8 @@ export function FoodProductForm({
     setBrand(parsed.data.brand);
     setUnit(parsed.data.unit);
     setDetails(parsed.data.details);
+    setReference(standardReference(parsed.data.unit));
+    setNutritionChanged(true);
     setValues(
       Object.fromEntries(
         nutrientKeys.map((key) => [
@@ -244,33 +156,40 @@ export function FoodProductForm({
     );
     setConfirmed(false);
     setCandidates([]);
-    setPhotoExpanded(false);
+    photoAnalysis.setPhotoExpanded(false);
     setNotice(
       "Correspondência Open Food Facts aplicada. Confirma o produto e os valores antes de guardar.",
     );
   }
-  function dismissCandidates() {
-    setCandidates([]);
-    setNotice(
-      "Nenhuma correspondência usada. Confirma os valores da análise antes de guardar.",
-    );
-  }
+
   function save(e: React.FormEvent) {
     e.preventDefault();
+    if (
+      formRef.current?.querySelector('[aria-label="Confirmar alteração da base"]')
+    ) {
+      setError("Aplica a alteração da base nutricional antes de guardar.");
+      formRef.current
+        .querySelector<HTMLButtonElement>(
+          '[aria-label="Confirmar alteração da base"] button',
+        )
+        ?.focus();
+      return;
+    }
     setError("");
     setFieldErrors({});
-    const nutrients = { ...emptyNutrients };
-    for (const key of nutrientKeys)
-      nutrients[key] = (
-        values[key].trim() === "" && key !== "kcal"
-          ? null
-          : parseWeight(values[key])
-      ) as never;
-    const parsed = productSchema.safeParse({
+    const nutrients = nutrientsFromFields(values);
+    const input = {
       name,
       brand,
       unit,
-      nutrients,
+      nutrients:
+        !nutritionChanged && initial?.nutrients
+          ? initial.nutrients
+          : emptyNutrients,
+      nutritionInput:
+        !nutritionChanged && initial?.nutrients
+          ? undefined
+          : { reference, nutrients },
       details,
       source,
       sourceUrl:
@@ -281,52 +200,46 @@ export function FoodProductForm({
         photo !== undefined
           ? ""
           : (chosen?.imageUrl ?? initial?.imageUrl ?? ""),
-    });
+    };
+    const parsed = productInputSchema.safeParse(input);
     if (!parsed.success) {
-      const errors: Record<string, string> = {};
-      for (const issue of parsed.error.issues) {
-        const key = issue.path[0] === "nutrients" ? String(issue.path[1]) : String(issue.path[0]);
-        if (nutrientKeys.includes(key as typeof nutrientKeys[number])) {
-          errors[key] = `${nutrientLabels[key as typeof nutrientKeys[number]]}: indica um valor entre 0 e ${key === "kcal" ? "1000 kcal" : "100 g"} por 100 ${unit}. Usa ponto ou vírgula.${key !== "kcal" ? " Se desconhecido, deixa vazio." : ""}`;
-        } else if (key === "name") errors.name = "Indica o nome do alimento (1 a 120 caracteres).";
-        else if (key === "brand") errors.brand = "A marca / loja pode ter até 80 caracteres.";
-      }
+      const errors = productFieldErrors(parsed.error, reference, unit);
       setFieldErrors(errors);
-      setError(Object.keys(errors).length ? "Corrige os campos assinalados antes de guardar." : "Não foi possível validar este produto. Revê a origem e os dados sugeridos.");
+      setError(
+        Object.keys(errors).length
+          ? "Corrige os campos assinalados antes de guardar."
+          : "Não foi possível validar este produto. Revê a origem e os dados sugeridos.",
+      );
       const first = Object.keys(errors)[0];
-      if (first) requestAnimationFrame(() => {
-        const input = formRef.current?.querySelector<HTMLInputElement>(`[name="${first}"]`);
-        input?.focus();
-        input?.scrollIntoView({ block: "center" });
-      });
+      if (first)
+        requestAnimationFrame(() => {
+          const field = formRef.current?.querySelector<HTMLInputElement>(
+            `[name="${first}"]`,
+          );
+          field?.focus();
+          field?.scrollIntoView({ block: "center" });
+        });
       return;
     }
     if (source !== "manual" && !confirmed) {
       setError("Confirma os valores sugeridos antes de guardar.");
       return;
     }
-    start(async () => {
-      try {
-        const result = await saveFoodProduct({
-          ...parsed.data,
-          id: initial?.id,
-          photo,
-        });
-        if (result.error) {
-          setError(result.error);
-          return;
-        }
-        if ("id" in result) {
-          dirty.current = false;
-          onSaved(result.id, parsed.data);
-        }
-      } catch {
-        setError(
-          "Sem ligação. Mantivemos os dados neste formulário; tenta guardar novamente.",
-        );
+    run(async () => {
+      const result = await saveFoodProduct({
+        ...input,
+        id: initial?.id,
+        photo,
+      });
+      if (result.error) return { error: result.error };
+      if ("id" in result) {
+        dirtyRef.current = false;
+        onSaved(result.id, parsed.data);
       }
+      return undefined;
     });
   }
+
   const preview =
     photo === null
       ? ""
@@ -340,345 +253,192 @@ export function FoodProductForm({
       aria-busy={pending || busy}
       noValidate
       onSubmit={save}
-      onChangeCapture={() => { dirty.current = true; }}
+      onChangeCapture={() => {
+        dirtyRef.current = true;
+      }}
       className="flex flex-col gap-4"
       aria-label="Produto alimentar"
     >
-      <h2 className="text-lg font-semibold">
-        {initial?.id ? "Editar produto" : "Adicionar produto"}
-      </h2>
-      <AIPhotoPrompt
-        headingLevel={3}
-        regionLabel="Preenchimento por fotografia"
-        title="Não sabes os valores nutricionais?"
-        description="Fotografa o rótulo do produto. A IA preenche a tabela nutricional e tu confirmas antes de guardar."
-        cameraLabel="Fotografar alimento"
-        libraryLabel="Escolher fotografia do alimento"
-        hasPhoto={Boolean(preview)}
-        disabled={busy || pending}
-        onFile={(file) => void choose(file)}
-      >
-        <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-400">
-          O rótulo dá os valores mais fiáveis. Podes ignorar a IA e preencher a
-          tabela à mão nos campos abaixo.
-        </p>
-        {preview && !photoExpanded && (
-          <div className="mt-3 flex items-center gap-3">
-            <img
-              src={preview}
-              alt="Miniatura do produto"
-              className="h-12 w-12 shrink-0 rounded-lg bg-black/5 object-contain dark:bg-white/5"
-              referrerPolicy="no-referrer"
-            />
-            <p className="min-w-0 flex-1 text-xs text-zinc-600 dark:text-zinc-400">
-              Fotografia guardada com o produto.
-            </p>
-            <button
-              type="button"
-              className="btn-ghost shrink-0"
-              disabled={pending}
-              onClick={() => setPhotoExpanded(true)}
-            >
-              Ver ou analisar
-            </button>
-          </div>
-        )}
-        {preview && photoExpanded && (
-          <img
-            src={preview}
-            alt="Fotografia do produto"
-            className="mt-3 max-h-56 w-full rounded-xl bg-black/5 object-contain dark:bg-white/5"
-            referrerPolicy="no-referrer"
-          />
-        )}
-        {photoExpanded && (preview || blob) && (
-          <button
-            type="button"
-            className="btn-ghost mt-3 min-h-12"
-            disabled={pending}
-            onClick={() => {
-              dirty.current = true;
-              generation.current++;
-              request.current?.abort();
-              setPhoto(null);
-              setBlob(null);
-              setBusy(false);
-              setAnalyzing(false);
-              setCandidates([]);
-            }}
+      <fieldset disabled={pending} className="flex min-w-0 flex-col gap-4">
+        <h2
+          tabIndex={-1}
+          className="text-lg font-semibold focus-visible:outline-2 focus-visible:outline-indigo-500"
+        >
+          {initial?.id ? "Editar produto" : "Adicionar produto"}
+        </h2>
+        <ProductPhotoSection
+          preview={preview}
+          blob={photoAnalysis.blob}
+          busy={busy}
+          analyzing={photoAnalysis.analyzing}
+          pending={pending}
+          photoExpanded={photoAnalysis.photoExpanded}
+          mode={photoAnalysis.mode}
+          provider={provider}
+          onMode={photoAnalysis.setMode}
+          onExpand={() => photoAnalysis.setPhotoExpanded(true)}
+          onFile={(file) => void photoAnalysis.choose(file)}
+          onAnalyze={() => void photoAnalysis.analyze()}
+          onRemove={photoAnalysis.remove}
+          onCancel={photoAnalysis.cancel}
+        />
+        {notice && (
+          <p
+            role="status"
+            className="text-sm text-indigo-700 dark:text-indigo-300"
           >
-            Remover fotografia
-          </button>
+            {notice}
+          </p>
         )}
-        {blob && photoExpanded && (
-          <div className="mt-3 border-t border-indigo-200 pt-3 dark:border-indigo-900">
-            <label className="label">
-              Tipo de análise
-              <select
-                className="input"
-                value={mode}
-                onChange={(e) => setMode(e.target.value)}
-                disabled={busy}
-              >
-                <option value="estimate">
-                  Preencher com IA (permite estimativas)
-                </option>
-                <option value="label">Só valores legíveis do rótulo</option>
-              </select>
-            </label>
-            <p className="my-2 text-xs text-zinc-600 dark:text-zinc-400">
-              Ao analisar, envias esta imagem{" "}
-              {provider === "openrouter"
-                ? "ao OpenRouter e ao fornecedor que executar o modelo"
-                : "à OpenAI"}
-              , e o nome, marca e código de barras identificados seguem para o
-              Open Food Facts à procura de correspondências. Evita incluir
-              pessoas. A foto reduzida só fica no teu catálogo quando guardares
-              o produto.
-            </p>
-            <button
-              type="button"
-              className="btn-primary min-h-12 w-full"
-              disabled={busy || pending}
-              onClick={() => void analyze()}
+        <ProductCandidates
+          candidates={candidates}
+          onApply={applyCandidate}
+          onDismiss={() => {
+            setCandidates([]);
+            setNotice(
+              "Nenhuma correspondência usada. Confirma os valores da análise antes de guardar.",
+            );
+          }}
+        />
+        <label className="label">
+          Nome do alimento
+          <input
+            name="name"
+            aria-invalid={Boolean(fieldErrors.name)}
+            aria-describedby={fieldErrors.name ? "food-error-name" : undefined}
+            className="input"
+            required
+            maxLength={120}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          {fieldErrors.name && (
+            <span
+              id="food-error-name"
+              className="text-xs text-red-600 dark:text-red-400"
             >
-              {busy ? "A analisar…" : "Analisar alimento"}
-            </button>
-          </div>
-        )}
-        <div aria-live="polite" aria-atomic="true">
-          {busy && !analyzing && (
-            <p className="mt-3 text-sm text-indigo-700 dark:text-indigo-300">
-              A preparar fotografia…
-            </p>
+              {fieldErrors.name}
+            </span>
           )}
-        </div>
-      </AIPhotoPrompt>
-      {analyzing && <AIThinking food onCancel={cancelAnalysis} />}
-      {notice && (
-        <p
-          role="status"
-          className="text-sm text-indigo-700 dark:text-indigo-300"
-        >
-          {notice}
-        </p>
-      )}
-      {candidates.length > 0 && (
-        <section
-          aria-label="Correspondências no Open Food Facts"
-          className="flex flex-col gap-2 rounded-lg border border-black/10 p-3 dark:border-white/10"
-        >
-          <h3 className="text-sm font-semibold">
-            Encontrado no Open Food Facts?
-          </h3>
-          {candidates.map((candidate, index) => (
-            <div
-              key={index}
-              className="flex items-center justify-between gap-2"
+        </label>
+        <label className="label">
+          Marca / loja
+          <input
+            name="brand"
+            aria-invalid={Boolean(fieldErrors.brand)}
+            aria-describedby={
+              fieldErrors.brand ? "food-error-brand" : undefined
+            }
+            className="input"
+            maxLength={80}
+            value={brand}
+            onChange={(e) => setBrand(e.target.value)}
+            placeholder="Ex.: Continente, Pingo Doce, Mercadona"
+            list="food-store-suggestions"
+          />
+          {fieldErrors.brand && (
+            <span
+              id="food-error-brand"
+              className="text-xs text-red-600 dark:text-red-400"
             >
-              <div className="flex min-w-0 items-center gap-2">
-                {candidate.imageUrl && (
-                  <img
-                    src={candidate.imageUrl}
-                    alt={`Fotografia de ${candidate.name}`}
-                    className="h-10 w-10 shrink-0 rounded object-contain"
-                    referrerPolicy="no-referrer"
-                    loading="lazy"
-                  />
-                )}
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">
-                    {candidate.name}
-                  </p>
-                  <p className="text-xs text-zinc-500">
-                    {[
-                      candidate.brand,
-                      `${candidate.nutrients.kcal} kcal/100 ${candidate.unit}`,
-                      candidate.details.packageQuantity !== null
-                        ? `Embalagem: ${candidate.details.packageQuantity} ${candidate.unit}`
-                        : "",
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </p>
-                </div>
-              </div>
-              <div className="flex shrink-0 items-center gap-3">
-                {candidate.sourceUrl && (
-                  <a
-                    className="text-xs underline"
-                    href={candidate.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Fonte
-                  </a>
-                )}
-                <button
-                  type="button"
-                  className="btn-ghost"
-                  onClick={() => applyCandidate(candidate)}
-                >
-                  Usar
-                </button>
-              </div>
-            </div>
+              {fieldErrors.brand}
+            </span>
+          )}
+        </label>
+        <datalist id="food-store-suggestions">
+          {foodStores.map(([id, label]) => (
+            <option key={id} value={label} />
           ))}
+        </datalist>
+        <NutritionTable
+          unit={unit}
+          reference={reference}
+          values={values}
+          fieldErrors={fieldErrors}
+          details={details}
+          source={source}
+          confirmed={confirmed}
+          onApplyReference={(next, convert) => {
+            dirtyRef.current = true;
+            setConfirmed(false);
+            setNutritionChanged(true);
+            if (convert)
+              setValues(
+                Object.fromEntries(
+                  nutrientKeys.map((key) => [
+                    key,
+                    values[key].trim() === ""
+                      ? ""
+                      : showNutrient(
+                          parseWeight(values[key]) *
+                            (next.quantity / reference.quantity),
+                        ),
+                  ]),
+                ),
+              );
+            // A unit swap invalidates weights measured in the previous unit.
+            if (next.unit !== unit)
+              setDetails({
+                ...details,
+                packageQuantity: null,
+                pieceQuantity: null,
+                packageEstimated: false,
+                pieceEstimated: false,
+                nutritionReference: next,
+              });
+            else setDetails({ ...details, nutritionReference: next });
+            setUnit(next.unit);
+            setReference(next);
+          }}
+          onValue={(key, value) => {
+            setValues({ ...values, [key]: value });
+            setNutritionChanged(true);
+            setConfirmed(false);
+          }}
+          onConfirm={setConfirmed}
+        />
+        {initial?.sourceUrl && (
+          <p className="text-xs text-zinc-500">
+            Fonte:{" "}
+            <a
+              className="underline"
+              href={initial.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open Food Facts
+            </a>{" "}
+            · dados ODbL · fotografias CC BY-SA. Confirma sempre a embalagem
+            atual.
+          </p>
+        )}
+        {error && (
+          <p role="alert" className="text-sm text-red-600">
+            {error}
+          </p>
+        )}
+        <div className="flex gap-2">
+          <button className="btn-primary flex-1" disabled={pending || busy}>
+            {pending ? "A guardar…" : "Guardar produto"}
+          </button>
           <button
             type="button"
             className="btn-ghost"
-            onClick={dismissCandidates}
+            disabled={pending || busy}
+            onClick={() => {
+              if (
+                !dirtyRef.current ||
+                window.confirm("Descartar as alterações deste produto?")
+              ) {
+                dirtyRef.current = false;
+                onCancel();
+              }
+            }}
           >
-            Nenhum destes — manter a análise IA
+            Cancelar
           </button>
-          <p className="text-xs text-zinc-500">
-            Dados ODbL do Open Food Facts; confirma sempre a embalagem atual.
-          </p>
-        </section>
-      )}
-      <label className="label">
-        Nome do alimento
-        <input
-          name="name"
-          aria-invalid={Boolean(fieldErrors.name)}
-          aria-describedby={fieldErrors.name ? "food-error-name" : undefined}
-          className="input"
-          required
-          maxLength={120}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        {fieldErrors.name && <span id="food-error-name" className="text-xs text-red-600 dark:text-red-400">{fieldErrors.name}</span>}
-      </label>
-      <label className="label">
-        Marca / loja
-        <input
-          name="brand"
-          aria-invalid={Boolean(fieldErrors.brand)}
-          aria-describedby={fieldErrors.brand ? "food-error-brand" : undefined}
-          className="input"
-          maxLength={80}
-          value={brand}
-          onChange={(e) => setBrand(e.target.value)}
-          placeholder="Ex.: Continente, Pingo Doce, Mercadona"
-          list="food-store-suggestions"
-        />
-        {fieldErrors.brand && <span id="food-error-brand" className="text-xs text-red-600 dark:text-red-400">{fieldErrors.brand}</span>}
-      </label>
-      <datalist id="food-store-suggestions">
-        {foodStores.map(([id, label]) => (
-          <option key={id} value={label} />
-        ))}
-      </datalist>
-      <h3 className="font-semibold">Tabela nutricional</h3>
-      {details.packageQuantity !== null ? (
-        <p aria-label="Peso da embalagem identificado" className="text-sm">
-          Embalagem: {details.packageQuantity} {unit}
-          {details.packageEstimated
-            ? " — estimativa, confirmar"
-            : " — identificado"}
-          <span className="mt-1 block text-xs text-zinc-500">
-            Guardado para calcular embalagens no diário, onde podes confirmar ou
-            ajustar.
-          </span>
-        </p>
-      ) : source.endsWith("-ai") ? (
-        <p className="text-xs text-zinc-500">
-          Peso da embalagem não identificado. Podes indicá-lo no diário; a base
-          por 100 g/ml não é o peso da embalagem.
-        </p>
-      ) : null}
-      <label className="label">
-        Valores por
-        <select
-          aria-label="Valores por"
-          className="input"
-          value={unit}
-          onChange={(e) => setUnit(e.target.value as "g" | "ml")}
-        >
-          <option value="g">100 g</option>
-          <option value="ml">100 ml</option>
-        </select>
-      </label>
-      <p className="text-xs text-zinc-500">
-        Esta base é sempre 100 g/ml, não o tamanho da embalagem. A IA preenche o
-        que conseguir; revê os valores estimados e completa os desconhecidos.
-      </p>
-      <div className="grid grid-cols-2 gap-3">
-        {nutrientKeys.map((key) => (
-          <label key={key} className="label">
-            {nutrientLabels[key]}
-            {key !== "kcal" && " (g)"}
-            <input
-              aria-label={`${nutrientLabels[key]} por 100`}
-              name={key}
-              aria-invalid={Boolean(fieldErrors[key])}
-              aria-describedby={fieldErrors[key] ? `food-error-${key}` : undefined}
-              className="input"
-              inputMode="decimal"
-              maxLength={12}
-              required={key === "kcal"}
-              placeholder="Desconhecido"
-              value={values[key]}
-              onChange={(e) => setValues({ ...values, [key]: e.target.value })}
-            />
-            {fieldErrors[key] && <span id={`food-error-${key}`} className="text-xs text-red-600 dark:text-red-400">{fieldErrors[key]}</span>}
-            {details.nutrientEstimates.includes(key) && (
-              <span className="text-xs text-amber-700 dark:text-amber-300">
-                Estimativa — confirmar
-              </span>
-            )}
-          </label>
-        ))}
-      </div>
-      <p className="text-xs text-zinc-500">
-        Quanto comeste? Indica unidades, gramas ou embalagens no diário, depois
-        de guardar o produto.
-      </p>
-      {source !== "manual" && (
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={confirmed}
-            onChange={(e) => setConfirmed(e.target.checked)}
-          />
-          Confirmei o produto, a base por 100 g/ml e os valores{" "}
-          {source === "estimate-ai" ? "estimados" : "sugeridos"}.
-        </label>
-      )}
-      {initial?.sourceUrl && (
-        <p className="text-xs text-zinc-500">
-          Fonte:{" "}
-          <a
-            className="underline"
-            href={initial.sourceUrl}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open Food Facts
-          </a>{" "}
-          · dados ODbL · fotografias CC BY-SA. Confirma sempre a embalagem
-          atual.
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="text-sm text-red-600">
-          {error}
-        </p>
-      )}
-      <div className="flex gap-2">
-        <button className="btn-primary flex-1" disabled={pending || busy}>
-          {pending ? "A guardar…" : "Guardar produto"}
-        </button>
-        <button type="button" className="btn-ghost" disabled={pending || busy} onClick={() => {
-          if (!dirty.current || window.confirm("Descartar as alterações deste produto?")) {
-            dirty.current = false;
-            onCancel();
-          }
-        }}>
-          Cancelar
-        </button>
-      </div>
+        </div>
+      </fieldset>
     </form>
   );
 }

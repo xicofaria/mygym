@@ -1,7 +1,7 @@
 import {
   getExercisesWithStats,
   getFavoriteExerciseIds,
-} from "@/lib/queries";
+} from "@/lib/exercise-queries";
 import { requireUser } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import { AddExercise } from "@/components/add-exercise";

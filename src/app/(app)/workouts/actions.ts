@@ -28,7 +28,7 @@ import {
   MAX_GROUP_NAME_LENGTH,
   normalizeGroupNames,
 } from "@/lib/muscle-groups";
-import { getRoutine } from "@/lib/queries";
+import { getRoutine } from "@/lib/workout-queries";
 import { isWeekday, planRoutineApplication } from "@/lib/routine";
 
 const entrySchema = z.object({

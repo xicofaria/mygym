@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import type { ExerciseStat } from "@/lib/queries";
+import { useAction } from "@/lib/use-action";
+import type { ExerciseStat } from "@/lib/exercise-queries";
 import { matchesExercise } from "@/lib/exercise-catalog";
 import { formatMuscleGroup } from "@/lib/muscle-groups";
 import { fmtShortDate } from "@/lib/format";
@@ -24,8 +25,9 @@ export function ExerciseCatalog({
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
+  const { pending, error, run } = useAction(
+    "Não foi possível atualizar o favorito. Tenta novamente.",
+  );
   const favorites = new Set(favoriteIds);
   const visible = exercises
     .filter(
@@ -42,19 +44,14 @@ export function ExerciseCatalog({
     );
 
   function favorite(exerciseId: number) {
-    setError(null);
-    start(async () => {
-      try {
-        const result = await setExerciseFavorite({
+    run(
+      async () =>
+        setExerciseFavorite({
           exerciseId,
           favorite: !favorites.has(exerciseId),
-        });
-        if (result.error) setError(result.error);
-        else router.refresh();
-      } catch {
-        setError("Não foi possível atualizar o favorito. Tenta novamente.");
-      }
-    });
+        }),
+      () => router.refresh(),
+    );
   }
 
   return (

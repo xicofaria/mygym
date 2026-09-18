@@ -4,11 +4,13 @@ import {
   getExerciseCatalog,
   getFavoriteExerciseIds,
   getLastPerformanceByExercise,
+} from "@/lib/exercise-queries";
+import {
   getLatestWorkoutForRepeat,
   getPlannedWorkout,
   getWorkoutTemplate,
   getWorkoutTemplates,
-} from "@/lib/queries";
+} from "@/lib/workout-queries";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { WorkoutForm } from "@/components/workout-form";
 import { AddExercise } from "@/components/add-exercise";

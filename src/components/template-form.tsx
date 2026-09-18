@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { createTemplate } from "@/app/(app)/workouts/templates/actions";
+import { useAction } from "@/lib/use-action";
 
 type Ex = { id: number; name: string };
 
@@ -9,8 +10,9 @@ export function TemplateForm({ exercises }: { exercises: Ex[] }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [chosen, setChosen] = useState<number[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
+  const { pending, error, setError, run } = useAction(
+    "Sem ligação ao servidor. Tenta novamente.",
+  );
 
   if (!open) {
     return (
@@ -28,7 +30,7 @@ export function TemplateForm({ exercises }: { exercises: Ex[] }) {
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
+    setError("");
     if (!name.trim()) {
       setError("Dá um nome ao modelo.");
       return;
@@ -37,11 +39,8 @@ export function TemplateForm({ exercises }: { exercises: Ex[] }) {
       setError("Escolhe pelo menos um exercício.");
       return;
     }
-    start(async () => {
-      const res = await createTemplate({ name, exerciseIds: chosen });
-      if (res?.error) setError(res.error);
-      // On success the server action redirects to /workouts/templates.
-    });
+    // On success the server action redirects to /workouts/templates.
+    run(() => createTemplate({ name, exerciseIds: chosen }));
   }
 
   return (
@@ -106,7 +105,7 @@ export function TemplateForm({ exercises }: { exercises: Ex[] }) {
           className="btn-ghost"
           onClick={() => {
             setOpen(false);
-            setError(null);
+            setError("");
           }}
         >
           Cancelar

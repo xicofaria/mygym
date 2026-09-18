@@ -119,6 +119,82 @@ proposta) em OpenRouter:
 A experiência usou fotos de internet, não máquinas do ginásio; continua por
 validar com equipamento real. Os testes automáticos continuam sem chaves.
 
+## Base nutricional estruturada (2026-09-18)
+
+Duas etiquetas geradas localmente, em modo «só rótulo», com `z-ai/glm-5.3-flash`
+e a chave do utilizador, autorizada e revogada a seguir:
+
+- Tabela com colunas por 100 g e por porção de 125 g: devolveu
+  `standard`/100 g/`label` e transcreveu só a coluna por 100 g (76 kcal,
+  6 g de proteína, 0,1 g de sal). Não misturou colunas; ~10 s.
+- Tabela só com a porção de 125 g: devolveu `serving`/125 g/`label` com os
+  números dessa coluna (95 kcal), que o servidor normalizou para 76 kcal/100 g;
+  ~13 s.
+
+As duas etiquetas descrevem o mesmo produto, e ambas chegaram a 76 kcal/100 g
+por caminhos diferentes. Em ambas, `packageQuantity` ficou 125 g, separado da
+base nutricional, e a fibra ausente ficou `null`, não zero.
+
+### Rótulos reais de supermercados portugueses
+
+Seis produtos, dois por loja (Continente, Pingo Doce, Mercadona), com a
+fotografia da tabela nutricional do Open Food Facts reduzida a 1280 px como o
+cliente faz antes de enviar. Os valores estruturados do OFF servem de referência
+independente.
+
+| Produto | Loja | `reference` lida | Resultado |
+| --- | --- | --- | --- |
+| Mini Bolachas Chocolate e Cacau | Continente | `standard` 100 g | Macros iguais ao OFF; energia 422 kcal contra 415 no OFF |
+| Leite Meio-Gordo AGROS | Continente | `standard` 100 **ml** | Igual ao OFF; embalagem 1000 ml |
+| Tortitas de grão-de-bico | Pingo Doce | — | Recusou: a foto era a frente da embalagem, sem tabela |
+| Leite UHT Meio Gordo | Pingo Doce | `standard` 100 **ml** | Igual ao OFF; embalagem 1000 ml |
+| Trigo Espelta Crackers | Mercadona | `standard` 100 g | Igual ao OFF; embalagem 240 g |
+| Barritas de cereais manga | Mercadona | `standard` 100 g | Diferenças de arredondamento: 347/345 kcal, 59/60 g de hidratos |
+
+O que isto confirma: a referência estruturada chega preenchida e coerente com o
+rótulo; gramas e mililitros não se confundem, com os dois leites em `ml`; o
+conteúdo da embalagem fica em `packageQuantity`, separado da base, e `null`
+quando não é legível; e o modo «só rótulo» recusa em vez de inventar quando a
+tabela não está visível.
+
+### Preferência determinística pela coluna dos 100 g
+
+Rótulos declarados por porção são raros nestas lojas: numa amostra de 100
+produtos por loja, o OFF regista 2 no Continente, 2 no Pingo Doce e 4 na
+Mercadona. Foram testados sete desses produtos, e nenhum tinha uma tabela
+apenas por porção — na União Europeia a coluna por 100 g/ml é obrigatória, e a
+porção aparece como coluna adicional.
+
+Em todos os que tinham as duas colunas, o modelo escolheu a dos 100 g e disse-o
+explicitamente: «a coluna da porção de 30 g foi ignorada», «a coluna por porção
+(40 g) foi ignorada por existir a base por 100 g». É a regra determinística do
+prompt, confirmada em rótulos reais.
+
+Consequência prática: o ramo `serving`/`package` serve sobretudo o
+preenchimento manual e produtos sem tabela por 100. Em fotografias de produtos
+embalados na UE, o caminho normal continua a ser `standard`.
+
+### Fiabilidade e ressalvas
+
+Em 13 chamadas com fotografias reais houve 3 falhas à primeira: duas respostas
+que não passaram a validação do servidor e um timeout. Repetidas, as três
+devolveram `reference` válida e valores coerentes, ou seja, é instabilidade do
+fornecedor e não rejeição indevida do contrato novo. O adaptador não faz
+retries automáticos: o utilizador vê o pedido para tentar outra fotografia.
+Os tempos de resposta com fotografias reais foram de 13 a 62 segundos, bem
+acima dos 10 a 13 segundos das etiquetas geradas.
+
+O OFF é colaborativo e pode estar errado, por isso divergir dele não é, por si
+só, erro do modelo. No leite do Pingo Doce o modelo leu 0,1 g de sal e o OFF
+regista 0,00025 g, implausível para leite. Ficou por resolver o caso do Protein
+Drink, em que o modelo leu 60 kcal e o OFF aponta 84,3 kcal por 100: sem ver o
+rótulo original não é possível dizer quem está certo. A imagem marcada como
+«nutrition» no OFF nem sempre mostra a tabela, como nas tortitas do Pingo Doce.
+
+Este exercício não mede a precisão em fotografias tiradas pelo utilizador, com
+reflexos, dobras, ângulo ou pouca luz: as imagens do OFF são enquadradas e
+legíveis.
+
 ## Privacidade e limites
 
 - Originais JPEG/PNG/WebP até 20 MB; HEIC ainda não suportado.

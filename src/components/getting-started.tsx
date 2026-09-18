@@ -1,27 +1,27 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter, unstable_rethrow } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { completeOnboarding } from "@/app/(app)/onboarding-actions";
+import { useAction } from "@/lib/use-action";
 import { BodyMetricForm } from "./body-metric-form";
 
 export function GettingStarted({ userId, hasWeight }: { userId: number; hasWeight: boolean }) {
   const router = useRouter();
   const [savedWeight, setSavedWeight] = useState(false);
-  const [error, setError] = useState("");
-  const [pending, start] = useTransition();
+  const { pending, error, run } = useAction(
+    "Não foi possível concluir a configuração. Tenta novamente.",
+  );
   function finish(destination?: string) {
-    setError("");
-    start(async () => {
-      try {
+    run(
+      async () => {
         await completeOnboarding();
+      },
+      () => {
         if (destination) router.push(destination);
         else router.refresh();
-      } catch (cause) {
-        unstable_rethrow(cause);
-        setError("Não foi possível concluir a configuração. Tenta novamente.");
-      }
-    });
+      },
+    );
   }
   return (
     <section aria-labelledby="getting-started-title" className="rounded-2xl border border-indigo-200 bg-indigo-50 p-4 dark:border-indigo-900 dark:bg-indigo-950/30">

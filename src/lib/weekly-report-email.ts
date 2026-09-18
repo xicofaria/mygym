@@ -2,7 +2,7 @@ import "server-only";
 import {
   getWeeklyReportData,
   previousLisbonWeekRange,
-} from "./queries";
+} from "./report-queries";
 import { calculateWeeklyReport } from "./weekly-report";
 import { fmtDate } from "./format";
 import { appUrl } from "./email";

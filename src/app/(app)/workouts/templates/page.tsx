@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { getExerciseCatalog, getWorkoutTemplates } from "@/lib/queries";
+import { getExerciseCatalog } from "@/lib/exercise-queries";
+import { getWorkoutTemplates } from "@/lib/workout-queries";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { TemplateForm } from "@/components/template-form";
 import { DeleteButton } from "@/components/delete-button";

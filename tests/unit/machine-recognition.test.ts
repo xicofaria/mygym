@@ -1,10 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import {
-  readPhoto,
-  recognizeMachine,
-  RecognitionError,
-} from "../../src/lib/machine-recognition";
+import { recognizeMachine } from "../../src/lib/machine-recognition";
+import { readPhoto, RecognitionError } from "../../src/lib/vision-request";
 import { MAX_PHOTO_BYTES } from "../../src/lib/recognition-contract";
 
 const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0xff, 0xd9]);

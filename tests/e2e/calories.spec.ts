@@ -42,6 +42,123 @@ async function upload(page: Page, via: "camera" | "library" = "library") {
     page.getByRole("button", { name: /Escolher( outra)? imagem/ }),
   ).toBeVisible();
 }
+test("nutrition reference survives editing; catalogue context, repetition and completion are explicit", async ({ page, browser }, testInfo) => {
+  await login(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ colorScheme: "dark" });
+  try {
+  await page.getByRole("button", { name: "Produtos", exact: true }).click();
+  await page.screenshot({ path: testInfo.outputPath("products-after.png"), fullPage: true });
+  await page.getByRole("button", { name: "+ Novo produto", exact: true }).click();
+  await page.getByRole("button", { name: "Preencher manualmente", exact: true }).click();
+  await page.getByLabel("Nome do alimento", { exact: true }).fill("Iogurte referência E2E");
+  await page.getByLabel("Base nutricional", { exact: true }).selectOption("package");
+  await page.getByLabel("Quantidade de referência", { exact: true }).fill("125");
+  await page.getByRole("button", { name: "Aplicar base", exact: true }).click();
+  await page.getByLabel("Energia (kcal) por 125", { exact: true }).fill("95");
+  await page.getByLabel("Proteína por 125", { exact: true }).fill("7,5");
+  await page.screenshot({ path: testInfo.outputPath("nutrition-reference-after.png"), fullPage: true });
+  await page.getByRole("button", { name: "Guardar produto", exact: true }).click();
+  const product = page.getByRole("article", { name: "Iogurte referência E2E", exact: true });
+  await expect(product).toContainText("76 kcal / 100 g");
+  await page.screenshot({ path: testInfo.outputPath("catalogue-after.png"), fullPage: true });
+  for (const width of [320, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.emulateMedia({ colorScheme: "light" });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.getByRole("button", { name: "Produtos", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await product.getByRole("button", { name: "Editar produto", exact: true }).click();
+  await expect(page.getByLabel("Energia (kcal) por 125", { exact: true })).toHaveValue("95");
+  await page.getByLabel("Base nutricional", { exact: true }).selectOption("standard");
+  await page.getByRole("button", { name: "Guardar produto", exact: true }).click();
+  await expect(page.getByRole("form", { name: "Produto alimentar", exact: true }).getByRole("alert")).toContainText("Aplica a alteração");
+  await page.getByRole("button", { name: "Converter os valores para a nova quantidade", exact: true }).click();
+  await expect(page.getByLabel("Energia (kcal) por 100", { exact: true })).toHaveValue("76");
+  await page.getByRole("button", { name: "Guardar produto", exact: true }).click();
+  await product.getByRole("button", { name: "Consumir", exact: true }).click();
+  await expect(page.getByLabel("Quantidade consumida", { exact: true })).toHaveValue("1");
+  await expect(page.getByRole("status").filter({ hasText: "95 kcal para 125 g" })).toBeVisible();
+  await page.getByRole("button", { name: "Registar consumo", exact: true }).click();
+  const entries = page.getByRole("article", { name: "Iogurte referência E2E", exact: true });
+  await expect(entries).toHaveCount(1);
+  await page.getByRole("region", { name: "Resumo do dia", exact: true }).getByRole("button", { name: "Concluir registo do dia", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Reabrir dia", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Produtos", exact: true }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await product.getByRole("button", { name: "Arquivar", exact: true }).click();
+  await expect(product).toHaveCount(0);
+  await page.getByRole("button", { name: "Diário", exact: true }).click();
+  await page.getByText("Repetir um consumo recente", { exact: true }).click();
+  const repeat = page.getByRole("button", { name: /^Repetir Iogurte referência E2E/ });
+  await repeat.click();
+  await expect(entries).toHaveCount(1);
+  await expect(page.getByLabel("Quantidade consumida", { exact: true })).toHaveValue("125");
+  await page.getByRole("button", { name: "Cancelar repetição", exact: true }).click();
+  await expect(repeat).toBeFocused();
+  await repeat.click();
+  await page.screenshot({ path: testInfo.outputPath("repeat-after.png"), fullPage: true });
+  const submitted = page.waitForRequest((request) => Boolean(request.headers()["next-action"]) && Boolean(request.postData()?.includes("repeatFromId")));
+  await page.getByRole("button", { name: "Confirmar repetição", exact: true }).click();
+  const repeatRequest = await submitted;
+  await expect(entries).toHaveCount(2);
+  await expect(entries.first()).toContainText("95 kcal");
+  await expect(page.getByRole("button", { name: "Concluir registo do dia", exact: true })).toBeVisible();
+  const otherContext = await browser.newContext();
+  const other = await otherContext.newPage();
+  await login(other, true);
+  await expect(other.getByText("Repetir um consumo recente", { exact: true })).toHaveCount(0);
+  const denied = await other.request.post(repeatRequest.url(), {
+    headers: { "next-action": repeatRequest.headers()["next-action"], "content-type": repeatRequest.headers()["content-type"], origin: new URL(repeatRequest.url()).origin },
+    data: repeatRequest.postData()!,
+  });
+  // The snapshot belongs to the other account: the reply must not carry it.
+  expect(await denied.text()).not.toContain("Iogurte referência E2E");
+  await other.reload();
+  await expect(other.getByRole("article", { name: "Iogurte referência E2E", exact: true })).toHaveCount(0);
+  await otherContext.close();
+  } finally {
+    // Failing mid-test must not leave kcal in the shared seed day for later specs.
+    await page.getByRole("button", { name: "Diário", exact: true }).click();
+    const leftovers = page.getByRole("article", { name: "Iogurte referência E2E", exact: true });
+    for (let n = await leftovers.count(); n > 0; n--) {
+      page.once("dialog", (dialog) => dialog.accept());
+      await leftovers.first().getByRole("button", { name: "Eliminar consumo", exact: true }).click();
+      await expect(leftovers).toHaveCount(n - 1);
+    }
+    await page.getByRole("button", { name: "Produtos", exact: true }).click();
+    if (await leftovers.count()) {
+      page.once("dialog", (dialog) => dialog.accept());
+      await leftovers.getByRole("button", { name: "Arquivar", exact: true }).click();
+      await expect(leftovers).toHaveCount(0);
+    }
+  }
+});
+test("AI assumed reference is visible and a serving proposal opens in its original basis", async ({ page }) => {
+  await login(page);
+  await page.getByRole("button", { name: "+ Criar produto / fotografia", exact: true }).click();
+  let assumed = true;
+  await page.route("**/api/calories/recognize", (route) => route.fulfill({ json: {
+    product: { name: "Proposta de referência", brand: "", unit: "g", nutrients: { kcal: 76, protein: null, carbs: null, fat: null, saturated: null, sugars: null, fiber: null, salt: null }, details: {
+      packageQuantity: null, pieceQuantity: null, packageEstimated: false, pieceEstimated: false, nutrientEstimates: ["kcal"],
+      nutritionReference: { kind: assumed ? "standard" : "serving", quantity: assumed ? 100 : 125, unit: "g", origin: assumed ? "assumed" : "label" },
+    } }, explanation: "Confirma a base.", candidates: [],
+  } }));
+  await upload(page);
+  await page.getByRole("button", { name: "Analisar alimento", exact: true }).click();
+  await expect(page.getByText("Base assumida: 100 g. Confirma antes de guardar.", { exact: true })).toBeVisible();
+  await page.getByRole("checkbox").check();
+  await page.getByLabel("Energia (kcal) por 100", { exact: true }).fill("80");
+  await expect(page.getByRole("checkbox")).not.toBeChecked();
+  assumed = false;
+  await page.getByRole("button", { name: "Ver ou analisar", exact: true }).click();
+  await page.getByRole("button", { name: "Analisar alimento", exact: true }).click();
+  await expect(page.getByLabel("Base nutricional", { exact: true })).toHaveValue("serving");
+  await expect(page.getByLabel("Energia (kcal) por 125", { exact: true })).toHaveValue("95");
+  await expect(page.getByRole("checkbox")).not.toBeChecked();
+});
 test("280 g package suggestion is visible, persists and converts whole and half bottles", async ({
   page,
 }, testInfo) => {
@@ -528,6 +645,8 @@ test("calorie diary persists decimal quantities, private photos, immutable nutri
   await page
     .getByRole("button", { name: "Guardar produto", exact: true })
     .click();
+  await expect(page.getByRole("button", { name: "Produtos", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Diário", exact: true }).click();
   await expect(entry).toContainText("251 kcal");
   await entry
     .getByRole("button", { name: "Editar consumo", exact: true })
@@ -693,6 +812,7 @@ test("external product lookup is explicitly reviewed and missing AI key is handl
   await page
     .getByRole("button", { name: "Guardar produto", exact: true })
     .click();
+  await page.getByRole("article", { name: "Produto OFF de teste", exact: true }).getByRole("button", { name: "Consumir", exact: true }).click();
   await page.getByLabel("Quantidade consumida").fill("250");
   await expect(
     page.getByRole("status").filter({ hasText: "100 kcal para 250 ml" }),

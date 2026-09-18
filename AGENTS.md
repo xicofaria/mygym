@@ -12,7 +12,8 @@
   prevalecem sobre orientações de skills. Se uma skill bloquear o trabalho, identificar
   o ficheiro e a regra exata, distinguindo a regra da sua interpretação.
 - Usar subagentes apenas quando pedidos pelo utilizador; atribuir tarefas independentes
-  e delimitadas, com responsabilidade clara pelos ficheiros e pela revisão final.
+  e delimitadas, com posse exclusiva dos ficheiros de cada um e revisão final própria.
+  Um só agente corre os E2E de cada vez: partilham porta e base de dados.
 - Comunicar em português europeu, de forma breve: resultado, validação e limitações.
   Preservar trabalho existente do utilizador e manter o objetivo ao receber correções.
 
@@ -40,6 +41,32 @@
 - Nunca versionar `.env`, bases SQLite, tokens ou credenciais reais. Manter workflows
   com permissões mínimas e actions externas fixadas a SHAs de commits.
 
+## Convenções de código
+
+- Identificadores e comentários em inglês; interface e guias de produto em pt-PT;
+  contratos em [DOMAIN_RULES](docs/DOMAIN_RULES.md) e [TESTING](docs/TESTING.md) em inglês.
+- Comentar o porquê, nunca o quê: a restrição escondida, o incidente que originou
+  a solução alternativa, o que surpreenderia quem lê. Se o nome já explica, não comentar.
+- Chamar Server Actions a partir do cliente só através de `useAction`
+  (`src/lib/use-action.ts`). `redirect()` lança uma exceção: apanhá-la sem
+  `unstable_rethrow` transforma uma navegação num falso erro de rede, como já
+  aconteceu neste repositório.
+- Reconhecimento por fotografia: o transporte para os fornecedores é partilhado em
+  `src/lib/vision-request.ts`. Uma área nova fornece schema, instruções, partes da
+  mensagem e mensagens de erro próprias, nunca código de transporte novo.
+- Uma responsabilidade por ficheiro. Dividir um componente que acumule estado de
+  áreas diferentes ou cujas secções se leiam de forma independente; o estado que
+  atravessa áreas vive num `useReducer` único, não em dezenas de `useState`.
+  O tamanho é sintoma, não regra: um formulário cujos campos são uma só unidade
+  pode ficar longo, porque parti-lo só faria passar uma dúzia de setters por props,
+  trocando tamanho por acoplamento.
+- Validar com zod na fronteira. Separar o contrato de entrada do formato canónico
+  guardado e normalizar uma só vez, no servidor.
+- Extrair apenas perante duplicação real em dois ou mais sítios. Não criar abstrações
+  por antecipação, nem compatibilidade retroativa para casos que não existem.
+- Strings visíveis fazem parte do contrato de teste: os E2E afirmam texto, papéis e
+  `aria-label` exatos. Alterar uma string implica atualizar os testes na mesma alteração.
+
 ## Consultar conforme a tarefa
 
 Ler apenas as referências aplicáveis; os contratos da área alterada são obrigatórios.
@@ -58,8 +85,11 @@ Ler apenas as referências aplicáveis; os contratos da área alterada são obri
 - Executar `npm run check` para alterações de código e antes de commits.
   Executar `npm run test:e2e` ao alterar autenticação, treinos ou fluxos de calorias.
 - E2E usa `e2e.db` descartável, sem credenciais de produção nem chaves de IA faturáveis.
+  Um teste que suje a conta partilhada limpa o que criou, mesmo ao falhar a meio.
 - Para documentação, verificar links, comandos e `git diff --check`.
   Não criar testes redundantes; repetir verificações só se novas evidências o justificarem.
 - Atualizar README, arquitetura e guias afetados quando o comportamento mudar.
   Relatar o que foi validado e qualquer bloqueio real, sem apresentar mocks como prova real.
+- Testes com respostas simuladas não demonstram o comportamento do modelo real;
+  quando houver teste real autorizado, registar data, modelo, amostra e limites.
 - [Manutenção destas instruções](docs/AGENT_GUIDANCE.md) explica a adaptação ao GPT-6 Astra.

@@ -88,6 +88,12 @@ estão em [AGENTS.md](../AGENTS.md).
   viewed-user switcher or accept a caller-supplied owner ID.
 - Nutrition is per 100 g OR per 100 ml; the consumed quantity uses that exact
   unit. Never treat one ml as one gram, kJ as kcal, or missing nutrients as zero.
+- Product input can declare a standard, serving, package or custom reference
+  quantity. Validate raw values and normalize once on the server via
+  `productInputSchema`; apply canonical nutrient limits after conversion.
+  Optional `details.nutritionReference` preserves the editing basis/provenance;
+  legacy products default to 100. Unchanged editing preserves canonical precision.
+  Changing the reference explicitly keeps numbers or converts within one unit.
 - Store immutable validated product snapshots on consumption entries. Editing a
   quantity with the same product retains its snapshot; product metadata edits
   must not rewrite history. Archive removes the product photo but keeps history.
@@ -115,7 +121,9 @@ estão em [AGENTS.md](../AGENTS.md).
   grams from free-text explanations or confuse a serving with a whole package.
   Selecting/saving a product with known package weight prepares one whole package
   in the diary; users can change it and must explicitly save consumption.
-- Product forms do not ask for package/unit weights. Resolve those in the diary;
+- Product forms ask for mass/volume only to define a non-standard nutritional
+  reference. A whole-package reference also supplies the known package quantity.
+  Other package/unit conversions are resolved in the diary;
   unit/package modes are never disabled for missing metadata. Show conversion
   details there; explicit AI unit estimation sends only server-owned product
   name/brand/nutrition, not photos or diary, to the configured provider.
@@ -128,6 +136,17 @@ estão em [AGENTS.md](../AGENTS.md).
   Default analysis permits estimates; label-only mode rejects any estimated fields.
   Mark estimates per nutrient and for package/unit sizes. No package weight without
   sufficient cues, no inferred consumed count, no solving unknown macros from kcal.
+- Photo AI transcribes nutrients with a structured reference, without normalizing;
+  the server converts to the canonical base. Prefer the per-100 column if present.
+  With no identifiable basis, estimate mode proposes 100 g (100 ml only with
+  volumetric evidence), visibly marked assumed and requiring review. Never attach
+  readable per-serving numbers to a guessed 100 g basis; ask for the missing mass.
+  Strict label mode rejects assumed bases. Unit estimation retains trusted nutrition.
+- Repeating a recent consumption is a new, explicitly confirmed entry from an
+  owned server-side snapshot, including archived products. It never rewrites the
+  catalogue or original consumption, and reopens the destination day. Recent reads
+  are private and limited to ten entries. Catalogue-origin saves stay in Products;
+  diary-origin creation returns to quantity confirmation, preserving day/meal.
 - OFF store filters cover Continente, Lidl, Pingo Doce, Mercadona and Aldi. These
   are collaborative samples, not complete retailer catalogues.
 - AI waiting UI shows elapsed time, reduced-motion-safe animation and cancellation,

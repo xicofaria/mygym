@@ -1,9 +1,10 @@
-# Correções propostas — primeiro PR
+# Implementação das correções UX
 
 A avaliação e screenshots originais do Kanban registam o comportamento anterior às
 correções. UX-06 e UX-25 incluem também capturas posteriores identificadas.
-Os cartões indicados abaixo passam a «Em revisão» por omissão; o
-estado pessoal guardado no browser continua a ter precedência.
+O primeiro PR (#46) foi integrado. Os cartões abaixo passam a «Concluído» por
+omissão; o estado pessoal guardado no browser continua a ter precedência.
+Integração em main não é verificação de produção.
 
 | Ordem | Findings | Implementação |
 | --- | --- | --- |
@@ -47,3 +48,29 @@ com 31 cartões, 18 em revisão, 13 pendentes, filtros, diálogo/Escape, captura
 posteriores carregadas e sem overflow a 320/390/1440 px.
 Mocks de rede só demonstram comportamento perante espera/falha; não validam
 fornecedores de IA nem retenção de utilizadores em várias semanas.
+
+## Novo lote — base nutricional e continuidade alimentar
+
+Branch: `feat/calorie-reference-ux`, criada a partir de `origin/main` após o
+merge do PR #46. [Plano autorizado](NEXT_PR_PLAN.md).
+
+| Finding | Implementação |
+| --- | --- |
+| UX-32 | CTA separado da pesquisa; escolha manual/fotografia/código; pesquisa sem resultados distinta de catálogo vazio. |
+| UX-28 | Catálogo permanece em Produtos; criação a partir do diário volta à quantidade, mantendo dia/refeição e sem registar automaticamente. |
+| UX-33 | Base por 100 g/ml, porção, embalagem ou quantidade personalizada; mudança explícita de base, conversão no servidor e metadados compatíveis com produtos antigos. IA transcreve a referência; base assumida fica visível para revisão. |
+| UX-27 | Estado aberto/concluído e ação de conclusão junto do resumo. |
+| UX-30 | Dez consumos recentes; pré-visualização usa snapshot histórico, incluindo produtos arquivados; confirmação obrigatória, sem alterar catálogo/original. |
+
+As capturas `after-food-*` mostram a interface real com dados de teste, não
+mockups. Os cenários de IA nos testes automáticos são simulados. A referência
+estruturada foi confirmada à parte contra `z-ai/glm-5.3-flash` em duas etiquetas
+geradas; ver [guia de IA](../AI_RECOGNITION.md). Duas amostras sintéticas não
+comprovam precisão em rótulos fotografados.
+O Kanban mantém a evidência histórica e assinala este lote como «Em revisão».
+
+Sem migração SQL: a referência é opcional no JSON `details`. Mantêm-se as
+restrições de privacidade, quotas e ausência de armazenamento alimentar offline.
+Nome livre opcional da porção não foi incluído; quantidade/unidade identificam-na.
+Não houve teste em telemóvel físico ou com leitores de ecrã reais, nem medição de
+retenção. Gráficos e restantes findings não fazem parte deste lote.

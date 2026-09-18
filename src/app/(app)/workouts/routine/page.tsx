@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { getRoutine } from "@/lib/queries";
+import { getRoutine } from "@/lib/workout-queries";
 import { PageHeader } from "@/components/ui";
 import { RoutineEditor } from "@/components/routine-editor";
 import { monthKeyOf } from "@/lib/month-calendar";

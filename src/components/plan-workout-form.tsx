@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { createPlannedWorkout } from "@/app/(app)/workouts/actions";
+import { useAction } from "@/lib/use-action";
 import { GroupPicker } from "./group-picker";
 
 /** Schedules a workout on the selected date: what it trains, and optionally
@@ -16,31 +17,26 @@ export function PlanWorkoutForm({
   const [groups, setGroups] = useState<string[]>([]);
   const [templateId, setTemplateId] = useState("");
   const [notes, setNotes] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
+  const { pending, error, run } = useAction(
+    "Sem ligação ao servidor. Tenta novamente.",
+  );
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    start(async () => {
-      try {
-        const res = await createPlannedWorkout({
+    run(
+      () =>
+        createPlannedWorkout({
           date,
           groups,
           templateId: templateId ? Number(templateId) : undefined,
           notes: notes.trim() || undefined,
-        });
-        if (res?.error) {
-          setError(res.error);
-          return;
-        }
+        }),
+      () => {
         setGroups([]);
         setTemplateId("");
         setNotes("");
-      } catch {
-        setError("Sem ligação ao servidor. Tenta novamente.");
-      }
-    });
+      },
+    );
   }
 
   return (

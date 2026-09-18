@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { unstable_rethrow } from "next/navigation";
+import { useAction } from "@/lib/use-action";
 
 /**
  * Small trash button that calls a bound server action after a confirm().
@@ -16,8 +15,9 @@ export function DeleteButton({
   id: number;
   confirmText?: string;
 }) {
-  const [pending, start] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  const { pending, error, run } = useAction(
+    "Não foi possível eliminar. Tenta novamente.",
+  );
 
   return (
     <span className="inline-flex flex-col items-end gap-1">
@@ -27,17 +27,11 @@ export function DeleteButton({
       disabled={pending}
       onClick={() => {
         if (!window.confirm(confirmText)) return;
-        setError(null);
-        start(async () => {
-          try {
-            const result = await action(id);
-            if (result && typeof result === "object" && "error" in result && typeof result.error === "string") {
-              setError(result.error);
-            }
-          } catch (cause) {
-            unstable_rethrow(cause);
-            setError("Não foi possível eliminar. Tenta novamente.");
-          }
+        run(async () => {
+          const result = await action(id);
+          return result && typeof result === "object" && "error" in result && typeof result.error === "string"
+            ? { error: result.error }
+            : undefined;
         });
       }}
       className="rounded-lg p-1.5 text-zinc-400 transition-colors hover:bg-red-500/10 hover:text-red-600 disabled:opacity-50 dark:hover:text-red-400"

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { getBodyMetrics } from "@/lib/queries";
+import { getBodyMetrics } from "@/lib/body-queries";
 import { EmptyState, PageHeader, StatCard } from "@/components/ui";
 import { ProgressChart } from "@/components/progress-chart";
 import { BodyMetricForm } from "@/components/body-metric-form";

@@ -148,6 +148,10 @@ O relatório no ecrã continua disponível sem subscrição de email.
 - `suppressHydrationWarning` no layout raiz acomoda atributos injetados por extensões.
 - Calorias têm consultas especializadas em `src/lib/calorie-queries.ts`;
   ver [CALORIES.md](CALORIES.md) e os contratos para snapshots e conversões.
+  `productInputSchema` separa entrada por referência dos nutrientes canónicos
+  por 100 g/ml. A referência opcional vive no JSON `details`, sem migração SQL.
+  A repetição recebe apenas o ID de um consumo e opções revistas; a action lê
+  o snapshot da conta autenticada e cria a cópia em transação, reabrindo o dia.
 
 ## Catálogo e medidas decimais
 
