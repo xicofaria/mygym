@@ -50,7 +50,6 @@ test("nutrition reference survives editing; catalogue context, repetition and co
   await page.getByRole("button", { name: "Produtos", exact: true }).click();
   await page.screenshot({ path: testInfo.outputPath("products-after.png"), fullPage: true });
   await page.getByRole("button", { name: "+ Novo produto", exact: true }).click();
-  await page.getByRole("button", { name: "Preencher manualmente", exact: true }).click();
   await page.getByLabel("Nome do alimento", { exact: true }).fill("Iogurte referência E2E");
   await page.getByLabel("Base nutricional", { exact: true }).selectOption("package");
   await page.getByLabel("Quantidade de referência", { exact: true }).fill("125");
