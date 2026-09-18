@@ -322,11 +322,6 @@ export function CaloriesTracker({
               onOpenProduct={(product, trigger, manual) =>
                 openProduct(product, "products", trigger, manual)
               }
-              onBarcode={() => {
-                setEditorOrigin("products");
-                barcodeFieldRef.current?.focus();
-                barcodeFieldRef.current?.scrollIntoView({ block: "center" });
-              }}
               onConsume={(product) => {
                 consume(product);
                 setTab("diary");

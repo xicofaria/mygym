@@ -252,8 +252,11 @@ devolve o foco ao consumo de origem. Falhar a gravação mantém o formulário a
 
 ## Continuidade e repetição
 
-«Novo produto» no catálogo oferece preenchimento manual, fotografia ou introdução
-de código de barras (não promete um scanner de câmara). Guardar mantém o catálogo.
+«Novo produto» abre o formulário diretamente, com o foco no nome. O próprio
+formulário começa pelo cartão de fotografia, e o código de barras vive na secção
+do Open Food Facts logo abaixo, pelo que não existe um passo intermédio a
+escolher o método: seria um clique a mais para uma decisão que não ramifica.
+Guardar mantém o catálogo.
 Criar a partir do diário mantém o dia/refeição e regressa à quantidade, sem criar
 um consumo automaticamente. A pesquisa local só aparece com produtos no catálogo;
 catálogo vazio explica como criar o primeiro e pesquisa sem correspondências

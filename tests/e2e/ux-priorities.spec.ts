@@ -112,7 +112,6 @@ test("produto preserva campos entre separadores e pede confirmação ao sair", a
   await page.goto("/calories");
   await page.getByRole("button", { name: "Produtos", exact: true }).click();
   await page.getByRole("button", { name: "+ Novo produto", exact: true }).click();
-  await page.getByRole("button", { name: "Preencher manualmente", exact: true }).click();
   await page.getByLabel("Nome do alimento", { exact: true }).fill("Produto por guardar");
   await page.getByRole("textbox", { name: "Energia (kcal) por 100", exact: true }).fill("65");
   await page.getByRole("button", { name: "Produtos", exact: true }).click();

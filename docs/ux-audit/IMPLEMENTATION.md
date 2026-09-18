@@ -56,7 +56,7 @@ merge do PR #46. [Plano autorizado](NEXT_PR_PLAN.md).
 
 | Finding | Implementação |
 | --- | --- |
-| UX-32 | CTA separado da pesquisa; escolha manual/fotografia/código; pesquisa sem resultados distinta de catálogo vazio. |
+| UX-32 | CTA separado da pesquisa, que só aparece com catálogo preenchido; pesquisa sem resultados distinta de catálogo vazio; secção externa identificada como Open Food Facts. Um menu de métodos chegou a ser implementado e foi revertido: duas das três opções abriam o mesmo formulário e a terceira descia até um campo já visível, pelo que só acrescentava um clique. |
 | UX-28 | Catálogo permanece em Produtos; criação a partir do diário volta à quantidade, mantendo dia/refeição e sem registar automaticamente. |
 | UX-33 | Base por 100 g/ml, porção, embalagem ou quantidade personalizada; mudança explícita de base, conversão no servidor e metadados compatíveis com produtos antigos. IA transcreve a referência; base assumida fica visível para revisão. |
 | UX-27 | Estado aberto/concluído e ação de conclusão junto do resumo. |
