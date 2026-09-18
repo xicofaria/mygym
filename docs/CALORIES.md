@@ -3,7 +3,7 @@
 ## Funcionalidade
 
 O formulário mostra o peso da embalagem identificado pela IA separadamente da
-tabela por 100 g/ml, com indicação de estimativa ou de peso desconhecido.
+tabela nutricional, com indicação de estimativa ou de peso desconhecido.
 Uma porção só sugere o conteúdo total quando há indícios suficientes; não se
 extraem pesos da explicação livre. Ao guardar/escolher um produto com embalagem
 conhecida, o diário prepara 1 embalagem e calcula os gramas e nutrientes totais.
@@ -120,6 +120,14 @@ produto guardado sem revisão.
   A referência fica nos detalhes JSON; produtos antigos continuam por 100.
   Ao alterar uma base preenchida, escolher manter os números e corrigir a base
   ou converter para a nova quantidade. Não há conversão automática entre g e ml.
+- «No rótulo, os valores são por…» apresenta 100 g ou 100 ml, conforme a unidade,
+  e pede peso/volume da porção, conteúdo da embalagem ou quantidade no rótulo.
+  Com nutrientes vazios, uma quantidade válida aplica-se diretamente, sem botão
+  «Aplicar base». Quantidades incompletas/inválidas bloqueiam guardar e recebem foco.
+  Com nutrientes preenchidos (incluindo zero), a alteração fica identificada como
+  pendente: escolher «Converter os valores», «Manter os números do rótulo» ou
+  «Cancelar alteração». Exemplos com as kcal existentes explicam cada resultado.
+  Cancelar conserva os valores; aplicar limpa erros associados à referência anterior.
 - Sem base identificável, a IA em modo estimativa propõe 100 g, com aviso de
   suposição e revisão obrigatória (100 ml apenas com evidência volumétrica).
   Valores legíveis por porção sem o peso dessa porção não são reinterpretados

@@ -39,6 +39,8 @@ ficam privados da conta que os cria. Não existe seletor de parceiro.
   rótulos ou estimativas identificadas por IA e pesquisa no Open Food Facts.
   Valores por 100 g/ml, porção, embalagem ou quantidade personalizada, com
   conversão automática e base proposta pela IA visível para revisão.
+  Escolher a quantidade no rótulo não exige um passo extra com a tabela vazia;
+  com valores preenchidos, converter ou corrigir exige uma escolha explícita.
   A quantidade consumida e a repetição de consumos recentes exigem confirmação.
   Guardar no catálogo mantém o contexto; concluir o dia fica junto do resumo.
 - **Relatórios:** resumo semanal em `/relatorios`; envio por email opcional,

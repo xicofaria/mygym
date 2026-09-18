@@ -1,5 +1,24 @@
 # Implementação das correções UX
 
+## Ajuste de interação — referência nutricional
+
+Sem nutrientes preenchidos, uma quantidade válida aplica-se diretamente, sem
+«Aplicar base». Com valores existentes, o resumo identifica a alteração pendente
+e apresenta converter/manter/cancelar com exemplos das kcal. Quantidade inválida
+bloqueia a gravação e recebe foco. Labels distinguem peso/volume da porção,
+conteúdo da embalagem e quantidade no rótulo; o seletor mostra 100 g ou 100 ml.
+Erros da referência anterior são limpos após aplicar. Esta revisão cobre o mesmo
+fluxo de UX-33; não é uma nova auditoria integral da aplicação.
+
+Validação: `npm run check` (131 testes unitários, lint, tipos e build) e
+`npm run test:e2e` (53 testes). O novo cenário verifica vírgula sem perda de foco,
+zero como valor preenchido, converter/manter/cancelar, unidade g/ml e bloqueio
+de quantidade inválida. A suite mantém os cenários de IA com respostas simuladas;
+não valida um fornecedor real nem um leitor de ecrã físico.
+O HTML referencia a nova captura de UX-33 e foram repostas três capturas que
+estavam em falta; JavaScript e caminhos das imagens foram verificados.
+Capturas de página completa conservam a navegação fixa na posição do viewport.
+
 A avaliação e screenshots originais do Kanban registam o comportamento anterior às
 correções. UX-06 e UX-25 incluem também capturas posteriores identificadas.
 O primeiro PR (#46) foi integrado. Os cartões abaixo passam a «Concluído» por
