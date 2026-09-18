@@ -4,7 +4,7 @@ import {
   getWorkoutDatesInRange,
   getWorkoutTemplates,
   getWorkouts,
-} from "@/lib/queries";
+} from "@/lib/workout-queries";
 import { requireUser } from "@/lib/auth";
 import { EmptyState, PageHeader } from "@/components/ui";
 import { WorkoutCard } from "@/components/workout-card";

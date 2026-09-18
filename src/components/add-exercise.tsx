@@ -1,8 +1,9 @@
 "use client";
 
-import { useId, useState, useTransition } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createExercise, updateExercise } from "@/app/(app)/exercises/actions";
+import { useAction } from "@/lib/use-action";
 import type { SearchableExercise } from "@/lib/exercise-catalog";
 
 /** Private exercise metadata, with stable IDs preserving workout history. */
@@ -14,8 +15,9 @@ export function AddExercise({ exercise }: { exercise?: SearchableExercise }) {
   const [muscleGroup, setMuscleGroup] = useState(exercise?.muscleGroup ?? "");
   const [aliases, setAliases] = useState(exercise?.aliases ?? "");
   const [equipment, setEquipment] = useState(exercise?.equipment ?? "");
-  const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
+  const { pending, error, setError, run } = useAction(
+    "Não foi possível guardar. Tenta novamente.",
+  );
 
   if (!open)
     return (
@@ -31,17 +33,13 @@ export function AddExercise({ exercise }: { exercise?: SearchableExercise }) {
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    setError(null);
-    start(async () => {
-      try {
-        const input = { name, muscleGroup, aliases, equipment };
-        const result = exercise
+    const input = { name, muscleGroup, aliases, equipment };
+    run(
+      async () =>
+        exercise
           ? await updateExercise(exercise.id, input)
-          : await createExercise(input);
-        if (result.error) {
-          setError(result.error);
-          return;
-        }
+          : await createExercise(input),
+      () => {
         if (!exercise) {
           setName("");
           setMuscleGroup("");
@@ -50,10 +48,8 @@ export function AddExercise({ exercise }: { exercise?: SearchableExercise }) {
         }
         setOpen(false);
         router.refresh();
-      } catch {
-        setError("Não foi possível guardar. Tenta novamente.");
-      }
-    });
+      },
+    );
   }
 
   return (
@@ -149,7 +145,7 @@ export function AddExercise({ exercise }: { exercise?: SearchableExercise }) {
           disabled={pending}
           onClick={() => {
             setOpen(false);
-            setError(null);
+            setError("");
           }}
         >
           Cancelar

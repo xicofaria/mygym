@@ -3,11 +3,8 @@ import { db } from "@/db";
 import { visibleExercises } from "@/lib/exercise-access";
 import { exercises } from "@/db/schema";
 import { LoginRateLimiter } from "@/lib/login-rate-limit-core";
-import {
-  readPhoto,
-  recognizeMachine,
-  RecognitionError,
-} from "@/lib/machine-recognition";
+import { recognizeMachine } from "@/lib/machine-recognition";
+import { readPhoto, RecognitionError } from "@/lib/vision-request";
 import { hasSameOrigin } from "@/lib/request-origin";
 import { getAIConfig } from "@/lib/ai-config";
 import { reserveAIQuota } from "@/lib/ai-quota";

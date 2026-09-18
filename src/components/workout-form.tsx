@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, unstable_rethrow } from "next/navigation";
 import { createWorkout, updateWorkout } from "@/app/(app)/workouts/actions";
 import { toDateInputValue } from "@/lib/format";
 import {
@@ -9,7 +9,7 @@ import {
   removeLocalDraft,
   writeLocalDraft,
 } from "@/lib/local-draft";
-import type { LastPerformance } from "@/lib/queries";
+import type { LastPerformance } from "@/lib/exercise-queries";
 import { parseWeight } from "@/lib/decimal";
 import { MachinePhotoPicker } from "@/components/machine-photo-picker";
 import { ExercisePicker } from "@/components/exercise-picker";
@@ -235,7 +235,9 @@ export function WorkoutForm({
         setDraftSaved(false);
         submittingRef.current = false;
         router.push("/workouts");
-      } catch {
+      } catch (cause) {
+        // Not `useAction`: the message depends on whether the draft survived.
+        unstable_rethrow(cause);
         submittingRef.current = false;
         const saved = writeLocalDraft(localStorage, draftKey, draft);
         setDraftSaved(saved);

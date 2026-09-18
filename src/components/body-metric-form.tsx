@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, unstable_rethrow } from "next/navigation";
 import { createBodyMetric } from "@/app/(app)/body/actions";
 import {
   BODY_METRIC_FIELDS as FIELDS,
@@ -143,7 +143,9 @@ export function BodyMetricForm({ userId, initiallyOpen = false, onSaved }: { use
         resetForm();
         onSaved?.();
         router.refresh();
-      } catch {
+      } catch (cause) {
+        // Not `useAction`: the message depends on whether the draft survived.
+        unstable_rethrow(cause);
         submittingRef.current = false;
         const saved = writeLocalDraft(localStorage, draftKey, draft);
         setError(

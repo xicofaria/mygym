@@ -10,7 +10,11 @@ import {
   type FoodProduct,
 } from "./nutrition";
 import { openRouterFormat } from "./openrouter-format";
-import { RecognitionError } from "./machine-recognition";
+import {
+  RecognitionError,
+  requestVisionText,
+  visionSignal,
+} from "./vision-request";
 import type { AIProvider } from "./ai-config";
 
 export const foodRecognitionSchema = z.object({
@@ -80,121 +84,35 @@ export async function recognizeFood({
   const image = photo
     ? `data:image/jpeg;base64,${photo.toString("base64")}`
     : null;
-  const body =
-    provider === "openrouter"
-      ? {
-          model,
-          max_tokens: format.foodTokens,
-          reasoning: format.reasoning,
-          provider: { require_parameters: true, data_collection: "deny" },
-          messages: [
-            { role: "system", content: instructions + format.instruction },
-            {
-              role: "user",
-              content: image
-                ? [{ type: "image_url", image_url: { url: image } }]
-                : [{ type: "text", text: JSON.stringify(productContext) }],
-            },
-          ],
-          response_format: format.response_format,
-        }
-      : {
-          model,
-          store: false,
-          max_output_tokens: 1000,
-          instructions,
-          input: [
-            {
-              role: "user",
-              content: image
-                ? [{ type: "input_image", image_url: image, detail: "high" }]
-                : [
-                    {
-                      type: "input_text",
-                      text: JSON.stringify(productContext),
-                    },
-                  ],
-            },
-          ],
-          text: {
-            format: {
-              type: "json_schema",
-              name: "food_nutrition",
-              strict: true,
-              schema,
-            },
-          },
-        };
-  const requestSignal = AbortSignal.any([
-    AbortSignal.timeout(provider === "openrouter" ? format.timeoutMs : 25000),
-    ...(signal ? [signal] : []),
-  ]);
-  const readText = async (): Promise<string> => {
-    const response = await fetcher(
-      provider === "openrouter"
-        ? "https://openrouter.ai/api/v1/chat/completions"
-        : "https://api.openai.com/v1/responses",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-        cache: "no-store",
-        signal: requestSignal,
+  const contextText = JSON.stringify(productContext);
+  // Built once: the malformed-JSON retry shares the original time budget.
+  const requestSignal = visionSignal({ provider, format, signal });
+  const readText = () =>
+    requestVisionText({
+      provider,
+      apiKey,
+      model,
+      format,
+      instructions,
+      schemaName: "food_nutrition",
+      schema,
+      content: {
+        openrouter: image
+          ? [{ type: "image_url", image_url: { url: image } }]
+          : [{ type: "text", text: contextText }],
+        openai: image
+          ? [{ type: "input_image", image_url: image, detail: "high" }]
+          : [{ type: "input_text", text: contextText }],
       },
-    );
-    if (!response.ok)
-      throw new RecognitionError(
-        "A análise está indisponível. Podes preencher manualmente.",
-        502,
-      );
-    const raw = await response.json();
-    if (provider === "openrouter") {
-      const parsed = z
-        .object({
-          choices: z
-            .array(
-              z.object({
-                finish_reason: z.literal("stop"),
-                message: z.object({
-                  content: z.string(),
-                  refusal: z.null().optional(),
-                }),
-              }),
-            )
-            .min(1),
-        })
-        .safeParse(raw);
-      if (!parsed.success)
-        throw new RecognitionError("A IA não concluiu a análise.", 502);
-      return parsed.data.choices[0].message.content;
-    }
-    const parsed = z
-      .object({
-        status: z.literal("completed"),
-        output: z.array(
-          z.object({
-            type: z.string(),
-            content: z
-              .array(
-                z.object({ type: z.string(), text: z.string().optional() }),
-              )
-              .optional(),
-          }),
-        ),
-      })
-      .safeParse(raw);
-    if (!parsed.success)
-      throw new RecognitionError("A IA não concluiu a análise.", 502);
-    return parsed.data.output
-      .filter((x) => x.type === "message")
-      .flatMap((x) => x.content ?? [])
-      .filter((x) => x.type === "output_text")
-      .map((x) => x.text ?? "")
-      .join("");
-  };
+      maxTokens: { openrouter: format.foodTokens, openai: 1000 },
+      signal: requestSignal,
+      fetcher,
+      errors: {
+        unavailable: () =>
+          "A análise está indisponível. Podes preencher manualmente.",
+        incomplete: "A IA não concluiu a análise.",
+      },
+    });
   for (let attempt = 0; ; attempt++) {
     const text = await readText();
     try {

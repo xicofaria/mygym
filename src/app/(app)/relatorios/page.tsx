@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/auth";
 import {
   getWeeklyReportData,
   previousLisbonWeekRange,
-} from "@/lib/queries";
+} from "@/lib/report-queries";
 import { currentLisbonWeekRange } from "@/lib/dashboard-metrics";
 import { calculateWeeklyReport } from "@/lib/weekly-report";
 import { fmtDate } from "@/lib/format";

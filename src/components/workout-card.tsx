@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { fmtDate } from "@/lib/format";
-import type { WorkoutWithSets } from "@/lib/queries";
+import type { WorkoutWithSets } from "@/lib/workout-queries";
 import { deleteWorkout } from "@/app/(app)/workouts/actions";
 import { DeleteButton } from "./delete-button";
 

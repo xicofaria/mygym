@@ -6,8 +6,10 @@ import {
   getExerciseCatalog,
   getFavoriteExerciseIds,
   getLastPerformanceByExercise,
+} from "@/lib/exercise-queries";
+import {
   getWorkoutForEdit,
-} from "@/lib/queries";
+} from "@/lib/workout-queries";
 
 export default async function EditWorkoutPage({
   params,

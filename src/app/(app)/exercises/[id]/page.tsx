@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/auth";
-import { getExerciseProgression } from "@/lib/queries";
+import { getExerciseProgression } from "@/lib/exercise-queries";
 import { PageHeader, StatCard } from "@/components/ui";
 import { ProgressChart } from "@/components/progress-chart";
 import { fmtDate } from "@/lib/format";

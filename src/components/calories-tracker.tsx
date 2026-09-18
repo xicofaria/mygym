@@ -1,8 +1,6 @@
 "use client";
-/* eslint-disable @next/next/no-img-element -- private endpoints and attributed product photos */
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { getCalorieData } from "@/lib/calorie-queries";
 import {
   archiveFoodProduct,
   deleteFoodEntry,
@@ -11,26 +9,23 @@ import {
   setFoodDayComplete,
 } from "@/app/(app)/calories/actions";
 import {
-  dayResult,
-  foodStores,
   goalForDate,
-  meals,
-  nutrientLabels,
-  nutrientKeys,
   nutritionTotal,
-  periodDates,
-  productSchema,
-  portionQuantity,
-  scaleNutrition,
   type FoodEntry,
   type FoodProduct,
 } from "@/lib/nutrition";
 import { parseWeight } from "@/lib/decimal";
+import { useAction } from "@/lib/use-action";
 import { FoodProductForm } from "./food-product-form";
-import { DiaryPortion } from "./diary-portion";
+import { DaySummary } from "./calories/day-summary";
+import { EntryForm } from "./calories/entry-form";
+import { GoalForm } from "./calories/goal-form";
+import { MealList } from "./calories/meal-list";
+import { OverviewTab } from "./calories/overview-tab";
+import { ProductCatalogue } from "./calories/product-catalogue";
+import { RepeatRecent } from "./calories/repeat-recent";
+import { deriveEntry, useEntryDraft, type CalorieData } from "./calories/entry-draft";
 
-const fmt = (n: number) =>
-  new Intl.NumberFormat("pt-PT", { maximumFractionDigits: 1 }).format(n);
 export function CaloriesTracker({
   data,
   date,
@@ -39,7 +34,7 @@ export function CaloriesTracker({
   provider,
   openGoal = false,
 }: {
-  data: Awaited<ReturnType<typeof getCalorieData>>;
+  data: CalorieData;
   date: string;
   today: string;
   period: "day" | "week" | "month";
@@ -48,174 +43,79 @@ export function CaloriesTracker({
 }) {
   const router = useRouter();
   const [tab, setTab] = useState("diary");
-  const [error, setError] = useState("");
-  const [pending, start] = useTransition();
+  const { pending, error, setError, run } = useAction(
+    "Não foi possível guardar. Tenta novamente; os campos foram mantidos.",
+  );
   const [editor, setEditor] = useState<Partial<FoodProduct> | null>(null);
   const [editorOrigin, setEditorOrigin] = useState("products");
-  const [addMethods, setAddMethods] = useState(false);
-  const editorTrigger = useRef<HTMLElement | null>(null);
-  const catalogueButton = useRef<HTMLButtonElement>(null);
-  const barcodeField = useRef<HTMLInputElement>(null);
-  const [repeating, setRepeating] = useState<FoodEntry | null>(null);
-  const [search, setSearch] = useState("");
-  const [barcode, setBarcode] = useState("");
-  const [external, setExternal] = useState<Partial<FoodProduct>[]>([]);
-  const [searching, setSearching] = useState(false);
-  const [externalNotice, setExternalNotice] = useState("");
-  const [productId, setProductId] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [quantityMode, setQuantityMode] = useState<
-    "weight" | "package" | "pieces"
-  >("weight");
-  const [meal, setMeal] = useState<string>(meals[0]);
-  const [editing, setEditing] = useState<FoodEntry | null>(null);
-  const snapshotEntry = editing ?? repeating;
-  const [portionOverride, setPortionOverride] = useState<{
-    key: string;
-    unitQuantity: number;
-    estimated: boolean;
-  } | null>(null);
-  const [goalInput, setGoalInput] = useState("");
-  const [tolerance, setTolerance] = useState("10");
-  const goalDetails = useRef<HTMLDetailsElement>(null);
-  const goalField = useRef<HTMLInputElement>(null);
-  const entryHeading = useRef<HTMLHeadingElement>(null);
-  const editOrigin = useRef<HTMLButtonElement | null>(null);
-  const restoreEntryFocus = useRef(false);
+  const editorTriggerRef = useRef<HTMLElement | null>(null);
+  const catalogueButtonRef = useRef<HTMLButtonElement>(null);
+  const barcodeFieldRef = useRef<HTMLInputElement>(null);
+  const [draft, dispatch] = useEntryDraft();
+  const goalDetailsRef = useRef<HTMLDetailsElement>(null);
+  const goalFieldRef = useRef<HTMLInputElement>(null);
+  const entryHeadingRef = useRef<HTMLHeadingElement>(null);
+  const editOriginRef = useRef<HTMLButtonElement | null>(null);
+  const restoreEntryFocusRef = useRef(false);
+  const { editing, repeating } = draft;
   useEffect(() => {
     if ((!editing && !repeating) || tab !== "diary") return;
-    entryHeading.current?.focus();
-    entryHeading.current?.scrollIntoView({ block: "center" });
+    entryHeadingRef.current?.focus();
+    entryHeadingRef.current?.scrollIntoView({ block: "center" });
   }, [editing, repeating, tab]);
   useEffect(() => {
-    if (pending || editing || repeating || tab !== "diary" || !restoreEntryFocus.current) return;
-    restoreEntryFocus.current = false;
-    editOrigin.current?.focus();
-    editOrigin.current?.scrollIntoView({ block: "center" });
+    if (
+      pending ||
+      editing ||
+      repeating ||
+      tab !== "diary" ||
+      !restoreEntryFocusRef.current
+    )
+      return;
+    restoreEntryFocusRef.current = false;
+    editOriginRef.current?.focus();
+    editOriginRef.current?.scrollIntoView({ block: "center" });
   }, [editing, repeating, pending, tab]);
   const entries = data.entries.filter((e) => e.date === date);
   const goal = goalForDate(data.goals, date);
   const currentGoal = goalForDate(data.goals, today);
   const { totals, incomplete } = nutritionTotal(entries);
   const complete = data.days.some((d) => d.date === date && d.completed);
-  const chosen =
-    snapshotEntry?.productId === Number(productId)
-      ? snapshotEntry.snapshot
-      : data.products.find((p) => p.id === Number(productId));
-  const portionKey = `${productId}:${snapshotEntry?.id ?? "new"}:${quantityMode}`;
-  const details = chosen
-    ? {
-        ...chosen.details,
-        ...(portionOverride?.key === portionKey
-          ? quantityMode === "pieces"
-            ? {
-                pieceQuantity: portionOverride.unitQuantity,
-                pieceEstimated: portionOverride.estimated,
-              }
-            : {
-                packageQuantity: portionOverride.unitQuantity,
-                packageEstimated: portionOverride.estimated,
-              }
-          : {}),
-      }
-    : null;
-  const amount = details
-    ? portionQuantity(parseWeight(quantity), quantityMode, details)
-    : NaN;
-  const preview =
-    chosen && Number.isFinite(amount) && amount > 0
-      ? scaleNutrition(chosen.nutrients, amount)
-      : null;
-  const dates = periodDates(date, period).filter((d) => d <= today);
-  const summary = dates.map((day) => {
-    const rows = data.entries.filter((e) => e.date === day);
-    const kcal = nutritionTotal(rows).totals.kcal;
-    const target = goalForDate(data.goals, day);
-    const closed = data.days.some((d) => d.date === day && d.completed);
-    return {
-      day,
-      kcal,
-      target,
-      closed,
-      hasEntries: rows.length > 0,
-      result: dayResult(kcal, target, closed, rows.length > 0),
-    };
-  });
-  const within = summary.filter((d) => d.result === "Dentro da meta").length;
-  const closed = summary.filter((d) => d.closed && d.hasEntries).length;
-  const recorded = summary.filter((d) => d.hasEntries).length;
-  const totalKcal = summary.reduce((sum, d) => sum + d.kcal, 0);
+  const derived = deriveEntry(draft, data.products);
   function navigate(nextDate: string, nextPeriod = period) {
     router.push(`/calories?date=${nextDate}&period=${nextPeriod}`);
   }
-  function run(
+  function save(
     action: () => Promise<{ error: string | null }>,
     after?: () => void,
   ) {
-    setError("");
-    start(async () => {
-      try {
-        const result = await action();
-        if (result.error) setError(result.error);
-        else {
-          after?.();
-          router.refresh();
-        }
-      } catch {
-        setError(
-          "Não foi possível guardar. Tenta novamente; os campos foram mantidos.",
-        );
-      }
+    run(action, () => {
+      after?.();
+      router.refresh();
     });
   }
-  async function lookup(store?: string) {
-    setSearching(true);
-    setError("");
-    setExternalNotice("");
-    setExternal([]);
-    try {
-      const params = store
-        ? "store=" + store
-        : "barcode=" + encodeURIComponent(barcode.trim());
-      const response = await fetch("/api/calories/products?" + params);
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.error);
-      const rows = (Array.isArray(body.products) ? body.products : []).flatMap(
-        (p: unknown) => {
-          const parsed = productSchema.safeParse(p);
-          return parsed.success ? [parsed.data] : [];
-        },
-      );
-      setExternal(rows);
-      if (!rows.length)
-        setExternalNotice(
-          "Sem resultados com calorias disponíveis. Fotografa o rótulo ou adiciona manualmente.",
-        );
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Pesquisa indisponível.");
-    } finally {
-      setSearching(false);
-    }
+  function resetEntry() {
+    if (editing || repeating) restoreEntryFocusRef.current = true;
+    dispatch({ type: "reset" });
   }
-  const resetEntry = () => {
-    if (editing || repeating) restoreEntryFocus.current = true;
-    setRepeating(null);
-    setPortionOverride(null);
-    setQuantityMode("weight");
-    setEditing(null);
-    setQuantity("");
-    setProductId("");
-  };
-  function openProduct(product: Partial<FoodProduct>, origin: string, trigger: HTMLElement, manual = false) {
+  function openProduct(
+    product: Partial<FoodProduct>,
+    origin: string,
+    trigger: HTMLElement,
+    manual = false,
+  ) {
     if (!editor) {
-      editorTrigger.current = trigger;
+      editorTriggerRef.current = trigger;
       setEditorOrigin(origin);
       setEditor(product);
     }
     setTab("products");
-    setAddMethods(false);
     requestAnimationFrame(() => {
-      const target = document.querySelector<HTMLElement>(manual ? '[aria-label="Produto alimentar"] input[name="name"]' : '[aria-label="Produto alimentar"] h2');
+      const target = document.querySelector<HTMLElement>(
+        manual
+          ? '[aria-label="Produto alimentar"] input[name="name"]'
+          : '[aria-label="Produto alimentar"] h2',
+      );
       target?.focus();
       target?.scrollIntoView({ block: "center" });
     });
@@ -224,12 +124,18 @@ export function CaloriesTracker({
     setEditor(null);
     setTab(editorOrigin);
     requestAnimationFrame(() => {
-      if (editorTrigger.current?.isConnected) editorTrigger.current.focus();
-      else if (editorOrigin === "products") catalogueButton.current?.focus();
-      else entryHeading.current?.focus();
+      if (editorTriggerRef.current?.isConnected) editorTriggerRef.current.focus();
+      else if (editorOrigin === "products") catalogueButtonRef.current?.focus();
+      else entryHeadingRef.current?.focus();
     });
   }
-  const filteredProducts = data.products.filter((p) => (p.name + " " + p.brand).toLocaleLowerCase("pt").includes(search.toLocaleLowerCase("pt")));
+  function consume(product: FoodProduct) {
+    dispatch({
+      type: "consume",
+      productId: String(product.id),
+      packaged: product.details.packageQuantity !== null,
+    });
+  }
   return (
     <div aria-busy={pending} className="flex flex-col gap-5">
       <header>
@@ -282,785 +188,174 @@ export function CaloriesTracker({
       )}
       {tab === "diary" && (
         <>
-          <section
-            aria-label="Resumo do dia"
-            className="border-b border-black/10 pb-5 dark:border-white/10"
-          >
-            <p className="text-sm text-zinc-500">
-              {date === today ? "Hoje" : date} ·{" "}
-              {dayResult(totals.kcal, goal, complete, entries.length > 0)}
-            </p>
-            <p className="my-2">
-              <span className="text-5xl font-semibold tracking-tight tabular-nums">
-                {fmt(totals.kcal)}
-              </span>{" "}
-              <span className="text-zinc-500">
-                kcal {goal ? "/ " + fmt(goal.kcal) : ""}
-              </span>
-            </p>
-            {goal ? (
-              <>
-                <progress
-                  aria-label="Progresso calórico do dia"
-                  className="nutrition-progress h-2 w-full"
-                  max={goal.kcal}
-                  value={Math.min(totals.kcal, goal.kcal)}
-                />
-                <p className="mt-2 text-xs text-zinc-500">
-                  {totals.kcal <= goal.kcal
-                    ? `${fmt(goal.kcal - totals.kcal)} kcal até à meta`
-                    : `${fmt(totals.kcal - goal.kcal)} kcal acima da meta`}{" "}
-                  · intervalo ±{goal.tolerance}%
-                </p>
-              </>
-            ) : (
-              <div className="flex flex-col items-start gap-2">
-                <p className="text-sm text-zinc-500">Ainda não definiste uma meta. Podes continuar a registar alimentos.</p>
-                <button type="button" className="btn-ghost" onClick={() => {
-                  if (goalDetails.current) goalDetails.current.open = true;
-                  goalField.current?.focus();
-                  goalField.current?.scrollIntoView({ block: "center" });
-                }}>Definir a minha meta</button>
-              </div>
-            )}
-            <div className="mt-4 grid grid-cols-3 gap-3">
-              {(["protein", "carbs", "fat"] as const).map((key) => (
-                <div key={key}>
-                  <p className="text-xs text-zinc-500">{nutrientLabels[key]}</p>
-                  <p className="font-semibold">
-                    {fmt(totals[key])} g{incomplete.includes(key) ? "*" : ""}
-                  </p>
-                </div>
-              ))}
-            </div>
-            {incomplete.length > 0 && (
-              <p className="mt-2 text-xs text-zinc-500">
-                * Total parcial: há alimentos com nutrientes desconhecidos.
-              </p>
-            )}
-            <div className="mt-4 flex flex-col items-start gap-2">
-              <p role="status" className="text-sm">{complete ? "Dia concluído" : "Registo do dia em aberto"}</p>
-              <button type="button" className="btn-ghost" disabled={pending || !entries.length}
-                onClick={() => run(() => setFoodDayComplete(date, !complete))}>
-                {complete ? "Reabrir dia" : "Concluir registo do dia"}
-              </button>
-              <p className="text-xs text-zinc-600 dark:text-zinc-400">Conclui quando tiveres registado todas as refeições. Alterar consumos reabre o dia. Comer menos não é automaticamente cumprir a meta.</p>
-            </div>
-          </section>
-          {data.recent.length > 0 && <details className="rounded-xl border border-black/10 p-3 dark:border-white/10">
-            <summary className="min-h-11 cursor-pointer font-medium">Repetir um consumo recente</summary>
-            <div className="flex flex-col gap-2">
-              {data.recent.map((entry) => <button key={entry.id} type="button" className="btn-ghost text-left" disabled={pending} onClick={(event) => {
-                if ((editing || repeating || quantity) && !window.confirm("Substituir os campos do consumo atual? Nada será registado até confirmares.")) return;
-                editOrigin.current = event.currentTarget;
-                setEditing(null);
-                setRepeating(entry);
-                setPortionOverride(null);
-                setProductId(String(entry.productId));
-                setQuantityMode("weight");
-                setQuantity(String(entry.quantity));
-                setMeal(entry.meal);
-              }}>Repetir {entry.snapshot.name} · {fmt(entry.quantity)} {entry.snapshot.unit} · {entry.date}</button>)}
-            </div>
-          </details>}
-          <form
-            aria-label={editing ? `Editar consumo: ${editing.snapshot.name}` : "Adicionar ao diário"}
-            className="flex flex-col gap-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              run(
+          <DaySummary
+            date={date}
+            today={today}
+            totals={totals}
+            incomplete={incomplete}
+            goal={goal}
+            entryCount={entries.length}
+            complete={complete}
+            pending={pending}
+            goalDetailsRef={goalDetailsRef}
+            goalFieldRef={goalFieldRef}
+            onToggleComplete={() =>
+              save(() => setFoodDayComplete(date, !complete))
+            }
+          />
+          <RepeatRecent
+            recent={data.recent}
+            pending={pending}
+            guard={() =>
+              !(editing || repeating || draft.quantity) ||
+              window.confirm(
+                "Substituir os campos do consumo atual? Nada será registado até confirmares.",
+              )
+            }
+            onRepeat={(entry, trigger) => {
+              editOriginRef.current = trigger;
+              dispatch({ type: "repeat", entry });
+            }}
+          />
+          <EntryForm
+            products={data.products}
+            draft={draft}
+            dispatch={dispatch}
+            derived={derived}
+            date={date}
+            provider={provider}
+            pending={pending}
+            entryHeadingRef={entryHeadingRef}
+            onSubmit={() =>
+              save(
                 () =>
                   saveFoodEntry({
                     id: editing?.id,
                     repeatFromId: repeating?.id,
-                    productId: Number(productId),
-                    quantity: amount,
+                    productId: Number(draft.productId),
+                    quantity: derived.amount,
                     portion:
-                      quantityMode === "weight"
+                      draft.quantityMode === "weight"
                         ? undefined
                         : {
-                            mode: quantityMode,
-                            amount: parseWeight(quantity),
+                            mode: draft.quantityMode,
+                            amount: parseWeight(draft.quantity),
                             unitQuantity:
-                              quantityMode === "pieces"
-                                ? details?.pieceQuantity
-                                : details?.packageQuantity,
+                              draft.quantityMode === "pieces"
+                                ? derived.details?.pieceQuantity
+                                : derived.details?.packageQuantity,
                             estimated:
-                              quantityMode === "pieces"
-                                ? details?.pieceEstimated
-                                : details?.packageEstimated,
+                              draft.quantityMode === "pieces"
+                                ? derived.details?.pieceEstimated
+                                : derived.details?.packageEstimated,
                           },
-                    meal,
+                    meal: draft.meal,
                     date,
                   }),
                 resetEntry,
-              );
+              )
+            }
+            onCancel={resetEntry}
+            onCreateProduct={(trigger) => openProduct({}, "diary", trigger)}
+          />
+          <MealList
+            entries={entries}
+            pending={pending}
+            onEdit={(entry: FoodEntry, trigger) => {
+              editOriginRef.current = trigger;
+              dispatch({ type: "edit", entry });
             }}
-          >
-            <h2 ref={entryHeading} tabIndex={-1} className="font-semibold focus-visible:outline-2 focus-visible:outline-indigo-500">
-              {editing ? `Editar consumo: ${editing.snapshot.name}` : repeating ? `Repetir consumo: ${repeating.snapshot.name}` : "Adicionar ao diário"}
-            </h2>
-            {repeating && <p role="status" className="text-sm text-indigo-700 dark:text-indigo-300">Valores do registo de {repeating.date}. Confirma a quantidade e a refeição para {date}; ainda não foi registado.</p>}
-            <label className="label">
-              Alimento
-              <select
-                aria-label="Alimento"
-                className="input"
-                required
-                disabled={Boolean(repeating) || pending}
-                value={productId}
-                onChange={(e) => {
-                  setProductId(e.target.value);
-                  setPortionOverride(null);
-                  const product = data.products.find(
-                    (p) => p.id === Number(e.target.value),
-                  );
-                  const hasPackage = product?.details.packageQuantity != null;
-                  setQuantityMode(hasPackage ? "package" : "weight");
-                  setQuantity(hasPackage ? "1" : "");
-                }}
-              >
-                <option value="">Escolher produto</option>
-                {snapshotEntry?.productId &&
-                  !data.products.some((p) => p.id === snapshotEntry.productId) && (
-                    <option value={snapshotEntry.productId}>
-                      {snapshotEntry.snapshot.name} (arquivado)
-                    </option>
-                  )}
-                {data.products.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                    {p.brand ? " · " + p.brand : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {chosen && (
-              <label className="label">
-                Como queres registar?
-                <select
-                  className="input"
-                  aria-label="Modo de quantidade"
-                  value={quantityMode}
-                  onChange={(e) => {
-                    setQuantityMode(e.target.value as typeof quantityMode);
-                    setPortionOverride(null);
-                    setQuantity("");
-                  }}
-                >
-                  <option value="weight">Peso / volume ({chosen.unit})</option>
-                  <option value="package">Embalagens</option>
-                  <option value="pieces">Unidades</option>
-                </select>
-              </label>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <label className="label">
-                {quantityMode === "weight"
-                  ? `Quantidade (${chosen?.unit ?? "g/ml"})`
-                  : quantityMode === "package"
-                    ? "N.º de embalagens"
-                    : "N.º de unidades"}
-                <input
-                  className="input"
-                  aria-label="Quantidade consumida"
-                  inputMode="decimal"
-                  maxLength={12}
-                  required
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  placeholder={
-                    quantityMode === "package"
-                      ? "Ex.: 0,5 = metade"
-                      : quantityMode === "pieces"
-                        ? "Ex.: 20 amendoins"
-                        : "Ex.: 150"
-                  }
-                />
-              </label>
-              <label className="label">
-                Refeição
-                <select
-                  className="input"
-                  value={meal}
-                  onChange={(e) => setMeal(e.target.value)}
-                >
-                  {meals.map((m) => (
-                    <option key={m}>{m}</option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            {quantityMode === "package" && (
-              <div className="flex flex-wrap gap-2">
-                {[
-                  ["0,25", "¼ embalagem"],
-                  ["0,5", "½ embalagem"],
-                  ["1", "1 embalagem"],
-                ].map(([value, label]) => (
-                  <button
-                    type="button"
-                    className="btn-ghost"
-                    key={value}
-                    onClick={() => setQuantity(value)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
-            )}
-            {chosen && quantityMode !== "weight" && (
-              <DiaryPortion
-                key={portionKey}
-                productId={Number(productId)}
-                mode={quantityMode}
-                unit={chosen.unit}
-                initialQuantity={
-                  quantityMode === "pieces"
-                    ? chosen.details.pieceQuantity
-                    : chosen.details.packageQuantity
-                }
-                initialEstimated={
-                  quantityMode === "pieces"
-                    ? chosen.details.pieceEstimated
-                    : chosen.details.packageEstimated
-                }
-                provider={provider}
-                onChange={(value) =>
-                  setPortionOverride({ key: portionKey, ...value })
-                }
-              />
-            )}
-            {preview && (
-              <p
-                role="status"
-                className="text-sm text-indigo-700 dark:text-indigo-300"
-              >
-                {fmt(preview.kcal)} kcal para{" "}
-                {quantityMode === "weight" ? quantity : fmt(amount)}{" "}
-                {chosen!.unit}
-                {chosen!.source === "estimate-ai" ? " · estimativa" : ""}
-              </p>
-            )}
-            {preview && (
-              <details className="text-sm">
-                <summary className="cursor-pointer text-zinc-500">
-                  Nutrientes desta quantidade
-                </summary>
-                <dl className="mt-2 grid grid-cols-2 gap-2">
-                  {nutrientKeys
-                    .filter((k) => k !== "kcal")
-                    .map((key) => (
-                      <div key={key}>
-                        <dt className="text-xs text-zinc-500">
-                          {nutrientLabels[key]}
-                        </dt>
-                        <dd>
-                          {preview[key] === null
-                            ? "Desconhecido"
-                            : `${fmt(preview[key])} g`}
-                        </dd>
-                      </div>
-                    ))}
-                </dl>
-              </details>
-            )}
-            <button
-              className="btn-primary"
-              disabled={pending || !productId || !Number.isFinite(amount)}
-            >
-              {editing ? "Guardar consumo" : repeating ? "Confirmar repetição" : "Registar consumo"}
-            </button>
-            {(editing || repeating) && (
-              <button type="button" className="btn-ghost" disabled={pending} onClick={resetEntry}>
-                {repeating ? "Cancelar repetição" : "Cancelar edição"}
-              </button>
-            )}
-            <button
-              type="button"
-              className="btn-ghost"
-              onClick={(event) => openProduct({}, "diary", event.currentTarget)}
-            >
-              + Criar produto / fotografia
-            </button>
-          </form>
-          <section
-            aria-label="Refeições do dia"
-            className="flex flex-col gap-4"
-          >
-            {!entries.length && (
-              <p className="py-4 text-sm text-zinc-500">
-                Ainda não registaste alimentos neste dia.
-              </p>
-            )}
-            {meals.map((m) => {
-              const rows = entries.filter((e) => e.meal === m);
-              if (!rows.length) return null;
-              return (
-                <div key={m}>
-                  <h2 className="mb-2 flex justify-between font-semibold">
-                    {m}
-                    <span>{fmt(nutritionTotal(rows).totals.kcal)} kcal</span>
-                  </h2>
-                  {rows.map((entry) => (
-                    <article
-                      aria-label={entry.snapshot.name}
-                      key={entry.id}
-                      className="border-t border-black/5 py-3 dark:border-white/10"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="font-medium">{entry.snapshot.name}</p>
-                          <p className="text-xs text-zinc-500">
-                            {fmt(entry.quantity)} {entry.snapshot.unit} ·{" "}
-                            {entry.snapshot.brand}{" "}
-                            {entry.snapshot.source === "estimate-ai"
-                              ? "· Estimativa IA"
-                              : ""}
-                          </p>
-                          {entry.snapshot.details.pieceQuantity && (
-                            <p className="text-xs text-zinc-500">
-                              ≈{" "}
-                              {fmt(
-                                entry.quantity /
-                                  entry.snapshot.details.pieceQuantity,
-                              )}{" "}
-                              unidades
-                              {entry.snapshot.details.pieceEstimated
-                                ? " (peso médio estimado)"
-                                : ""}
-                            </p>
-                          )}
-                        </div>
-                        <span className="shrink-0 font-medium">
-                          {fmt(
-                            scaleNutrition(
-                              entry.snapshot.nutrients,
-                              entry.quantity,
-                            ).kcal,
-                          )}{" "}
-                          kcal
-                        </span>
-                      </div>
-                      <details className="mt-2 text-xs text-zinc-500">
-                        <summary className="cursor-pointer">
-                          Valores nutricionais
-                        </summary>
-                        <p className="mt-1">
-                          {Object.entries(
-                            scaleNutrition(
-                              entry.snapshot.nutrients,
-                              entry.quantity,
-                            ),
-                          )
-                            .map(
-                              ([k, v]) =>
-                                `${nutrientLabels[k as keyof typeof nutrientLabels]}: ${v === null ? "desconhecido" : fmt(v) + (k === "kcal" ? "" : " g")}`,
-                            )
-                            .join(" · ")}
-                        </p>
-                      </details>
-                      <div className="mt-2 flex gap-2">
-                        <button
-                          type="button"
-                          className="btn-ghost"
-                          disabled={pending}
-                          onClick={(event) => {
-                            editOrigin.current = event.currentTarget;
-                            setEditing(entry);
-                            setRepeating(null);
-                            setPortionOverride(null);
-                            setQuantityMode("weight");
-                            setProductId(String(entry.productId));
-                            setQuantity(String(entry.quantity));
-                            setMeal(entry.meal);
-                          }}
-                        >
-                          Editar consumo
-                        </button>
-                        <button
-                          type="button"
-                          className="btn-ghost"
-                          disabled={pending}
-                          onClick={() => {
-                            if (window.confirm("Eliminar este consumo?"))
-                              run(() => deleteFoodEntry(entry.id));
-                          }}
-                        >
-                          Eliminar consumo
-                        </button>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              );
-            })}
-          </section>
-          <details id="calorie-goal" ref={goalDetails} open={openGoal || undefined} className="border-t border-black/10 pt-4 dark:border-white/10">
-            <summary className="cursor-pointer font-semibold">
-              Definir meta diária
-            </summary>
-            <form
-              className="mt-3 flex flex-col gap-3"
-              onSubmit={(e) => {
-                e.preventDefault();
-                run(() =>
-                  saveCalorieGoal({
-                    kcal: parseWeight(goalInput),
-                    tolerance: parseWeight(tolerance),
-                  }),
-                );
-              }}
-            >
-              <p className="text-xs text-zinc-500">
-                A alteração aplica-se a partir de hoje ({today}); dias
-                anteriores mantêm as metas históricas.{" "}
-                {currentGoal
-                  ? `Meta atual: ${fmt(currentGoal.kcal)} kcal.`
-                  : ""}
-              </p>
-              <label className="label">
-                Meta (kcal)
-                <input
-                  ref={goalField}
-                  autoFocus={openGoal}
-                  className="input"
-                  inputMode="decimal"
-                  required
-                  value={goalInput}
-                  onChange={(e) => setGoalInput(e.target.value)}
-                  placeholder="Definida por ti"
-                />
-              </label>
-              <label className="label">
-                Margem da meta (%)
-                <input
-                  className="input"
-                  inputMode="decimal"
-                  required
-                  value={tolerance}
-                  onChange={(e) => setTolerance(e.target.value)}
-                />
-              </label>
-              <button className="btn-primary" disabled={pending}>
-                Guardar meta
-              </button>
-            </form>
-          </details>
+            onDelete={(entry) => {
+              if (window.confirm("Eliminar este consumo?"))
+                save(() => deleteFoodEntry(entry.id));
+            }}
+          />
+          <GoalForm
+            today={today}
+            currentGoal={currentGoal}
+            openGoal={openGoal}
+            pending={pending}
+            goalDetailsRef={goalDetailsRef}
+            goalFieldRef={goalFieldRef}
+            onSave={(kcal, tolerance) =>
+              save(() => saveCalorieGoal({ kcal, tolerance }))
+            }
+          />
         </>
       )}
       {(tab === "products" || editor) && (
-        <div hidden={tab !== "products"} className={tab === "products" ? "flex flex-col gap-5" : "hidden"}>
-        {editor ? (
-          <FoodProductForm
-            key={editor.id ?? "new"}
-            initial={editor}
-            provider={provider}
-            onSaved={(id, product) => {
-              closeProduct();
-              if (editorOrigin === "diary") {
-              setProductId(String(id));
-              setPortionOverride(null);
-              setQuantityMode(
-                product.details.packageQuantity !== null ? "package" : "weight",
-              );
-              setQuantity(product.details.packageQuantity !== null ? "1" : "");
-              setEditing(null);
-              setRepeating(null);
-              requestAnimationFrame(() => document.querySelector<HTMLInputElement>('[aria-label="Quantidade consumida"]')?.focus());
+        <div
+          hidden={tab !== "products"}
+          className={tab === "products" ? "flex flex-col gap-5" : "hidden"}
+        >
+          {editor ? (
+            <FoodProductForm
+              key={editor.id ?? "new"}
+              initial={editor}
+              provider={provider}
+              onSaved={(id, product) => {
+                closeProduct();
+                if (editorOrigin === "diary") {
+                  dispatch({
+                    type: "consume",
+                    productId: String(id),
+                    packaged: product.details.packageQuantity !== null,
+                  });
+                  requestAnimationFrame(() =>
+                    document
+                      .querySelector<HTMLInputElement>(
+                        '[aria-label="Quantidade consumida"]',
+                      )
+                      ?.focus(),
+                  );
+                }
+                router.refresh();
+              }}
+              onCancel={closeProduct}
+            />
+          ) : (
+            <ProductCatalogue
+              products={data.products}
+              pending={pending}
+              catalogueButtonRef={catalogueButtonRef}
+              barcodeFieldRef={barcodeFieldRef}
+              onOpenProduct={(product, trigger, manual) =>
+                openProduct(product, "products", trigger, manual)
               }
-              router.refresh();
-            }}
-            onCancel={closeProduct}
-          />
-        ) : (
-          <>
-            <button
-              type="button"
-              ref={catalogueButton}
-              className="btn-primary self-start"
-              aria-expanded={addMethods}
-              onClick={() => setAddMethods(!addMethods)}
-            >
-              + Novo produto
-            </button>
-            {addMethods && <section aria-label="Como adicionar produto" className="flex flex-col gap-2 rounded-xl border border-black/10 p-3 dark:border-white/10">
-              <h2 className="font-semibold">Como queres adicionar?</h2>
-              <button className="btn-ghost" onClick={(event) => openProduct({}, "products", event.currentTarget, true)}>Preencher manualmente</button>
-              <button className="btn-ghost" onClick={(event) => openProduct({}, "products", event.currentTarget)}>Fotografar rótulo / alimento</button>
-              <button className="btn-ghost" onClick={() => { setAddMethods(false); setEditorOrigin("products"); barcodeField.current?.focus(); barcodeField.current?.scrollIntoView({ block: "center" }); }}>Introduzir código de barras</button>
-            </section>}
-            {data.products.length > 0 && (
-              <label className="label">
-                Pesquisar no meu catálogo
-                <input
-                  className="input"
-                  type="search"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Nome ou marca"
-                />
-              </label>
-            )}
-            <div className="divide-y divide-black/10 dark:divide-white/10">
-              {filteredProducts
-                .map((p) => (
-                  <article
-                    key={p.id}
-                    aria-label={p.name}
-                    className="flex gap-3 py-3"
-                  >
-                    {(p.hasPhoto || p.imageUrl) && (
-                      <img
-                        className="h-16 w-16 rounded-lg object-contain"
-                        src={
-                          p.hasPhoto
-                            ? `/api/calories/photos/${p.id}`
-                            : p.imageUrl
-                        }
-                        alt={p.name}
-                        referrerPolicy="no-referrer"
-                      />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold">{p.name}</p>
-                      <p className="text-xs text-zinc-500">
-                        {p.brand} · {fmt(p.nutrients.kcal)} kcal / 100 {p.unit}
-                      </p>
-                      {p.sourceUrl && (
-                        <a
-                          href={p.sourceUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs underline"
-                        >
-                          Open Food Facts · ODbL / foto CC BY-SA
-                        </a>
-                      )}
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <button
-                          className="btn-ghost"
-                          onClick={() => {
-                            setProductId(String(p.id));
-                            setPortionOverride(null);
-                            setQuantityMode(
-                              p.details.packageQuantity !== null
-                                ? "package"
-                                : "weight",
-                            );
-                            setEditing(null);
-                            setRepeating(null);
-                            setQuantity(
-                              p.details.packageQuantity !== null ? "1" : "",
-                            );
-                            setTab("diary");
-                          }}
-                        >
-                          Consumir
-                        </button>
-                        <button
-                          className="btn-ghost"
-                          onClick={(event) => openProduct(p, "products", event.currentTarget)}
-                        >
-                          Editar produto
-                        </button>
-                        <button
-                          className="btn-ghost"
-                          disabled={pending}
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                "Arquivar produto e apagar a fotografia guardada? O histórico nutricional mantém-se.",
-                              )
-                            )
-                              run(() => archiveFoodProduct(p.id));
-                          }}
-                        >
-                          Arquivar
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                ))}
-            </div>
-            {!data.products.length && (
-              <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                Ainda não tens produtos. Cria o primeiro manualmente, por
-                fotografia ou código de barras.
-              </p>
-            )}
-            {data.products.length > 0 && !filteredProducts.length && <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">Nenhum produto corresponde a «{search}». Usa «Novo produto» para o adicionar.</p>}
-            <section className="border-t border-black/10 pt-4 dark:border-white/10">
-              <h2 className="font-semibold">Encontrar no Open Food Facts</h2>
-              <p className="my-2 text-xs text-zinc-500">
-                Open Food Facts: catálogo colaborativo, não oficial das lojas.
-                Dados ODbL; fotos CC BY-SA. Confirma marca, porção, unidade e
-                rótulo atual.
-              </p>
-              <form
-                className="flex flex-col gap-2"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  void lookup();
-                }}
-              >
-                <label className="label">
-                  Código de barras
-                  <input
-                    ref={barcodeField}
-                    className="input"
-                    inputMode="numeric"
-                    pattern="[0-9]{8,14}"
-                    required
-                    value={barcode}
-                    onChange={(e) => setBarcode(e.target.value)}
-                  />
-                </label>
-                <button className="btn-ghost" disabled={searching}>
-                  Consultar código
-                </button>
-              </form>
-              <p className="mt-3 text-sm font-medium">
-                Explorar exemplos por loja
-              </p>
-              <p className="my-1 text-xs text-zinc-600 dark:text-zinc-400">
-                Mostra alguns produtos associados à loja no Open Food Facts. Não
-                é o catálogo completo nem os preços da loja.
-              </p>
-              <div className="my-2 flex flex-wrap gap-2">
-                {foodStores.map(([id, store]) => (
-                  <button
-                    className="btn-ghost"
-                    disabled={searching}
-                    key={store}
-                    onClick={() => void lookup(id)}
-                  >
-                    {store}
-                  </button>
-                ))}
-              </div>
-              {searching && <p role="status">A consultar…</p>}
-              {externalNotice && (
-                <p role="status" className="text-sm">
-                  {externalNotice}
-                </p>
-              )}
-              {external.map((p, i) => (
-                <article
-                  key={i}
-                  className="flex items-center gap-3 border-t border-black/5 py-3 dark:border-white/10"
-                >
-                  {p.imageUrl && (
-                    <img
-                      className="h-14 w-14 object-contain"
-                      src={p.imageUrl}
-                      alt={p.name}
-                      referrerPolicy="no-referrer"
-                    />
-                  )}
-                  <div className="flex-1">
-                    <p className="font-medium">{p.name}</p>
-                    <p className="text-xs text-zinc-500">
-                      {p.brand} · {fmt(p.nutrients!.kcal)} kcal / 100 {p.unit}
-                    </p>
-                    <a
-                      href={p.sourceUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-xs underline"
-                    >
-                      Ver fonte e fotografia
-                    </a>
-                  </div>
-                  <button className="btn-ghost" onClick={(event) => openProduct(p, "products", event.currentTarget)}>
-                    Rever
-                  </button>
-                </article>
-              ))}
-            </section>
-          </>
-        )}
+              onBarcode={() => {
+                setEditorOrigin("products");
+                barcodeFieldRef.current?.focus();
+                barcodeFieldRef.current?.scrollIntoView({ block: "center" });
+              }}
+              onConsume={(product) => {
+                consume(product);
+                setTab("diary");
+              }}
+              onArchive={(product) => {
+                if (
+                  window.confirm(
+                    "Arquivar produto e apagar a fotografia guardada? O histórico nutricional mantém-se.",
+                  )
+                )
+                  save(() => archiveFoodProduct(product.id));
+              }}
+              onError={setError}
+            />
+          )}
         </div>
       )}
       {tab === "overview" && (
-        <>
-          <div className="flex gap-2">
-            {(
-              [
-                ["day", "Dia"],
-                ["week", "Semana"],
-                ["month", "Mês"],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                className={
-                  period === value ? "btn-primary flex-1" : "btn-ghost flex-1"
-                }
-                aria-pressed={period === value}
-                onClick={() => navigate(date, value)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <section aria-label="Resumo do período">
-            <p className="text-sm text-zinc-500">
-              {dates[0]} — {dates.at(-1)}
-            </p>
-            <p className="my-3 text-4xl font-semibold">
-              {within}{" "}
-              <span className="text-base font-normal text-zinc-500">
-                dias dentro da meta
-              </span>
-            </p>
-            <p className="text-sm">
-              {closed} dias concluídos · {recorded} com registos ·{" "}
-              {dates.length - recorded} sem registos
-            </p>
-            <p className="mt-2 text-sm text-zinc-500">
-              {fmt(totalKcal)} kcal registadas · média de{" "}
-              {fmt(recorded ? totalKcal / recorded : 0)} kcal por dia com
-              registos (pode ser parcial)
-            </p>
-            <progress
-              aria-label="Dias dentro da meta"
-              className="nutrition-progress mt-3 h-2 w-full"
-              max={Math.max(dates.length, 1)}
-              value={within}
-            />
-          </section>
-          <div className="divide-y divide-black/5 dark:divide-white/10">
-            {summary.map((day) => (
-              <button
-                key={day.day}
-                className="flex w-full flex-col gap-2 py-3 text-left"
-                onClick={() => {
-                  setTab("diary");
-                  navigate(day.day);
-                }}
-              >
-                <span className="flex justify-between gap-3 text-sm">
-                  <span>
-                    {day.day.slice(8)}/{day.day.slice(5, 7)} · {day.result}
-                  </span>
-                  <span>{fmt(day.kcal)} kcal</span>
-                </span>
-                <progress
-                  aria-label={`Consumo em ${day.day}`}
-                  className="nutrition-progress h-1.5 w-full"
-                  max={day.target?.kcal ?? Math.max(day.kcal, 1)}
-                  value={Math.min(day.kcal, day.target?.kcal ?? day.kcal)}
-                />
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-zinc-500">
-            Apenas dias concluídos com meta definida podem contar como
-            cumpridos. A margem é configurada por ti. Dias futuros não entram
-            nos marcos.
-          </p>
-        </>
+        <OverviewTab
+          data={data}
+          date={date}
+          today={today}
+          period={period}
+          onPeriod={(value) => navigate(date, value)}
+          onSelectDay={(day) => {
+            setTab("diary");
+            navigate(day);
+          }}
+        />
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/auth";
-import { getDashboard } from "@/lib/queries";
+import { getDashboard } from "@/lib/dashboard-queries";
 import { EmptyState, PageHeader, StatCard } from "@/components/ui";
 import { WorkoutCard } from "@/components/workout-card";
 import { ProgressChart } from "@/components/progress-chart";

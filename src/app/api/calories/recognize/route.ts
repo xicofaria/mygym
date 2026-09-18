@@ -4,7 +4,7 @@ import { getAIConfig } from "@/lib/ai-config";
 import { reserveAIQuota } from "@/lib/ai-quota";
 import { lisbonDateKey } from "@/lib/format";
 import { hasSameOrigin } from "@/lib/request-origin";
-import { readPhoto, RecognitionError } from "@/lib/machine-recognition";
+import { readPhoto, RecognitionError } from "@/lib/vision-request";
 import { recognizeFood } from "@/lib/food-recognition";
 import { resolveFoodCandidates } from "@/lib/open-food-facts";
 import { LoginRateLimiter } from "@/lib/login-rate-limit-core";
