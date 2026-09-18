@@ -111,11 +111,24 @@ produto guardado sem revisão.
   permissões do browser; não se promete captura nativa no desktop.
 - A tabela tem gorduras (lípidos), saturados, proteína, hidratos, açúcares, fibra e
   sal em gramas, e energia em kcal. Cada campo estimado tem um aviso próprio.
-- O prompt lê primeiro os dados visíveis, normaliza porções legíveis para 100,
-  converte kJ e preenche os restantes nutrientes por estimativa quando há base para
-  isso. Não inventa zeros nem resolve macros desconhecidos por subtração das kcal.
+- O prompt transcreve a coluna identificada com base estruturada (quantidade,
+  unidade e origem), sem normalizar. O servidor converte os nutrientes para 100
+  g/ml. Havendo duas colunas, prefere a de 100 g/ml. Converte kJ para kcal e
+  identifica estimativas, sem inventar zeros ou resolver macros por subtração.
+- O formulário aceita 100 g/ml, uma porção, embalagem inteira ou outra quantidade.
+  Por exemplo, 95 kcal por embalagem de 125 g são guardadas como 76 kcal/100 g.
+  A referência fica nos detalhes JSON; produtos antigos continuam por 100.
+  Ao alterar uma base preenchida, escolher manter os números e corrigir a base
+  ou converter para a nova quantidade. Não há conversão automática entre g e ml.
+- Sem base identificável, a IA em modo estimativa propõe 100 g, com aviso de
+  suposição e revisão obrigatória (100 ml apenas com evidência volumétrica).
+  Valores legíveis por porção sem o peso dessa porção não são reinterpretados
+  como sendo por 100 g: é pedido o peso/nova fotografia. O modo só rótulo não
+  aceita bases assumidas.
 - Conteúdo da embalagem e peso de uma unidade são detalhes de conversão no diário,
-  não campos pedidos ao criar/editar um produto. Unidades e Embalagens estão
+  não campos gerais pedidos ao criar/editar um produto. A exceção é a quantidade
+  necessária para definir a base nutricional; «Embalagem inteira» também fornece
+  o conteúdo dessa embalagem. Unidades e Embalagens estão
   sempre disponíveis, mesmo nos produtos antigos sem esses pesos.
   A IA pode sugerir valores com indícios suficientes, sempre marcados se estimados;
   uma embalagem sem escala/peso/formato identificável fica com peso desconhecido.
@@ -236,3 +249,22 @@ A validação de produtos identifica cada nutriente inválido junto do campo,
 explica os limites do schema e foca o primeiro erro, sem limpar os outros valores.
 Editar um consumo foca o título «Editar consumo: [alimento]»; guardar ou cancelar
 devolve o foco ao consumo de origem. Falhar a gravação mantém o formulário aberto.
+
+## Continuidade e repetição
+
+«Novo produto» no catálogo oferece preenchimento manual, fotografia ou introdução
+de código de barras (não promete um scanner de câmara). Guardar mantém o catálogo.
+Criar a partir do diário mantém o dia/refeição e regressa à quantidade, sem criar
+um consumo automaticamente. A pesquisa local só aparece com produtos no catálogo;
+catálogo vazio explica como criar o primeiro e pesquisa sem correspondências
+mantém o termo e propõe criar. A secção externa identifica-se como «Encontrar no
+Open Food Facts» e os botões das lojas indicam que mostram exemplos, não o
+catálogo completo dessa loja.
+
+«Concluir registo do dia» fica junto do resumo, com estado aberto/concluído.
+«Repetir um consumo recente» lista até dez consumos privados anteriores ao fim
+do período consultado. Abre os valores históricos, quantidade e refeição para
+confirmação na data selecionada. Funciona com produtos arquivados, sem reativá-los,
+e não troca silenciosamente os nutrientes pelo catálogo atual. Cancelar não grava;
+confirmar cria um consumo e reabre o dia. Os testes de IA usam respostas simuladas,
+não demonstram precisão de leitura de rótulos reais.

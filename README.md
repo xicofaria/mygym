@@ -37,7 +37,10 @@ ficam privados da conta que os cria. Não existe seletor de parceiro.
   do produto e as conversões usados no momento do registo.
 - **Produtos alimentares:** criação manual, fotografias privadas, leitura de
   rótulos ou estimativas identificadas por IA e pesquisa no Open Food Facts.
-  A quantidade consumida exige confirmação manual.
+  Valores por 100 g/ml, porção, embalagem ou quantidade personalizada, com
+  conversão automática e base proposta pela IA visível para revisão.
+  A quantidade consumida e a repetição de consumos recentes exigem confirmação.
+  Guardar no catálogo mantém o contexto; concluir o dia fica junto do resumo.
 - **Relatórios:** resumo semanal em `/relatorios`; envio por email opcional,
   ativado pela pessoa em `/conta`.
 - **Contas:** registo, edição de nome/email/palavra-passe, eliminação da conta e

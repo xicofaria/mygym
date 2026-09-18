@@ -9,12 +9,16 @@ import {
   nutrientKeys,
   nutrientLabels,
   productSchema,
+  productInputSchema,
+  nutrientsAtReference,
+  type NutritionReference,
   type FoodProduct,
 } from "@/lib/nutrition";
 import { parseWeight } from "@/lib/decimal";
 import { preparePhoto } from "@/lib/prepare-photo";
 import { AIThinking } from "./ai-thinking";
 import { AIPhotoPrompt } from "./ai-photo-prompt";
+import { NutritionReferenceEditor } from "./nutrition-reference";
 
 type ProductCandidate = Omit<FoodProduct, "id" | "hasPhoto">;
 
@@ -32,6 +36,8 @@ export function FoodProductForm({
   const [name, setName] = useState(initial?.name ?? "");
   const [brand, setBrand] = useState(initial?.brand ?? "");
   const [unit, setUnit] = useState<"g" | "ml">(initial?.unit ?? "g");
+  const [reference, setReference] = useState<NutritionReference>(initial?.details?.nutritionReference ?? { kind: "standard", quantity: 100, unit: initial?.unit ?? "g", origin: "manual" });
+  const [nutritionChanged, setNutritionChanged] = useState(false);
   const [details, setDetails] = useState(
     initial?.details ?? emptyProductDetails,
   );
@@ -39,7 +45,7 @@ export function FoodProductForm({
     Object.fromEntries(
       nutrientKeys.map((k) => [
         k,
-        initial?.nutrients?.[k] == null ? "" : String(initial.nutrients[k]),
+        initial?.nutrients?.[k] == null ? "" : String(nutrientsAtReference(initial.nutrients, reference.quantity)[k]),
       ]),
     ),
   );
@@ -179,13 +185,16 @@ export function FoodProductForm({
       setBrand(data.brand);
       setUnit(data.unit);
       setDetails(data.details);
+      const nextReference = data.details.nutritionReference ?? { kind: "standard" as const, quantity: 100, unit: data.unit, origin: "manual" as const };
+      setReference(nextReference);
+      setNutritionChanged(true);
       setSource(data.source);
       setPhotoExpanded(false);
       setValues(
         Object.fromEntries(
           nutrientKeys.map((k) => [
             k,
-            data.nutrients[k] === null ? "" : String(data.nutrients[k]),
+            data.nutrients[k] === null ? "" : String(nutrientsAtReference(data.nutrients, nextReference.quantity)[k]),
           ]),
         ),
       );
@@ -232,6 +241,8 @@ export function FoodProductForm({
     setBrand(parsed.data.brand);
     setUnit(parsed.data.unit);
     setDetails(parsed.data.details);
+    setReference({ kind: "standard", quantity: 100, unit: parsed.data.unit, origin: "manual" });
+    setNutritionChanged(true);
     setValues(
       Object.fromEntries(
         nutrientKeys.map((key) => [
@@ -257,6 +268,11 @@ export function FoodProductForm({
   }
   function save(e: React.FormEvent) {
     e.preventDefault();
+    if (formRef.current?.querySelector('[aria-label="Confirmar alteração da base"]')) {
+      setError("Aplica a alteração da base nutricional antes de guardar.");
+      formRef.current.querySelector<HTMLButtonElement>('[aria-label="Confirmar alteração da base"] button')?.focus();
+      return;
+    }
     setError("");
     setFieldErrors({});
     const nutrients = { ...emptyNutrients };
@@ -266,11 +282,12 @@ export function FoodProductForm({
           ? null
           : parseWeight(values[key])
       ) as never;
-    const parsed = productSchema.safeParse({
+    const input = {
       name,
       brand,
       unit,
-      nutrients,
+      nutrients: !nutritionChanged && initial?.nutrients ? initial.nutrients : emptyNutrients,
+      nutritionInput: !nutritionChanged && initial?.nutrients ? undefined : { reference, nutrients },
       details,
       source,
       sourceUrl:
@@ -281,13 +298,15 @@ export function FoodProductForm({
         photo !== undefined
           ? ""
           : (chosen?.imageUrl ?? initial?.imageUrl ?? ""),
-    });
+    };
+    const parsed = productInputSchema.safeParse(input);
     if (!parsed.success) {
       const errors: Record<string, string> = {};
       for (const issue of parsed.error.issues) {
-        const key = issue.path[0] === "nutrients" ? String(issue.path[1]) : String(issue.path[0]);
+        const nutrientIndex = issue.path.indexOf("nutrients");
+        const key = nutrientIndex >= 0 ? String(issue.path[nutrientIndex + 1]) : String(issue.path[0]);
         if (nutrientKeys.includes(key as typeof nutrientKeys[number])) {
-          errors[key] = `${nutrientLabels[key as typeof nutrientKeys[number]]}: indica um valor entre 0 e ${key === "kcal" ? "1000 kcal" : "100 g"} por 100 ${unit}. Usa ponto ou vírgula.${key !== "kcal" ? " Se desconhecido, deixa vazio." : ""}`;
+          errors[key] = `${nutrientLabels[key as typeof nutrientKeys[number]]}: indica um valor entre 0 e ${reference.quantity * (key === "kcal" ? 10 : 1)} ${key === "kcal" ? "kcal" : "g"} por ${reference.quantity} ${unit}. Usa ponto ou vírgula.${key !== "kcal" ? " Se desconhecido, deixa vazio." : ""}`;
         } else if (key === "name") errors.name = "Indica o nome do alimento (1 a 120 caracteres).";
         else if (key === "brand") errors.brand = "A marca / loja pode ter até 80 caracteres.";
       }
@@ -308,7 +327,7 @@ export function FoodProductForm({
     start(async () => {
       try {
         const result = await saveFoodProduct({
-          ...parsed.data,
+          ...input,
           id: initial?.id,
           photo,
         });
@@ -344,7 +363,8 @@ export function FoodProductForm({
       className="flex flex-col gap-4"
       aria-label="Produto alimentar"
     >
-      <h2 className="text-lg font-semibold">
+      <fieldset disabled={pending} className="flex min-w-0 flex-col gap-4">
+      <h2 tabIndex={-1} className="text-lg font-semibold focus-visible:outline-2 focus-visible:outline-indigo-500">
         {initial?.id ? "Editar produto" : "Adicionar produto"}
       </h2>
       <AIPhotoPrompt
@@ -588,29 +608,25 @@ export function FoodProductForm({
           por 100 g/ml não é o peso da embalagem.
         </p>
       ) : null}
-      <label className="label">
-        Valores por
-        <select
-          aria-label="Valores por"
-          className="input"
-          value={unit}
-          onChange={(e) => setUnit(e.target.value as "g" | "ml")}
-        >
-          <option value="g">100 g</option>
-          <option value="ml">100 ml</option>
-        </select>
-      </label>
-      <p className="text-xs text-zinc-500">
-        Esta base é sempre 100 g/ml, não o tamanho da embalagem. A IA preenche o
-        que conseguir; revê os valores estimados e completa os desconhecidos.
-      </p>
+      <NutritionReferenceEditor key={JSON.stringify(reference)} reference={reference} hasValues={Object.values(values).some((v) => v.trim() !== "")} onApply={(next, convert) => {
+        dirty.current = true;
+        setConfirmed(false);
+        setNutritionChanged(true);
+        if (convert) setValues(Object.fromEntries(nutrientKeys.map((key) => [key, values[key].trim() === "" ? "" : String(parseWeight(values[key]) * (next.quantity / reference.quantity))])));
+        if (next.unit !== unit) setDetails({ ...details, packageQuantity: null, pieceQuantity: null, packageEstimated: false, pieceEstimated: false, nutritionReference: next });
+        else setDetails({ ...details, nutritionReference: next });
+        setUnit(next.unit);
+        setReference(next);
+      }} />
+      <p aria-live="polite" className="text-sm text-zinc-600 dark:text-zinc-300">Valores por {reference.kind === "serving" ? "uma porção de " : reference.kind === "package" ? "uma embalagem de " : ""}{reference.quantity} {unit}. A quantidade comida é indicada no diário.</p>
+      {reference.origin === "assumed" && <p role="status" className="text-sm text-amber-700 dark:text-amber-300">Base assumida: {reference.quantity} {unit}. Confirma antes de guardar.</p>}
       <div className="grid grid-cols-2 gap-3">
         {nutrientKeys.map((key) => (
           <label key={key} className="label">
             {nutrientLabels[key]}
             {key !== "kcal" && " (g)"}
             <input
-              aria-label={`${nutrientLabels[key]} por 100`}
+              aria-label={`${nutrientLabels[key]} por ${reference.quantity}`}
               name={key}
               aria-invalid={Boolean(fieldErrors[key])}
               aria-describedby={fieldErrors[key] ? `food-error-${key}` : undefined}
@@ -620,7 +636,7 @@ export function FoodProductForm({
               required={key === "kcal"}
               placeholder="Desconhecido"
               value={values[key]}
-              onChange={(e) => setValues({ ...values, [key]: e.target.value })}
+              onChange={(e) => { setValues({ ...values, [key]: e.target.value }); setNutritionChanged(true); setConfirmed(false); }}
             />
             {fieldErrors[key] && <span id={`food-error-${key}`} className="text-xs text-red-600 dark:text-red-400">{fieldErrors[key]}</span>}
             {details.nutrientEstimates.includes(key) && (
@@ -642,7 +658,7 @@ export function FoodProductForm({
             checked={confirmed}
             onChange={(e) => setConfirmed(e.target.checked)}
           />
-          Confirmei o produto, a base por 100 g/ml e os valores{" "}
+          Confirmei o produto, a base de {reference.quantity} {unit} e os valores{" "}
           {source === "estimate-ai" ? "estimados" : "sugeridos"}.
         </label>
       )}
@@ -679,6 +695,7 @@ export function FoodProductForm({
           Cancelar
         </button>
       </div>
+      </fieldset>
     </form>
   );
 }

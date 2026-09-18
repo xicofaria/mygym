@@ -12,6 +12,7 @@ import {
   entryInputSchema,
   photoSchema,
   productSchema,
+  productInputSchema,
 } from "@/lib/nutrition";
 import { isCurrentOrPastDateKey } from "@/lib/workout-calendar";
 import { lisbonDateKey } from "@/lib/format";
@@ -24,11 +25,11 @@ const invalid = { error: "Verifica os dados introduzidos." };
 
 export async function saveFoodProduct(input: unknown) {
   const user = await requireUser();
-  const parsed = productSchema
-    .extend({ id: idSchema.optional(), photo: photoSchema.optional() })
-    .safeParse(input);
-  if (!parsed.success) return invalid;
-  const { id, photo, nutrients, details, ...fields } = parsed.data;
+  const envelope = z.object({ id: idSchema.optional(), photo: photoSchema.optional() }).safeParse(input);
+  const parsed = productInputSchema.safeParse(input);
+  if (!parsed.success || !envelope.success) return invalid;
+  const { id, photo } = envelope.data;
+  const { nutrients, details, ...fields } = parsed.data;
   if (photo) {
     const bytes = Buffer.from(photo.split(",")[1], "base64");
     if (
@@ -75,12 +76,16 @@ export async function archiveFoodProduct(id: unknown) {
 export async function saveFoodEntry(input: unknown) {
   const user = await requireUser();
   const parsed = entryInputSchema
-    .extend({ id: idSchema.optional() })
+    .extend({ id: idSchema.optional(), repeatFromId: idSchema.optional() })
     .safeParse(input);
   if (!parsed.success || !isCurrentOrPastDateKey(parsed.data.date))
     return invalid;
-  const { id, portion, ...values } = parsed.data;
+  const { id, repeatFromId, portion, ...values } = parsed.data;
+  if (id && repeatFromId) return invalid;
   const result = await db.transaction(async (tx) => {
+    const repeated = repeatFromId ? await tx.select().from(foodEntries)
+      .where(and(eq(foodEntries.id, repeatFromId), eq(foodEntries.userId, user.id))).get() : null;
+    if (repeatFromId && (!repeated || repeated.productId !== values.productId)) return invalid;
     const previous = id
       ? await tx
           .select()
@@ -101,10 +106,10 @@ export async function saveFoodEntry(input: unknown) {
       )
       .get();
     // Same product on edit keeps the original nutritional snapshot.
-    if (!product && previous?.productId !== values.productId)
+    if (!product && previous?.productId !== values.productId && !repeated)
       return { error: "Produto não encontrado." };
     const snapshot =
-      previous?.productId === values.productId
+      repeated ? repeated.snapshot : previous?.productId === values.productId
         ? previous.snapshot
         : JSON.stringify(
             productSchema.parse({
@@ -134,7 +139,7 @@ export async function saveFoodEntry(input: unknown) {
     };
     // Remember a reviewed conversion only on a new consumption, never on cancel
     // or when editing history. Preserve the catalogue's other/current metadata.
-    if (!id && portion && product) {
+    if (!id && !repeatFromId && portion && product) {
       const currentDetails = {
         ...emptyProductDetails,
         ...JSON.parse(product.details),

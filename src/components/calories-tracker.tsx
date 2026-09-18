@@ -51,6 +51,12 @@ export function CaloriesTracker({
   const [error, setError] = useState("");
   const [pending, start] = useTransition();
   const [editor, setEditor] = useState<Partial<FoodProduct> | null>(null);
+  const [editorOrigin, setEditorOrigin] = useState("products");
+  const [addMethods, setAddMethods] = useState(false);
+  const editorTrigger = useRef<HTMLElement | null>(null);
+  const catalogueButton = useRef<HTMLButtonElement>(null);
+  const barcodeField = useRef<HTMLInputElement>(null);
+  const [repeating, setRepeating] = useState<FoodEntry | null>(null);
   const [search, setSearch] = useState("");
   const [barcode, setBarcode] = useState("");
   const [external, setExternal] = useState<Partial<FoodProduct>[]>([]);
@@ -63,6 +69,7 @@ export function CaloriesTracker({
   >("weight");
   const [meal, setMeal] = useState<string>(meals[0]);
   const [editing, setEditing] = useState<FoodEntry | null>(null);
+  const snapshotEntry = editing ?? repeating;
   const [portionOverride, setPortionOverride] = useState<{
     key: string;
     unitQuantity: number;
@@ -76,26 +83,26 @@ export function CaloriesTracker({
   const editOrigin = useRef<HTMLButtonElement | null>(null);
   const restoreEntryFocus = useRef(false);
   useEffect(() => {
-    if (!editing || tab !== "diary") return;
+    if ((!editing && !repeating) || tab !== "diary") return;
     entryHeading.current?.focus();
     entryHeading.current?.scrollIntoView({ block: "center" });
-  }, [editing, tab]);
+  }, [editing, repeating, tab]);
   useEffect(() => {
-    if (pending || editing || tab !== "diary" || !restoreEntryFocus.current) return;
+    if (pending || editing || repeating || tab !== "diary" || !restoreEntryFocus.current) return;
     restoreEntryFocus.current = false;
     editOrigin.current?.focus();
     editOrigin.current?.scrollIntoView({ block: "center" });
-  }, [editing, pending, tab]);
+  }, [editing, repeating, pending, tab]);
   const entries = data.entries.filter((e) => e.date === date);
   const goal = goalForDate(data.goals, date);
   const currentGoal = goalForDate(data.goals, today);
   const { totals, incomplete } = nutritionTotal(entries);
   const complete = data.days.some((d) => d.date === date && d.completed);
   const chosen =
-    editing?.productId === Number(productId)
-      ? editing.snapshot
+    snapshotEntry?.productId === Number(productId)
+      ? snapshotEntry.snapshot
       : data.products.find((p) => p.id === Number(productId));
-  const portionKey = `${productId}:${editing?.id ?? "new"}:${quantityMode}`;
+  const portionKey = `${productId}:${snapshotEntry?.id ?? "new"}:${quantityMode}`;
   const details = chosen
     ? {
         ...chosen.details,
@@ -191,13 +198,38 @@ export function CaloriesTracker({
     }
   }
   const resetEntry = () => {
-    if (editing) restoreEntryFocus.current = true;
+    if (editing || repeating) restoreEntryFocus.current = true;
+    setRepeating(null);
     setPortionOverride(null);
     setQuantityMode("weight");
     setEditing(null);
     setQuantity("");
     setProductId("");
   };
+  function openProduct(product: Partial<FoodProduct>, origin: string, trigger: HTMLElement, manual = false) {
+    if (!editor) {
+      editorTrigger.current = trigger;
+      setEditorOrigin(origin);
+      setEditor(product);
+    }
+    setTab("products");
+    setAddMethods(false);
+    requestAnimationFrame(() => {
+      const target = document.querySelector<HTMLElement>(manual ? '[aria-label="Produto alimentar"] input[name="name"]' : '[aria-label="Produto alimentar"] h2');
+      target?.focus();
+      target?.scrollIntoView({ block: "center" });
+    });
+  }
+  function closeProduct() {
+    setEditor(null);
+    setTab(editorOrigin);
+    requestAnimationFrame(() => {
+      if (editorTrigger.current?.isConnected) editorTrigger.current.focus();
+      else if (editorOrigin === "products") catalogueButton.current?.focus();
+      else entryHeading.current?.focus();
+    });
+  }
+  const filteredProducts = data.products.filter((p) => (p.name + " " + p.brand).toLocaleLowerCase("pt").includes(search.toLocaleLowerCase("pt")));
   return (
     <div aria-busy={pending} className="flex flex-col gap-5">
       <header>
@@ -306,7 +338,31 @@ export function CaloriesTracker({
                 * Total parcial: há alimentos com nutrientes desconhecidos.
               </p>
             )}
+            <div className="mt-4 flex flex-col items-start gap-2">
+              <p role="status" className="text-sm">{complete ? "Dia concluído" : "Registo do dia em aberto"}</p>
+              <button type="button" className="btn-ghost" disabled={pending || !entries.length}
+                onClick={() => run(() => setFoodDayComplete(date, !complete))}>
+                {complete ? "Reabrir dia" : "Concluir registo do dia"}
+              </button>
+              <p className="text-xs text-zinc-600 dark:text-zinc-400">Conclui quando tiveres registado todas as refeições. Alterar consumos reabre o dia. Comer menos não é automaticamente cumprir a meta.</p>
+            </div>
           </section>
+          {data.recent.length > 0 && <details className="rounded-xl border border-black/10 p-3 dark:border-white/10">
+            <summary className="min-h-11 cursor-pointer font-medium">Repetir um consumo recente</summary>
+            <div className="flex flex-col gap-2">
+              {data.recent.map((entry) => <button key={entry.id} type="button" className="btn-ghost text-left" disabled={pending} onClick={(event) => {
+                if ((editing || repeating || quantity) && !window.confirm("Substituir os campos do consumo atual? Nada será registado até confirmares.")) return;
+                editOrigin.current = event.currentTarget;
+                setEditing(null);
+                setRepeating(entry);
+                setPortionOverride(null);
+                setProductId(String(entry.productId));
+                setQuantityMode("weight");
+                setQuantity(String(entry.quantity));
+                setMeal(entry.meal);
+              }}>Repetir {entry.snapshot.name} · {fmt(entry.quantity)} {entry.snapshot.unit} · {entry.date}</button>)}
+            </div>
+          </details>}
           <form
             aria-label={editing ? `Editar consumo: ${editing.snapshot.name}` : "Adicionar ao diário"}
             className="flex flex-col gap-3"
@@ -316,6 +372,7 @@ export function CaloriesTracker({
                 () =>
                   saveFoodEntry({
                     id: editing?.id,
+                    repeatFromId: repeating?.id,
                     productId: Number(productId),
                     quantity: amount,
                     portion:
@@ -341,14 +398,16 @@ export function CaloriesTracker({
             }}
           >
             <h2 ref={entryHeading} tabIndex={-1} className="font-semibold focus-visible:outline-2 focus-visible:outline-indigo-500">
-              {editing ? `Editar consumo: ${editing.snapshot.name}` : "Adicionar ao diário"}
+              {editing ? `Editar consumo: ${editing.snapshot.name}` : repeating ? `Repetir consumo: ${repeating.snapshot.name}` : "Adicionar ao diário"}
             </h2>
+            {repeating && <p role="status" className="text-sm text-indigo-700 dark:text-indigo-300">Valores do registo de {repeating.date}. Confirma a quantidade e a refeição para {date}; ainda não foi registado.</p>}
             <label className="label">
               Alimento
               <select
                 aria-label="Alimento"
                 className="input"
                 required
+                disabled={Boolean(repeating) || pending}
                 value={productId}
                 onChange={(e) => {
                   setProductId(e.target.value);
@@ -362,10 +421,10 @@ export function CaloriesTracker({
                 }}
               >
                 <option value="">Escolher produto</option>
-                {editing?.productId &&
-                  !data.products.some((p) => p.id === editing.productId) && (
-                    <option value={editing.productId}>
-                      {editing.snapshot.name} (arquivado)
+                {snapshotEntry?.productId &&
+                  !data.products.some((p) => p.id === snapshotEntry.productId) && (
+                    <option value={snapshotEntry.productId}>
+                      {snapshotEntry.snapshot.name} (arquivado)
                     </option>
                   )}
                 {data.products.map((p) => (
@@ -510,20 +569,17 @@ export function CaloriesTracker({
               className="btn-primary"
               disabled={pending || !productId || !Number.isFinite(amount)}
             >
-              {editing ? "Guardar consumo" : "Registar consumo"}
+              {editing ? "Guardar consumo" : repeating ? "Confirmar repetição" : "Registar consumo"}
             </button>
-            {editing && (
+            {(editing || repeating) && (
               <button type="button" className="btn-ghost" disabled={pending} onClick={resetEntry}>
-                Cancelar edição
+                {repeating ? "Cancelar repetição" : "Cancelar edição"}
               </button>
             )}
             <button
               type="button"
               className="btn-ghost"
-              onClick={() => {
-                setTab("products");
-                setEditor((current) => current ?? {});
-              }}
+              onClick={(event) => openProduct({}, "diary", event.currentTarget)}
             >
               + Criar produto / fotografia
             </button>
@@ -612,6 +668,7 @@ export function CaloriesTracker({
                           onClick={(event) => {
                             editOrigin.current = event.currentTarget;
                             setEditing(entry);
+                            setRepeating(null);
                             setPortionOverride(null);
                             setQuantityMode("weight");
                             setProductId(String(entry.productId));
@@ -638,19 +695,6 @@ export function CaloriesTracker({
                 </div>
               );
             })}
-            <button
-              type="button"
-              className="btn-ghost"
-              disabled={pending || !entries.length}
-              onClick={() => run(() => setFoodDayComplete(date, !complete))}
-            >
-              {complete ? "Reabrir dia" : "Concluir registo do dia"}
-            </button>
-            <p className="text-xs text-zinc-500">
-              Conclui quando tiveres registado todas as refeições. Editar um
-              consumo reabre o dia. Comer menos não é automaticamente cumprir a
-              meta.
-            </p>
           </section>
           <details id="calorie-goal" ref={goalDetails} open={openGoal || undefined} className="border-t border-black/10 pt-4 dark:border-white/10">
             <summary className="cursor-pointer font-semibold">
@@ -706,14 +750,15 @@ export function CaloriesTracker({
         </>
       )}
       {(tab === "products" || editor) && (
-        <div hidden={tab !== "products"}>
+        <div hidden={tab !== "products"} className={tab === "products" ? "flex flex-col gap-5" : "hidden"}>
         {editor ? (
           <FoodProductForm
             key={editor.id ?? "new"}
             initial={editor}
             provider={provider}
             onSaved={(id, product) => {
-              setEditor(null);
+              closeProduct();
+              if (editorOrigin === "diary") {
               setProductId(String(id));
               setPortionOverride(null);
               setQuantityMode(
@@ -721,37 +766,44 @@ export function CaloriesTracker({
               );
               setQuantity(product.details.packageQuantity !== null ? "1" : "");
               setEditing(null);
-              setTab("diary");
+              setRepeating(null);
+              requestAnimationFrame(() => document.querySelector<HTMLInputElement>('[aria-label="Quantidade consumida"]')?.focus());
+              }
               router.refresh();
             }}
-            onCancel={() => setEditor(null)}
+            onCancel={closeProduct}
           />
         ) : (
           <>
             <button
               type="button"
-              className="btn-primary"
-              onClick={() => setEditor({})}
+              ref={catalogueButton}
+              className="btn-primary self-start"
+              aria-expanded={addMethods}
+              onClick={() => setAddMethods(!addMethods)}
             >
               + Novo produto
             </button>
-            <label className="label">
-              Pesquisar no meu catálogo
-              <input
-                className="input"
-                type="search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Nome ou marca"
-              />
-            </label>
+            {addMethods && <section aria-label="Como adicionar produto" className="flex flex-col gap-2 rounded-xl border border-black/10 p-3 dark:border-white/10">
+              <h2 className="font-semibold">Como queres adicionar?</h2>
+              <button className="btn-ghost" onClick={(event) => openProduct({}, "products", event.currentTarget, true)}>Preencher manualmente</button>
+              <button className="btn-ghost" onClick={(event) => openProduct({}, "products", event.currentTarget)}>Fotografar rótulo / alimento</button>
+              <button className="btn-ghost" onClick={() => { setAddMethods(false); setEditorOrigin("products"); barcodeField.current?.focus(); barcodeField.current?.scrollIntoView({ block: "center" }); }}>Introduzir código de barras</button>
+            </section>}
+            {data.products.length > 0 && (
+              <label className="label">
+                Pesquisar no meu catálogo
+                <input
+                  className="input"
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Nome ou marca"
+                />
+              </label>
+            )}
             <div className="divide-y divide-black/10 dark:divide-white/10">
-              {data.products
-                .filter((p) =>
-                  (p.name + " " + p.brand)
-                    .toLocaleLowerCase("pt")
-                    .includes(search.toLocaleLowerCase("pt")),
-                )
+              {filteredProducts
                 .map((p) => (
                   <article
                     key={p.id}
@@ -797,6 +849,7 @@ export function CaloriesTracker({
                                 : "weight",
                             );
                             setEditing(null);
+                            setRepeating(null);
                             setQuantity(
                               p.details.packageQuantity !== null ? "1" : "",
                             );
@@ -807,7 +860,7 @@ export function CaloriesTracker({
                         </button>
                         <button
                           className="btn-ghost"
-                          onClick={() => setEditor(p)}
+                          onClick={(event) => openProduct(p, "products", event.currentTarget)}
                         >
                           Editar produto
                         </button>
@@ -831,13 +884,14 @@ export function CaloriesTracker({
                 ))}
             </div>
             {!data.products.length && (
-              <p className="text-sm text-zinc-500">
-                Cria o primeiro produto manualmente, por fotografia ou código de
-                barras.
+              <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                Ainda não tens produtos. Cria o primeiro manualmente, por
+                fotografia ou código de barras.
               </p>
             )}
+            {data.products.length > 0 && !filteredProducts.length && <p role="status" className="text-sm text-zinc-600 dark:text-zinc-400">Nenhum produto corresponde a «{search}». Usa «Novo produto» para o adicionar.</p>}
             <section className="border-t border-black/10 pt-4 dark:border-white/10">
-              <h2 className="font-semibold">Procurar produtos reais</h2>
+              <h2 className="font-semibold">Encontrar no Open Food Facts</h2>
               <p className="my-2 text-xs text-zinc-500">
                 Open Food Facts: catálogo colaborativo, não oficial das lojas.
                 Dados ODbL; fotos CC BY-SA. Confirma marca, porção, unidade e
@@ -853,6 +907,7 @@ export function CaloriesTracker({
                 <label className="label">
                   Código de barras
                   <input
+                    ref={barcodeField}
                     className="input"
                     inputMode="numeric"
                     pattern="[0-9]{8,14}"
@@ -865,6 +920,13 @@ export function CaloriesTracker({
                   Consultar código
                 </button>
               </form>
+              <p className="mt-3 text-sm font-medium">
+                Explorar exemplos por loja
+              </p>
+              <p className="my-1 text-xs text-zinc-600 dark:text-zinc-400">
+                Mostra alguns produtos associados à loja no Open Food Facts. Não
+                é o catálogo completo nem os preços da loja.
+              </p>
               <div className="my-2 flex flex-wrap gap-2">
                 {foodStores.map(([id, store]) => (
                   <button
@@ -910,7 +972,7 @@ export function CaloriesTracker({
                       Ver fonte e fotografia
                     </a>
                   </div>
-                  <button className="btn-ghost" onClick={() => setEditor(p)}>
+                  <button className="btn-ghost" onClick={(event) => openProduct(p, "products", event.currentTarget)}>
                     Rever
                   </button>
                 </article>

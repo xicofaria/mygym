@@ -14,7 +14,7 @@ export async function getCalorieData(
   start: string,
   end: string,
 ) {
-  const [products, entries, goals, days] = await Promise.all([
+  const [products, entries, goals, days, recent] = await Promise.all([
     db
       .select({
         id: foodProducts.id,
@@ -65,8 +65,12 @@ export async function getCalorieData(
           lte(foodDays.date, end),
         ),
       ),
+    db.select().from(foodEntries)
+      .where(and(eq(foodEntries.userId, userId), lte(foodEntries.date, end)))
+      .orderBy(desc(foodEntries.date), desc(foodEntries.id)).limit(10),
   ]);
   return {
+    recent: recent.map((e) => ({ id: e.id, productId: e.productId, date: e.date, meal: e.meal, quantity: e.quantity, snapshot: productSchema.parse(JSON.parse(e.snapshot)) })) as FoodEntry[],
     products: products.map((p) => ({
       ...productSchema.parse({
         ...p,

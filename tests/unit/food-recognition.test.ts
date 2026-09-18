@@ -5,16 +5,36 @@ import { recognizeMachine } from "../../src/lib/machine-recognition";
 import { openRouterFormat } from "../../src/lib/openrouter-format";
 import { emptyNutrients, emptyProductDetails } from "../../src/lib/nutrition";
 const photo = Buffer.from([255, 216, 255, 224]);
+const reference = { kind: "standard", quantity: 100, unit: "g", origin: "label" };
 const value = {
   product: {
     name: "Iogurte",
     brand: "Teste",
     unit: "g",
+    reference,
     nutrients: { ...emptyNutrients, kcal: 80 },
-    details: emptyProductDetails,
+    details: { ...emptyProductDetails, nutritionReference: reference },
   },
   explanation: "Confirma o rótulo.",
 };
+const { reference: _reference, ...canonicalProduct } = value.product;
+void _reference;
+test("vision normalizes a readable serving in code and rejects ambiguous or fabricated bases", async () => {
+  const run = (reference: unknown, mode: "label" | "estimate" = "estimate") => recognizeFood({
+    photo, mode, apiKey: "test", model: "test", provider: "openrouter",
+    fetcher: async () => Response.json({ choices: [{ finish_reason: "stop", message: { content: JSON.stringify({ ...value, product: { ...value.product, nutrients: { ...emptyNutrients, kcal: 95 }, reference } }) } }] }),
+  });
+  const result = await run({ kind: "package", quantity: 125, unit: "g", origin: "label" }, "label");
+  assert.equal(result.product?.nutrients.kcal, 76);
+  assert.equal(result.product?.details.nutritionReference?.quantity, 125);
+  const assumed = { kind: "standard", quantity: 100, unit: "g", origin: "assumed" };
+  assert.equal((await run(assumed)).product?.details.nutritionReference?.origin, "assumed");
+  await assert.rejects(run(assumed, "label"));
+  await assert.rejects(run({ ...assumed, kind: "serving", quantity: 30 }));
+  await assert.rejects(run({ ...assumed, unit: "ml" }));
+  await assert.rejects(run({ ...assumed, quantity: null }));
+  await assert.rejects(run(undefined));
+});
 test("package weight is structured separately from the per-100 base; prose is not parsed as weight", async () => {
   for (const quantity of [280, null]) {
     const result = await recognizeFood({
@@ -198,7 +218,7 @@ test("both food vision providers request strict per-100 output and do not infer 
         });
       },
     });
-    assert.deepEqual(result, { ...value, barcode: null });
+    assert.deepEqual(result, { ...value, product: canonicalProduct, barcode: null });
   }
 });
 test("GLM uses JSON mode with schema instructions and validates both vision flows", async () => {
@@ -211,7 +231,7 @@ test("GLM uses JSON mode with schema instructions and validates both vision flow
     assert.match(body.messages[0].content, /schema:/);
     const food = body.messages[0].content.includes("nutrientEstimates");
     if (food) {
-      assert.match(body.messages[0].content, /100\/peso da porção/);
+      assert.match(body.messages[0].content, /SEM normalizar para 100/);
       assert.match(body.messages[0].content, /Sem escala/);
     }
     return Response.json({
@@ -238,7 +258,7 @@ test("GLM uses JSON mode with schema instructions and validates both vision flow
   };
   assert.deepEqual(
     (await recognizeFood({ ...config, mode: "estimate" })).product,
-    value.product,
+    canonicalProduct,
   );
   assert.deepEqual(
     (await recognizeMachine({ ...config, catalog: [{ id: 1, name: "Teste" }] }))
@@ -288,7 +308,7 @@ test("strict label mode rejects estimated fields, estimate mode preserves proven
   };
   assert.deepEqual(
     (await recognizeFood({ ...config, mode: "estimate" })).product?.details,
-    product.details,
+    { ...product.details, nutritionReference: reference },
   );
   await assert.rejects(recognizeFood({ ...config, mode: "label" }));
 });

@@ -3,7 +3,7 @@
 Abrir [index.html](index.html) diretamente no browser. Não precisa de servidor,
 instalação nem acesso à rede. Manter a pasta `screenshots/` junto do HTML.
 
-O quadro apresenta 31 findings, agrupados por prioridade, com filtros de área,
+O quadro apresenta 33 findings, agrupados por prioridade, com filtros de área,
 evidência, estado e top 5 quick wins. Abrir um cartão para consultar impacto,
 heurística, correção, critério de conclusão e evidência. O estado de trabalho
 é pessoal: fica no armazenamento deste browser, se disponível, e não cria
@@ -15,10 +15,16 @@ Público confirmado: utilizadores de ginásio iniciantes e intermédios que quer
 acompanhar progressão no treino e cumprimento de metas alimentares próprias.
 Os gráficos existentes, acessíveis através dos exercícios, são preservados.
 Durante a avaliação não foram implementadas correções na aplicação. A fase
-seguinte propõe 18 correções em dois lotes no PR #46; consultar [âmbito da implementação](IMPLEMENTATION.md).
+seguinte integrou 18 correções no PR #46; consultar [âmbito da implementação](IMPLEMENTATION.md).
+O novo lote alimentar implementa UX-27, 28 e 30, e acrescenta UX-32 (organização
+de Produtos) e UX-33 (referência nutricional explícita). Estes cinco ficam em
+revisão; os 18 integrados passam a concluídos por omissão. Estados pessoais
+guardados no browser têm precedência. «Concluído» não comprova um deploy.
 Os cartões UX-06 e UX-25 incluem capturas após a correção, separadas da evidência
 original. Foram obtidas em Chromium a 390 × 844 com dados fictícios na base E2E;
-não são mockups nem dados de produção.
+não são mockups nem dados de produção. O lote alimentar acrescenta capturas
+reais em Chromium móvel, tema escuro, com dados fictícios e referências manuais.
+As propostas de IA nos E2E são simuladas: não comprovam reconhecimento real.
 
 Contexto confirmado: treino 3–5 vezes por semana e alimentação diária, em
 telemóvel com interrupções e rede instável. Objetivo de retenção à 6.ª–8.ª semana.
