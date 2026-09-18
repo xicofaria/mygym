@@ -22,6 +22,10 @@ import { NutritionReferenceEditor } from "./nutrition-reference";
 
 type ProductCandidate = Omit<FoodProduct, "id" | "hasPhoto">;
 
+// Normalizing to 100 g/ml leaves float noise (0.104 becomes 0.10400000000000001),
+// so the fields show a decimal the person could have typed themselves.
+const showNutrient = (value: number) => String(Math.round(value * 1e4) / 1e4);
+
 export function FoodProductForm({
   initial,
   provider,
@@ -45,7 +49,7 @@ export function FoodProductForm({
     Object.fromEntries(
       nutrientKeys.map((k) => [
         k,
-        initial?.nutrients?.[k] == null ? "" : String(nutrientsAtReference(initial.nutrients, reference.quantity)[k]),
+        initial?.nutrients?.[k] == null ? "" : showNutrient(nutrientsAtReference(initial.nutrients, reference.quantity)[k]!),
       ]),
     ),
   );
@@ -194,7 +198,7 @@ export function FoodProductForm({
         Object.fromEntries(
           nutrientKeys.map((k) => [
             k,
-            data.nutrients[k] === null ? "" : String(nutrientsAtReference(data.nutrients, nextReference.quantity)[k]),
+            data.nutrients[k] === null ? "" : showNutrient(nutrientsAtReference(data.nutrients, nextReference.quantity)[k]!),
           ]),
         ),
       );
@@ -612,7 +616,7 @@ export function FoodProductForm({
         dirty.current = true;
         setConfirmed(false);
         setNutritionChanged(true);
-        if (convert) setValues(Object.fromEntries(nutrientKeys.map((key) => [key, values[key].trim() === "" ? "" : String(parseWeight(values[key]) * (next.quantity / reference.quantity))])));
+        if (convert) setValues(Object.fromEntries(nutrientKeys.map((key) => [key, values[key].trim() === "" ? "" : showNutrient(parseWeight(values[key]) * (next.quantity / reference.quantity))])));
         if (next.unit !== unit) setDetails({ ...details, packageQuantity: null, pieceQuantity: null, packageEstimated: false, pieceEstimated: false, nutritionReference: next });
         else setDetails({ ...details, nutritionReference: next });
         setUnit(next.unit);

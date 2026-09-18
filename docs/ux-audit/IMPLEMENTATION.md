@@ -63,7 +63,10 @@ merge do PR #46. [Plano autorizado](NEXT_PR_PLAN.md).
 | UX-30 | Dez consumos recentes; pré-visualização usa snapshot histórico, incluindo produtos arquivados; confirmação obrigatória, sem alterar catálogo/original. |
 
 As capturas `after-food-*` mostram a interface real com dados de teste, não
-mockups. Os cenários de IA são simulados e não comprovam precisão de fotografia.
+mockups. Os cenários de IA nos testes automáticos são simulados. A referência
+estruturada foi confirmada à parte contra `z-ai/glm-5.3-flash` em duas etiquetas
+geradas; ver [guia de IA](../AI_RECOGNITION.md). Duas amostras sintéticas não
+comprovam precisão em rótulos fotografados.
 O Kanban mantém a evidência histórica e assinala este lote como «Em revisão».
 
 Sem migração SQL: a referência é opcional no JSON `details`. Mantêm-se as

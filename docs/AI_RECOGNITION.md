@@ -119,6 +119,24 @@ proposta) em OpenRouter:
 A experiência usou fotos de internet, não máquinas do ginásio; continua por
 validar com equipamento real. Os testes automáticos continuam sem chaves.
 
+## Base nutricional estruturada (2026-09-18)
+
+Duas etiquetas geradas localmente, em modo «só rótulo», com `z-ai/glm-5.3-flash`
+e a chave do utilizador, autorizada e revogada a seguir:
+
+- Tabela com colunas por 100 g e por porção de 125 g: devolveu
+  `standard`/100 g/`label` e transcreveu só a coluna por 100 g (76 kcal,
+  6 g de proteína, 0,1 g de sal). Não misturou colunas; ~10 s.
+- Tabela só com a porção de 125 g: devolveu `serving`/125 g/`label` com os
+  números dessa coluna (95 kcal), que o servidor normalizou para 76 kcal/100 g;
+  ~13 s.
+
+As duas etiquetas descrevem o mesmo produto, e ambas chegaram a 76 kcal/100 g
+por caminhos diferentes. Em ambas, `packageQuantity` ficou 125 g, separado da
+base nutricional, e a fibra ausente ficou `null`, não zero. Duas amostras
+sintéticas não medem a precisão em rótulos fotografados; os testes automáticos
+continuam a usar respostas simuladas.
+
 ## Privacidade e limites
 
 - Originais JPEG/PNG/WebP até 20 MB; HEIC ainda não suportado.
