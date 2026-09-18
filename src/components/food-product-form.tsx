@@ -164,18 +164,17 @@ export function FoodProductForm({
 
   function save(e: React.FormEvent) {
     e.preventDefault();
+    setError("");
     if (
-      formRef.current?.querySelector('[aria-label="Confirmar alteração da base"]')
+      formRef.current?.querySelector('[data-reference-pending="true"]')
     ) {
-      setError("Aplica a alteração da base nutricional antes de guardar.");
       formRef.current
-        .querySelector<HTMLButtonElement>(
-          '[aria-label="Confirmar alteração da base"] button',
+        .querySelector<HTMLElement>(
+          '[data-reference-pending="true"] [aria-invalid="true"], [data-reference-pending="true"] button',
         )
         ?.focus();
       return;
     }
-    setError("");
     setFieldErrors({});
     const nutrients = nutrientsFromFields(values);
     const input = {
@@ -359,6 +358,8 @@ export function FoodProductForm({
           source={source}
           confirmed={confirmed}
           onApplyReference={(next, convert) => {
+            setError("");
+            setFieldErrors({});
             dirtyRef.current = true;
             setConfirmed(false);
             setNutritionChanged(true);

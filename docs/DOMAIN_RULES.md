@@ -94,6 +94,11 @@ estão em [AGENTS.md](../AGENTS.md).
   Optional `details.nutritionReference` preserves the editing basis/provenance;
   legacy products default to 100. Unchanged editing preserves canonical precision.
   Changing the reference explicitly keeps numbers or converts within one unit.
+- An empty nutrition table applies valid reference edits immediately. Once any
+  nutrient is filled (including zero), edits require an explicit convert/keep
+  decision or cancellation. Pending/invalid reference edits block saving, retain
+  the applied reference until resolved, and must not silently relabel nutrients.
+  Reference input must retain focus and partial decimal strings while typing.
 - Store immutable validated product snapshots on consumption entries. Editing a
   quantity with the same product retains its snapshot; product metadata edits
   must not rewrite history. Archive removes the product photo but keeps history.

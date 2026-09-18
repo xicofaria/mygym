@@ -48,25 +48,16 @@ export function NutritionTable({
         </p>
       ) : source.endsWith("-ai") ? (
         <p className="text-xs text-zinc-500">
-          Peso da embalagem não identificado. Podes indicá-lo no diário; a base
-          por 100 g/ml não é o peso da embalagem.
+          Peso da embalagem não identificado. Podes indicá-lo no diário;
+          a quantidade usada na tabela não identifica, por si só, a embalagem inteira.
         </p>
       ) : null}
       <NutritionReferenceEditor
-        key={JSON.stringify(reference)}
         reference={reference}
         hasValues={Object.values(values).some((v) => v.trim() !== "")}
+        kcal={values.kcal}
         onApply={onApplyReference}
       />
-      <p aria-live="polite" className="text-sm text-zinc-600 dark:text-zinc-300">
-        Valores por{" "}
-        {reference.kind === "serving"
-          ? "uma porção de "
-          : reference.kind === "package"
-            ? "uma embalagem de "
-            : ""}
-        {reference.quantity} {unit}. A quantidade comida é indicada no diário.
-      </p>
       {reference.origin === "assumed" && (
         <p
           role="status"
@@ -85,7 +76,7 @@ export function NutritionTable({
               name={key}
               aria-invalid={Boolean(fieldErrors[key])}
               aria-describedby={
-                fieldErrors[key] ? `food-error-${key}` : undefined
+                fieldErrors[key] ? `food-error-${key}` : "nutrition-reference-summary"
               }
               className="input"
               inputMode="decimal"

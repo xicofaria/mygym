@@ -42,6 +42,60 @@ async function upload(page: Page, via: "camera" | "library" = "library") {
     page.getByRole("button", { name: /Escolher( outra)? imagem/ }),
   ).toBeVisible();
 }
+test("empty nutrition applies references directly; filled values require an explicit decision", async ({ page }, testInfo) => {
+  await login(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "+ Criar produto / fotografia", exact: true }).click();
+  const selector = page.getByLabel("No rótulo, os valores são por…", { exact: true });
+  const unit = page.getByLabel("Unidade do rótulo", { exact: true });
+  await expect(selector.locator('option[value="standard"]')).toHaveText("100 g");
+  await unit.selectOption("ml");
+  await expect(selector.locator('option[value="standard"]')).toHaveText("100 ml");
+  await selector.selectOption("serving");
+  const quantity = page.getByLabel("Volume da porção", { exact: true });
+  await expect(quantity).toHaveValue("");
+  await page.getByRole("button", { name: "Guardar produto", exact: true }).click();
+  await expect(quantity).toBeFocused();
+  await quantity.pressSequentially("30,5");
+  await expect(quantity).toBeFocused();
+  await expect(quantity).toHaveValue("30,5");
+  await expect(page.getByText("Valores nutricionais por porção de 30,5 ml.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("group", { name: "Confirmar alteração da base", exact: true })).toHaveCount(0);
+  await quantity.fill("30");
+  await page.getByLabel("Energia (kcal) por 30", { exact: true }).fill("120");
+  await selector.selectOption("standard");
+  await expect(page.getByText("Alteração por confirmar. Os nutrientes ainda correspondem a porção de 30 ml.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Ao converter: 120 kcal por porção de 30 ml → 400 kcal por 100 ml.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Cancelar alteração", exact: true }).click();
+  await expect(selector).toBeFocused();
+  await expect(selector).toHaveValue("serving");
+  await expect(page.getByLabel("Energia (kcal) por 30", { exact: true })).toHaveValue("120");
+  await selector.selectOption("standard");
+  await page.getByRole("button", { name: "Converter os valores", exact: true }).click();
+  await expect(page.getByLabel("Energia (kcal) por 100", { exact: true })).toHaveValue("400");
+  await unit.selectOption("g");
+  await expect(page.getByRole("button", { name: "Converter os valores", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Manter os números do rótulo", exact: true }).click();
+  await expect(page.getByLabel("Energia (kcal) por 100", { exact: true })).toHaveValue("400");
+  await selector.selectOption("custom");
+  const custom = page.getByLabel("Quantidade no rótulo", { exact: true });
+  await custom.fill("0");
+  await page.getByRole("button", { name: "Guardar produto", exact: true }).click();
+  await expect(custom).toBeFocused();
+  await expect(custom).toHaveAttribute("aria-invalid", "true");
+  await custom.fill("50");
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.screenshot({ path: testInfo.outputPath("reference-decision.png"), fullPage: true });
+  await page.getByRole("button", { name: "Manter os números do rótulo", exact: true }).click();
+  await expect(page.getByLabel("Energia (kcal) por 50", { exact: true })).toHaveValue("400");
+  await expect(page.locator('[data-reference-pending="true"]')).toHaveCount(0);
+  await page.getByLabel("Energia (kcal) por 50", { exact: true }).fill("0");
+  await custom.fill("60");
+  await expect(page.getByRole("group", { name: "Confirmar alteração da base", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Cancelar alteração", exact: true }).click();
+  await expect(page.getByLabel("Energia (kcal) por 50", { exact: true })).toHaveValue("0");
+  // No product or consumption is written by this interaction-only scenario.
+});
 test("nutrition reference survives editing; catalogue context, repetition and completion are explicit", async ({ page, browser }, testInfo) => {
   await login(page);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -51,9 +105,9 @@ test("nutrition reference survives editing; catalogue context, repetition and co
   await page.screenshot({ path: testInfo.outputPath("products-after.png"), fullPage: true });
   await page.getByRole("button", { name: "+ Novo produto", exact: true }).click();
   await page.getByLabel("Nome do alimento", { exact: true }).fill("Iogurte referência E2E");
-  await page.getByLabel("Base nutricional", { exact: true }).selectOption("package");
-  await page.getByLabel("Quantidade de referência", { exact: true }).fill("125");
-  await page.getByRole("button", { name: "Aplicar base", exact: true }).click();
+  await page.getByLabel("No rótulo, os valores são por…", { exact: true }).selectOption("package");
+  await page.getByLabel("Conteúdo da embalagem", { exact: true }).fill("125");
+  await expect(page.getByRole("button", { name: "Aplicar base", exact: true })).toHaveCount(0);
   await page.getByLabel("Energia (kcal) por 125", { exact: true }).fill("95");
   await page.getByLabel("Proteína por 125", { exact: true }).fill("7,5");
   await page.screenshot({ path: testInfo.outputPath("nutrition-reference-after.png"), fullPage: true });
@@ -71,10 +125,10 @@ test("nutrition reference survives editing; catalogue context, repetition and co
   await expect(page.getByRole("button", { name: "Produtos", exact: true })).toHaveAttribute("aria-pressed", "true");
   await product.getByRole("button", { name: "Editar produto", exact: true }).click();
   await expect(page.getByLabel("Energia (kcal) por 125", { exact: true })).toHaveValue("95");
-  await page.getByLabel("Base nutricional", { exact: true }).selectOption("standard");
+  await page.getByLabel("No rótulo, os valores são por…", { exact: true }).selectOption("standard");
   await page.getByRole("button", { name: "Guardar produto", exact: true }).click();
-  await expect(page.getByRole("form", { name: "Produto alimentar", exact: true }).getByRole("alert")).toContainText("Aplica a alteração");
-  await page.getByRole("button", { name: "Converter os valores para a nova quantidade", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Converter os valores", exact: true })).toBeFocused();
+  await page.getByRole("button", { name: "Converter os valores", exact: true }).click();
   await expect(page.getByLabel("Energia (kcal) por 100", { exact: true })).toHaveValue("76");
   await page.getByRole("button", { name: "Guardar produto", exact: true }).click();
   await product.getByRole("button", { name: "Consumir", exact: true }).click();
@@ -154,7 +208,7 @@ test("AI assumed reference is visible and a serving proposal opens in its origin
   assumed = false;
   await page.getByRole("button", { name: "Ver ou analisar", exact: true }).click();
   await page.getByRole("button", { name: "Analisar alimento", exact: true }).click();
-  await expect(page.getByLabel("Base nutricional", { exact: true })).toHaveValue("serving");
+  await expect(page.getByLabel("No rótulo, os valores são por…", { exact: true })).toHaveValue("serving");
   await expect(page.getByLabel("Energia (kcal) por 125", { exact: true })).toHaveValue("95");
   await expect(page.getByRole("checkbox")).not.toBeChecked();
 });
@@ -213,7 +267,7 @@ test("280 g package suggestion is visible, persists and converts whole and half 
   await expect(page.getByLabel("Peso da embalagem identificado")).toContainText(
     "Embalagem: 280 g — estimativa, confirmar",
   );
-  await expect(page.getByLabel("Valores por", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("Unidade do rótulo", { exact: true })).toHaveValue(
     "g",
   );
   await expect(page.getByLabel("Energia (kcal) por 100")).toHaveValue("50.4");
@@ -804,7 +858,7 @@ test("external product lookup is explicitly reviewed and missing AI key is handl
   await expect(
     page.getByLabel("Nome do alimento", { exact: true }),
   ).toHaveValue("Produto OFF de teste");
-  await expect(page.getByLabel("Valores por", { exact: true })).toHaveValue(
+  await expect(page.getByLabel("Unidade do rótulo", { exact: true })).toHaveValue(
     "ml",
   );
   await page.getByRole("checkbox").check();
