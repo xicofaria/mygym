@@ -87,6 +87,31 @@ test("treino exige exercício e conserva rascunho durante envio e falha", async 
   await expect(page).toHaveURL(/\/workouts$/);
   expect(await page.evaluate(() => Object.keys(localStorage).filter(k => k.startsWith("gym-tracker:workout-draft:user-")))).toEqual([]);
   await expect(page.getByRole("link", { name: "Barbell Row — ver evolução" })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/dashboard");
+  const progressLink = page.getByRole("link", { name: "Barbell Row — ver evolução", exact: true });
+  await expect(progressLink).toBeVisible();
+  await expect(progressLink).toHaveCSS("text-decoration-line", "none");
+  await expect(progressLink.locator("svg")).toHaveAttribute("aria-hidden", "true");
+  const dimensions = await progressLink.evaluate(link => ({
+    height: link.getBoundingClientRect().height,
+    width: link.getBoundingClientRect().width,
+    rowWidth: link.closest("li")!.getBoundingClientRect().width,
+  }));
+  expect(dimensions.height).toBeGreaterThanOrEqual(44);
+  expect(Math.abs(dimensions.width - dimensions.rowWidth)).toBeLessThanOrEqual(1);
+  const series = page.getByText("8×40kg", { exact: true });
+  await expect(series).toBeVisible();
+  expect(await series.evaluate(element => element.closest("a"))).toBeNull();
+  await progressLink.focus();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Shift+Tab");
+  await expect(progressLink).toBeFocused();
+  await expect(progressLink).toHaveCSS("outline-style", "solid");
+  expect(await progressLink.evaluate(link => parseFloat(getComputedStyle(link).outlineWidth))).toBeGreaterThanOrEqual(2);
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/exercises\/\d+$/);
+  await expect(page.getByRole("heading", { name: "Barbell Row", exact: true })).toBeVisible();
 });
 
 test("catálogo separa a última sessão do máximo e novo bloco não escolhe exercício", async ({ page }) => {
