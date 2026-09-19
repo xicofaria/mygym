@@ -116,7 +116,9 @@ meta nem aceita um dono fornecido no URL. A verificação de email continua inta
 
 **Feedback e preservação.** O catálogo reutiliza `getLastPerformanceByExercise`
 para separar a última sessão do máximo histórico. Os nomes em `WorkoutCard`
-ligam aos gráficos existentes. Peso corporal no dashboard tem variação neutra.
+ligam aos gráficos existentes: a linha do nome é tocável (mínimo 44 px), sem
+sublinhado, com chevron decorativo e foco visível por teclado. As séries ficam
+fora da ligação; o cartão inteiro não é clicável. Peso corporal no dashboard tem variação neutra.
 `WorkoutForm` mantém o rascunho durante a submissão e bloqueia os controlos com
 um fieldset; só limpa após sucesso. O seletor vazio usa ID 0, que nunca é aceite
 como exercício persistido. `DeleteButton` aguarda a ação e trata falhas locais.
